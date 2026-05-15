@@ -1,0 +1,101 @@
+version: '3'
+services:
+  rabbit:
+    container_name: rabbit
+    image: rabbitmq:3.6.10-management
+    ports:
+      - "4369:4369"
+      - "25672:25672"
+      - "5671-5672:5671-5672"
+      - "15671-15672:15671-15672"
+    networks:
+      - internal
+  postgres:
+    container_name: postgres
+    image: postgres:9.6
+    command: ["-c", "shared_buffers=256MB", "-c", "max_connections=500"]
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  redis:
+    container_name: redis
+    image: redis:4.0
+    ports:
+      - "6379:6379"
+  job:
+    container_name: job
+    image: eu.gcr.io/census-gcr-fwmt-gateway/census-rm-fwmtjobsvc:release
+    external_links:
+      - rabbitmq
+    ports:
+      - "${JOB_PORT}:8020"
+    environment:
+      - RABBITMQ_HOSTNAME=rabbitmq
+      - TOTALMOBILE_BASEURL=http://mock:8000/
+      - REDIS_HOST=redis
+  jobv4:
+    container_name: jobv4
+    image: eu.gcr.io/census-gcr-fwmt-gateway/census-rm-fwmtjobsvcv4:4-release
+    ports:
+      - "${JOBV4_PORT}:8025"
+    networks:
+      - internal
+    environment:
+      RABBITMQ_HOSTNAME: rabbit
+      TOTALMOBILE_BASEURL: http://mock:8000/
+      REDIS_HOST: redis
+      SPRING_DATASOURCE_URL: 'jdbc:postgresql://postgres/postgres?currentSchema=fwmtg'
+      SPRING_DATASOURCE_PASSWORD: 'password'
+      SPRING_LIQUIBASE_URL: 'jdbc:postgresql://postgres/postgres?currentSchema=fwmtg'
+      SPRING_LIQUIBASE_PASSWORD: 'password'
+    depends_on:
+      - rabbit
+      - postgres
+  adapter:
+    container_name: adapter
+    image: eu.gcr.io/census-gcr-fwmt-gateway/census-rm-fwmtrmadapter:release
+    external_links:
+      - rabbitmq
+    ports:
+      - "${ADAPTER_PORT}:8010"
+    environment:
+      - RABBITMQ_HOSTNAME=rabbitmq
+      - REDIS_HOST=redis
+  mock:
+    container_name: mock
+    image: eu.gcr.io/census-gcr-fwmt-gateway/census-rm-fwmttmmock:snapshot
+    external_links:
+      - rabbitmq
+    ports:
+      - "${MOCK_PORT}:8000"
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+  outcome:
+    container_name: outcome
+    image: eu.gcr.io/census-gcr-fwmt-gateway/census-rm-fwmtoutcomesvc:2-release
+    external_links:
+      - rabbitmq
+    ports:
+      - "${OUTCOME_PORT}:8030"
+    environment:
+      RABBITMQ_HOSTNAME: rabbit
+      REDIS_HOST: redis
+      SPRING_DATASOURCE_URL: 'jdbc:postgresql://postgres/postgres?currentSchema=fwmtg'
+      SPRING_DATASOURCE_PASSWORD: 'password'
+      SPRING_LIQUIBASE_URL: 'jdbc:postgresql://postgres/postgres?currentSchema=fwmtg'
+      SPRING_LIQUIBASE_PASSWORD: 'password'
+  csvserv:
+    container_name: csvserv
+    image: eu.gcr.io/census-gcr-fwmt-gateway/census-rm-fwmtcsvservice:release
+    external_links:
+      - rabbitmq
+    ports:
+      - "${CSVSERV_PORT}:8060"
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - REDIS_HOST=redis
+networks:
+  default:
+    external:
+      name: censusrmdockerdev_default
