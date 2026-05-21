@@ -16,12 +16,12 @@ import org.springframework.web.client.HttpClientErrorException;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 
-import cucumber.api.java.After;
-import cucumber.api.java.Before;
-import cucumber.api.java.en.And;
-import cucumber.api.java.en.Given;
-import cucumber.api.java.en.Then;
-import cucumber.api.java.en.When;
+import io.cucumber.java.After;
+import io.cucumber.java.Before;
+import io.cucumber.java.en.And;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.common.data.tm.Case;
 import uk.gov.ons.census.fwmt.events.data.GatewayEventDTO;

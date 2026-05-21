@@ -14,12 +14,12 @@ import com.google.common.io.Resources;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import cucumber.api.java.After;
-import cucumber.api.java.Before;
-import cucumber.api.java.en.And;
-import cucumber.api.java.en.Given;
-import cucumber.api.java.en.Then;
-import cucumber.api.java.en.When;
+import io.cucumber.java.After;
+import io.cucumber.java.Before;
+import io.cucumber.java.en.And;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.events.data.GatewayEventDTO;
 import uk.gov.ons.census.fwmt.events.utils.GatewayEventMonitor;
