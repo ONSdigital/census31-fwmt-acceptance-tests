@@ -41,3 +41,4 @@ local.properties
 .recommenders
 .project
 .classpath
+/target/
