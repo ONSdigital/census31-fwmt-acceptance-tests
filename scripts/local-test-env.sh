@@ -127,7 +127,23 @@ service_env() {
       # Test key passphrase (see install-local-decryption-key.sh / gitguardian-pgp-private-key.md)
       echo "DECRYPTION_PASSWORD=${DECRYPTION_PASSWORD:-testJobService}"
       ;;
-    outcome-service|csv-service)
+    outcome-service)
+      echo "APP_TESTING=true"
+      echo "APP_RABBITMQ_RM_PORT=$RM_RABBIT_PORT"
+      echo "APP_RABBITMQ_GW_PORT=$GW_RABBIT_PORT"
+      echo "APP_RABBITMQ_GW_QUEUES_ERRORPER=GW.Permanent.ErrorQ"
+      outcome_messaging_provider="${FWMT_OUTCOME_MESSAGING_PROVIDER:-rabbit}"
+      if [[ "${FWMT_MESSAGING:-rabbit}" == "pubsub" ]]; then
+        outcome_messaging_provider=pubsub
+      fi
+      if [[ "$outcome_messaging_provider" == "pubsub" ]]; then
+        echo "APP_MESSAGING_PROVIDER=pubsub"
+        echo "PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+        echo "FWMT_PUBSUB_PROJECT=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+        echo "SPRING_CLOUD_GCP_PROJECT_ID=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+      fi
+      ;;
+    csv-service)
       echo "APP_TESTING=true"
       echo "APP_RABBITMQ_RM_PORT=$RM_RABBIT_PORT"
       echo "APP_RABBITMQ_GW_PORT=$GW_RABBIT_PORT"

@@ -239,16 +239,34 @@ app:
 
 Mac git branches named `FMT-10_Introduce_Google_Pub_Sub` were created off each repo’s current branch (ready for a later sync — see Stage 5).
 
-### Stage 2 — Migrate one “lane” end-to-end
+### Stage 2 — Migrate one “lane” end-to-end ✅ `Outcome.Preprocessing` (outcome-service)
 
-Pick a single, low-blast-radius flow and migrate producer+consumer together.
+The first migrated lane is **`Outcome.Preprocessing`** inside **`census31-fwmt-outcome-service`** (same service produces and consumes — HTTP → publish → async preprocess).
 
-Good early candidates are flows with:
+| Piece | Rabbit (`app.messaging.provider=rabbit`, default) | Pub/Sub (`app.messaging.provider=pubsub`) |
+| --- | --- | --- |
+| Publish | `RabbitOutcomePreprocessingPublisher` → GW exchange + routing key | `PubSubOutcomePreprocessingPublisher` → topic `Outcome.Preprocessing` |
+| Consume | `SimpleMessageListenerContainer` on queue `Outcome.Preprocessing` | `PubSubInboundChannelAdapter` on subscription `outcome-service-Outcome-Preprocessing` |
+| Payload | `Jackson2JsonMessageConverter` + `__TypeId__` | Same JSON + `__TypeId__` attribute via `OutcomePreprocessingJsonCodec` |
 
-- 1 producer + 1 consumer
-- minimal fanout/routing complexity
+**Harness (outcome-service on Pub/Sub for this lane):**
 
-In this codebase, `Outcome.Preprocessing` is a common candidate because it already behaves like a dedicated queue/exchange/routing-key lane.
+```bash
+cd census31-fwmt-acceptance-tests/scripts
+./start-infra.sh
+FWMT_MESSAGING=pubsub ./setup-messaging.sh   # or both
+FWMT_MESSAGING=pubsub ./start-services.sh --build-missing outcome-service
+# or explicit override:
+FWMT_OUTCOME_MESSAGING_PROVIDER=pubsub ./start-services.sh outcome-service
+```
+
+Requires `PUBSUB_EMULATOR_HOST=localhost:8085` (set automatically by `local-test-env.sh` when provider is `pubsub`).
+
+**Caveats:**
+
+- Other outcome-service Rabbit usage (gateway outcomes, DLQ republish, etc.) remains Rabbit-only.
+- Acceptance tests that **read** `Outcome.Preprocessing` via the Rabbit management API still expect Rabbit; outcome HTTP → internal Pub/Sub loop works without that queue.
+- Job-service, csv-service, etc. are unchanged (Stage 3).
 
 ### Stage 3 — Iterate lane-by-lane
 
