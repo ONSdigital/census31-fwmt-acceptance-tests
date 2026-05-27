@@ -16,6 +16,9 @@ PID_DIR="${FWMT_PID_DIR:-$SCRIPT_DIR/.pids}"
 MAVEN_BIN="${FWMT_MAVEN_BIN:-mvn}"
 RM_RABBIT_PORT="${FWMT_RM_RABBIT_PORT:-5674}"
 GW_RABBIT_PORT="${FWMT_GW_RABBIT_PORT:-$RM_RABBIT_PORT}"
+PUBSUB_EMULATOR_PORT="${FWMT_PUBSUB_EMULATOR_PORT:-8085}"
+# rabbit (default) | pubsub | both — see scripts/setup-messaging.sh
+FWMT_MESSAGING="${FWMT_MESSAGING:-rabbit}"
 
 resolve_java_home() {
   local candidates=()

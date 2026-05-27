@@ -1,0 +1,10 @@
+{
+  "actionInstruction":"CANCEL",
+  "surveyName":"CENSUS",
+  "addressType":"CE",
+  "addressLevel":"U",
+  "caseId":"bd6345af-d706-43d3-a13b-8c549e081a76",
+  "ceExpectedCapacity":2,
+  "ceActualResponses":0
+}
+

@@ -8,6 +8,8 @@ WITH_CSV=false
 BUILD_MISSING=false
 BOOT_RUN=false
 PREPARE=false
+SETUP_RABBIT=true
+SETUP_PUBSUB=true
 services=()
 
 usage() {
@@ -27,10 +29,14 @@ Known services:
   csv-service
 
 Options:
-  --with-csv       Include csv-service when no explicit service list is supplied.
-  --build-missing  Build a service jar only when no boot jar exists.
-  --prepare        Run local dependency artifact preparation first.
-  --boot-run       Use Maven spring-boot:run instead of java -jar.
+  --with-csv           Include csv-service when no explicit service list is supplied.
+  --build-missing      Build a service jar only when no boot jar exists.
+  --prepare            Run local dependency artifact preparation first.
+  --boot-run           Use Maven spring-boot:run instead of java -jar.
+  --messaging MODE     rabbit | pubsub | both (default: rabbit, or FWMT_MESSAGING)
+  --no-setup-rabbitmq  Skip RabbitMQ queue/bootstrap (when mode includes rabbit).
+  --no-setup-pubsub    Skip Pub/Sub topic/bootstrap (when mode includes pubsub).
+  --no-setup-messaging Skip all messaging bootstrap steps.
 
 Examples:
   ./start-services.sh
@@ -58,6 +64,23 @@ while [[ $# -gt 0 ]]; do
       BOOT_RUN=true
       shift
       ;;
+    --messaging)
+      FWMT_MESSAGING="$2"
+      shift 2
+      ;;
+    --no-setup-rabbitmq)
+      SETUP_RABBIT=false
+      shift
+      ;;
+    --no-setup-pubsub)
+      SETUP_PUBSUB=false
+      shift
+      ;;
+    --no-setup-messaging)
+      SETUP_RABBIT=false
+      SETUP_PUBSUB=false
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -83,12 +106,8 @@ if [[ "$PREPARE" == "true" ]]; then
   "$SCRIPT_DIR/prepare-local-artifacts.sh"
 fi
 
-if [[ -x "$SCRIPT_DIR/setup-rabbitmq.sh" ]]; then
-  "$SCRIPT_DIR/setup-rabbitmq.sh"
-else
-  echo "RabbitMQ bootstrap script is not executable: $SCRIPT_DIR/setup-rabbitmq.sh" >&2
-  exit 1
-fi
+export SETUP_RABBIT SETUP_PUBSUB FWMT_MESSAGING
+"$SCRIPT_DIR/setup-messaging.sh"
 
 needs_job_service=false
 for service in "${services[@]}"; do

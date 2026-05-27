@@ -13,6 +13,7 @@ containers=(
   "$PROJECT_NAME-redis-1"
   "$PROJECT_NAME-rabbit-rm-1"
   "$PROJECT_NAME-rabbit-gw-1"
+  "$PROJECT_NAME-pubsub-1"
 )
 
 infra_timeout="${FWMT_INFRA_TIMEOUT_SECONDS:-120}"

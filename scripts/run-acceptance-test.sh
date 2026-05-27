@@ -9,6 +9,7 @@ RUNNER="CreateTestRunner"
 PREPARE=false
 CLEAN=false
 SETUP_RABBIT=true
+SETUP_PUBSUB=true
 
 usage() {
   cat <<'EOF'
@@ -20,7 +21,10 @@ Run ./prepare-local-artifacts.sh when dependency repos change.
 Options:
   --prepare            Run local dependency artifact preparation first.
   --clean              Run clean before test.
-  --no-setup-rabbitmq  Do not run the RabbitMQ queue/bootstrap step.
+  --messaging MODE     rabbit | pubsub | both (default: rabbit, or FWMT_MESSAGING)
+  --no-setup-rabbitmq  Skip RabbitMQ queue/bootstrap (when mode includes rabbit).
+  --no-setup-pubsub    Skip Pub/Sub topic/bootstrap (when mode includes pubsub).
+  --no-setup-messaging Skip all messaging bootstrap steps.
 
 Examples:
   ./run-acceptance-test.sh CreateTestRunner
@@ -40,8 +44,21 @@ while [[ $# -gt 0 ]]; do
       CLEAN=true
       shift
       ;;
+    --messaging)
+      FWMT_MESSAGING="$2"
+      shift 2
+      ;;
     --no-setup-rabbitmq)
       SETUP_RABBIT=false
+      shift
+      ;;
+    --no-setup-pubsub)
+      SETUP_PUBSUB=false
+      shift
+      ;;
+    --no-setup-messaging)
+      SETUP_RABBIT=false
+      SETUP_PUBSUB=false
       shift
       ;;
     -h|--help)
@@ -61,14 +78,8 @@ if [[ "$PREPARE" == "true" ]]; then
   "$SCRIPT_DIR/prepare-local-artifacts.sh"
 fi
 
-if [[ "$SETUP_RABBIT" == "true" ]]; then
-  if [[ -x "$SCRIPT_DIR/setup-rabbitmq.sh" ]]; then
-    "$SCRIPT_DIR/setup-rabbitmq.sh"
-  else
-    echo "RabbitMQ bootstrap script is not executable: $SCRIPT_DIR/setup-rabbitmq.sh" >&2
-    exit 1
-  fi
-fi
+export SETUP_RABBIT SETUP_PUBSUB FWMT_MESSAGING
+"$SCRIPT_DIR/setup-messaging.sh"
 
 if [[ ! -f "$ACCEPTANCE_REPO/pom.xml" ]]; then
   echo "Missing acceptance-tests POM: $ACCEPTANCE_REPO/pom.xml" >&2

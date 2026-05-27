@@ -1,0 +1,10 @@
+{
+  "actionInstruction":"PAUSE",
+  "surveyName":"CENSUS",
+  "addressType":"HH",
+  "caseId":"bd6345af-d706-43d3-a13b-8c549e081a76",
+  "caseRef":"7541877481",
+  "pauseCode": "abc",
+  "pauseFrom": "2020-09-08T09:31:00.067+01",
+  "pauseReason": "cuza"
+}

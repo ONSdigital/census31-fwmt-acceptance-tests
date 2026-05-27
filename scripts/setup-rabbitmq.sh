@@ -25,6 +25,16 @@ rabbit_api() {
   fi
 }
 
+# DELETE when resource may not exist (recreate flows). Do not use curl -f (404 is expected).
+rabbit_api_delete_optional() {
+  local port="$1"
+  local path="$2"
+  curl -sS -u "$RABBIT_USER:$RABBIT_PASSWORD" \
+    -X DELETE \
+    "http://localhost:$port/api/$path" \
+    -o /dev/null 2>/dev/null || true
+}
+
 queue() {
   local port="$1"
   local name="$2"
@@ -34,7 +44,7 @@ queue() {
 auto_delete_queue() {
   local port="$1"
   local name="$2"
-  rabbit_api DELETE "$port" "queues/%2F/$name" || true
+  rabbit_api_delete_optional "$port" "queues/%2F/$name"
   rabbit_api PUT "$port" "queues/%2F/$name" '{"durable":false,"auto_delete":true,"arguments":{}}'
 }
 
@@ -49,7 +59,7 @@ recreate_exchange() {
   local port="$1"
   local name="$2"
   local type="${3:-direct}"
-  rabbit_api DELETE "$port" "exchanges/%2F/$name" || true
+  rabbit_api_delete_optional "$port" "exchanges/%2F/$name"
   exchange "$port" "$name" "$type"
 }
 

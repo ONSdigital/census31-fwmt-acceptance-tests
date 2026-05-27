@@ -1,0 +1,3 @@
+"ceDetails": {
+    "usualResidents": 5
+  }

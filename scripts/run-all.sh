@@ -24,6 +24,7 @@ Options:
   --force-prepare    Pass --force to prepare-local-artifacts.sh
   --no-build         Do not pass --build-missing to start-services.sh
   --boot-run         Start services with Maven spring-boot:run instead of jars
+  --messaging MODE   rabbit | pubsub | both (default: rabbit; also FWMT_MESSAGING)
   --infra-only       Stop after start-infra.sh
   --no-tests         Start stack only; skip run-acceptance-test.sh
   -h, --help
@@ -36,11 +37,18 @@ Examples:
 EOF
 }
 
+MESSAGING_ARGS=()
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --force-prepare) FORCE_PREPARE=true; shift ;;
     --no-build) BUILD_MISSING=false; shift ;;
     --boot-run) BOOT_RUN=true; shift ;;
+    --messaging)
+      FWMT_MESSAGING="$2"
+      MESSAGING_ARGS=(--messaging "$2")
+      shift 2
+      ;;
     --infra-only) INFRA_ONLY=true; shift ;;
     --no-tests) NO_TESTS=true; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -68,7 +76,7 @@ log "Step 3/4: gateway services"
 start_args=()
 [[ "$BUILD_MISSING" == true ]] && start_args+=(--build-missing)
 [[ "$BOOT_RUN" == true ]] && start_args+=(--boot-run)
-"$SCRIPT_DIR/start-services.sh" "${start_args[@]}"
+"$SCRIPT_DIR/start-services.sh" "${start_args[@]}" "${MESSAGING_ARGS[@]}"
 
 if [[ "$NO_TESTS" == true ]]; then
   log "Done (--no-tests). Stack is up; run ./run-acceptance-test.sh when ready."
@@ -76,6 +84,6 @@ if [[ "$NO_TESTS" == true ]]; then
 fi
 
 log "Step 4/4: acceptance tests ($RUNNER)"
-"$SCRIPT_DIR/run-acceptance-test.sh" "$RUNNER"
+"$SCRIPT_DIR/run-acceptance-test.sh" "${MESSAGING_ARGS[@]}" "$RUNNER"
 
 log "Complete."
