@@ -93,6 +93,16 @@ fi
 if [[ "$RUNNER" != "all" ]]; then
   mvn_args+=(-Dtest="*${RUNNER}")
 fi
+test_messaging_provider="${FWMT_MESSAGING:-rabbit}"
+if [[ "$test_messaging_provider" == "both" ]]; then
+  test_messaging_provider=rabbit
+fi
+
 run_maven_in_repo "$ACCEPTANCE_REPO" "${mvn_args[@]}" \
   -Dservice.rabbit.port="$RM_RABBIT_PORT" \
-  -Dspring.rabbitmq.port="$RM_RABBIT_PORT"
+  -Dspring.rabbitmq.port="$RM_RABBIT_PORT" \
+  -Dservice.tm.url="http://localhost:${TM_MOCK_PORT}" \
+  -Dservice.mocktm.url="http://localhost:${TM_MOCK_PORT}" \
+  -Dfwmt.messaging.provider="$test_messaging_provider" \
+  -Dfwmt.pubsub.emulatorHost="localhost:${PUBSUB_EMULATOR_PORT}" \
+  -Dfwmt.pubsub.project="${FWMT_PUBSUB_PROJECT:-fwmt-local}"

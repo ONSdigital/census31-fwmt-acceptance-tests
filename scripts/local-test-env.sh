@@ -17,6 +17,7 @@ MAVEN_BIN="${FWMT_MAVEN_BIN:-mvn}"
 RM_RABBIT_PORT="${FWMT_RM_RABBIT_PORT:-5674}"
 GW_RABBIT_PORT="${FWMT_GW_RABBIT_PORT:-$RM_RABBIT_PORT}"
 PUBSUB_EMULATOR_PORT="${FWMT_PUBSUB_EMULATOR_PORT:-8085}"
+TM_MOCK_PORT="${FWMT_TM_MOCK_PORT:-8000}"
 # rabbit (default) | pubsub | both — see scripts/setup-messaging.sh
 FWMT_MESSAGING="${FWMT_MESSAGING:-rabbit}"
 
@@ -108,7 +109,7 @@ service_repo() {
 
 service_health_url() {
   case "$1" in
-    tm-mock) echo "http://localhost:8000/swagger-ui.html" ;;
+    tm-mock) echo "http://localhost:${TM_MOCK_PORT}/swagger-ui.html" ;;
     job-service) echo "http://localhost:8025/swagger-ui.html" ;;
     outcome-service) echo "http://localhost:8030/swagger-ui.html" ;;
     csv-service) echo "http://localhost:8060/swagger-ui.html" ;;
@@ -119,13 +120,30 @@ service_env() {
   case "$1" in
     tm-mock)
       echo "RABBITMQ_PORT=$RM_RABBIT_PORT"
+      echo "SERVER_PORT=$TM_MOCK_PORT"
       ;;
     job-service)
       echo "APP_TESTING=true"
       echo "APP_RABBITMQ_RM_PORT=$RM_RABBIT_PORT"
       echo "APP_RABBITMQ_GW_PORT=$GW_RABBIT_PORT"
+      echo "TOTALMOBILE_BASEURL=http://localhost:${TM_MOCK_PORT}/"
+      echo "RMAPI_BASEURL=http://localhost:${TM_MOCK_PORT}/"
       # Test key passphrase (see install-local-decryption-key.sh / gitguardian-pgp-private-key.md)
       echo "DECRYPTION_PASSWORD=${DECRYPTION_PASSWORD:-testJobService}"
+      job_messaging_provider="${FWMT_JOB_MESSAGING_PROVIDER:-rabbit}"
+      if [[ "${FWMT_MESSAGING:-rabbit}" == "pubsub" ]]; then
+        job_messaging_provider=pubsub
+      fi
+      if [[ "$job_messaging_provider" == "pubsub" ]]; then
+        echo "APP_MESSAGING_PROVIDER=pubsub"
+        echo "PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+        echo "FWMT_PUBSUB_PROJECT=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+        echo "SPRING_CLOUD_GCP_PROJECT_ID=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+        echo "SPRING_CLOUD_GCP_CREDENTIALS_ENABLED=false"
+        echo "SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+        echo "SPRING_CLOUD_GCP_PUBSUB_ENABLED=true"
+        echo "JAVA_TOOL_OPTIONS=-Dapp.messaging.provider=pubsub"
+      fi
       ;;
     outcome-service)
       echo "APP_TESTING=true"
@@ -141,6 +159,10 @@ service_env() {
         echo "PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
         echo "FWMT_PUBSUB_PROJECT=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
         echo "SPRING_CLOUD_GCP_PROJECT_ID=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+        echo "SPRING_CLOUD_GCP_CREDENTIALS_ENABLED=false"
+        echo "SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+        echo "SPRING_CLOUD_GCP_PUBSUB_ENABLED=true"
+        echo "JAVA_TOOL_OPTIONS=-Dapp.messaging.provider=pubsub"
       fi
       ;;
     csv-service)
@@ -148,6 +170,20 @@ service_env() {
       echo "APP_RABBITMQ_RM_PORT=$RM_RABBIT_PORT"
       echo "APP_RABBITMQ_GW_PORT=$GW_RABBIT_PORT"
       echo "APP_RABBITMQ_GW_QUEUES_ERRORPER=GW.Permanent.ErrorQ"
+      csv_messaging_provider="${FWMT_CSV_MESSAGING_PROVIDER:-rabbit}"
+      if [[ "${FWMT_MESSAGING:-rabbit}" == "pubsub" ]]; then
+        csv_messaging_provider=pubsub
+      fi
+      if [[ "$csv_messaging_provider" == "pubsub" ]]; then
+        echo "APP_MESSAGING_PROVIDER=pubsub"
+        echo "PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+        echo "FWMT_PUBSUB_PROJECT=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+        echo "SPRING_CLOUD_GCP_PROJECT_ID=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+        echo "SPRING_CLOUD_GCP_CREDENTIALS_ENABLED=false"
+        echo "SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+        echo "SPRING_CLOUD_GCP_PUBSUB_ENABLED=true"
+        echo "JAVA_TOOL_OPTIONS=-Dapp.messaging.provider=pubsub"
+      fi
       ;;
   esac
 }

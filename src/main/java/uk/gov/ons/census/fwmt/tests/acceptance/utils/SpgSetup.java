@@ -14,8 +14,6 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 
 import uk.gov.ons.census.fwmt.common.error.GatewayException;
-import uk.gov.ons.census.fwmt.events.utils.GatewayEventMonitor;
-
 @Configuration
 public class SpgSetup {
   @Autowired
@@ -40,9 +38,4 @@ public class SpgSetup {
     return spgReasonCodeLookup;
   }
 
-
-  @Bean
-  public GatewayEventMonitor createGatewayEventMonitor(){
-    return new GatewayEventMonitor();
-  }
 }

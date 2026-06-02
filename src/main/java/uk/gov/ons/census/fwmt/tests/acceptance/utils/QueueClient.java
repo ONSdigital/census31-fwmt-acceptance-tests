@@ -2,7 +2,6 @@ package uk.gov.ons.census.fwmt.tests.acceptance.utils;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -15,6 +14,7 @@ import org.springframework.stereotype.Component;
 import com.google.common.base.Strings;
 
 import lombok.extern.slf4j.Slf4j;
+import uk.gov.ons.census.fwmt.tests.acceptance.messaging.MessagingTestClient;
 
 @Slf4j
 @Component
@@ -38,8 +38,6 @@ public final class QueueClient {
   @Value("${service.jobservice.password}")
   private String jobServicePassword;
 
-
-
   private static final String RM_FIELD_QUEUE = "RM.Field";
 
   private static final String RM_FIELD_QUEUE_DLQ = "RM.FieldDLQ";
@@ -53,11 +51,10 @@ public final class QueueClient {
   private static final String TEMP_FIELD_OTHERS_QUEUE = "Field.other";
 
   @Autowired
-  private QueueUtils queueUtils;
+  private MessagingTestClient messagingTestClient;
 
   public long getMessageCount(String queueName) {
-    Long messageCount = queueUtils.getMessageCount(queueName);
-    return messageCount;
+    return messagingTestClient.getMessageCount(queueName);
   }
 
   public String getMessage(String queueName) throws InterruptedException {
@@ -69,44 +66,39 @@ public final class QueueClient {
   }
 
   public String getMessage(String queueName, int msTimeout, int msInterval) throws InterruptedException {
-    String message = null;
-    int iterations = (msTimeout + msInterval - 1) / msInterval; // division
-                                                                // rounding up
-    for (int i = 0; i < iterations; i++) {
-      message = queueUtils.getMessageOffQueue(queueName);
-      if (message != null) {
-        break;
-      }
-      Thread.sleep(msInterval);
-    }
-    return message;
+    return messagingTestClient.getMessage(queueName, msTimeout, msInterval);
   }
 
-  public void sendToRMFieldQueue(String message, String type) throws URISyntaxException {
-    String exchangeName = "";
-    String routingKey = "RM.Field";
-    queueUtils.addMessage(exchangeName, routingKey, message, type);
+  public String getMessageWithEventType(String queueName, String eventType, int msTimeout, int msInterval)
+      throws InterruptedException {
+    return messagingTestClient.getMessageWithEventType(queueName, eventType, msTimeout, msInterval);
   }
 
-  public void clearQueues(String... qnames) throws URISyntaxException {
-    for (String q : qnames) {
-      clearQueue(q);
-    }
+  public void sendToRMFieldQueue(String message, String type) {
+    messagingTestClient.publishFieldWorkerInstruction(message, type);
+  }
+
+  public void clearQueues(String... qnames) {
+    messagingTestClient.purge(qnames);
   }
 
   public void createQueue() throws IOException, TimeoutException, InterruptedException {
-    queueUtils.createOutcomeQueues();
+    messagingTestClient.ensureOutcomeBindings();
   }
 
-  private void clearQueue(String queueName) throws URISyntaxException {
-    queueUtils.deleteMessage(queueName);
+  private void clearQueue(String queueName) {
+    messagingTestClient.purge(queueName);
   }
 
   public void reset() throws Exception {
-    disableListeners();
+    if (messagingTestClient.usesRabbitListenerControl()) {
+      disableListeners();
+    }
     clearQueues(FIELD_REFUSALS_QUEUE, TEMP_FIELD_OTHERS_QUEUE, RM_FIELD_QUEUE, RM_FIELD_QUEUE_DLQ, OUTCOME_PRE_PROCESSING,
         OUTCOME_PRE_PROCESSING_DLQ);
-    enableListenenrs();
+    if (messagingTestClient.usesRabbitListenerControl()) {
+      enableListenenrs();
+    }
   }
 
   private void disableListeners() {
@@ -144,10 +136,9 @@ public final class QueueClient {
       throw new RuntimeException("Failed : HTTP error code : " + httpURLConnection.getResponseCode());
     }
   }
-  
-  public NodeCheck doPreFlightCheck() {
-    return queueUtils.doPreFlightCheck();
 
+  public NodeCheck doPreFlightCheck() {
+    return messagingTestClient.doMessagingPreFlightCheck();
   }
 
 }

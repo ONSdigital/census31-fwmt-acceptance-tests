@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import uk.gov.ons.census.fwmt.events.utils.GatewayEventMonitor;
+import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.PreFlightCheck;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.TMMockUtils;
@@ -24,7 +24,7 @@ public class CommonUtils {
     private QueueClient queueClients;
 
     @Autowired
-    private GatewayEventMonitor gatewayEventMonitor;
+    private AcceptanceGatewayEventMonitor gatewayEventMonitor;
     
     @Autowired
     private PreFlightCheck preFlightCheck;
@@ -49,10 +49,9 @@ public class CommonUtils {
       tmMockUtils.resetMock();
       tmMockUtils.clearDownDatabase();
       queueClients.createQueue();
-      
+      queueClients.reset();
       gatewayEventMonitor.enableEventMonitor(rabbitLocation, rabbitUsername, rabbitPassword, rabbitPort);
       gatewayEventMonitor.reset();
-      queueClients.reset();
     }
 
     public void clearDown() throws Exception {

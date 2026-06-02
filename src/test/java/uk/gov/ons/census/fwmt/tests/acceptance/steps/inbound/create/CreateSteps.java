@@ -25,7 +25,7 @@ import io.cucumber.java.en.When;
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.common.data.tm.Case;
 import uk.gov.ons.census.fwmt.events.data.GatewayEventDTO;
-import uk.gov.ons.census.fwmt.events.utils.GatewayEventMonitor;
+import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.TMMockUtils;
@@ -37,7 +37,7 @@ public class CreateSteps {
   private TMMockUtils tmMockUtils;
 
   @Autowired
-  private GatewayEventMonitor gatewayEventMonitor;
+  private AcceptanceGatewayEventMonitor gatewayEventMonitor;
 
   private static final String RM_CREATE_REQUEST_RECEIVED = "RM_CREATE_REQUEST_RECEIVED";
 

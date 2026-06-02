@@ -22,7 +22,7 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.events.data.GatewayEventDTO;
-import uk.gov.ons.census.fwmt.events.utils.GatewayEventMonitor;
+import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
 
@@ -33,7 +33,7 @@ public class CancelSteps {
   private CommonUtils commonUtils;
 
   @Autowired
-  private GatewayEventMonitor gatewayEventMonitor;
+  private AcceptanceGatewayEventMonitor gatewayEventMonitor;
 
   private GatewayEventDTO event_COMET_CANCEL_PRE_SENDING;
 

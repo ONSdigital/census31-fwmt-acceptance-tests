@@ -178,7 +178,9 @@ Harness script flags (override `FWMT_MESSAGING` for one invocation):
 | `gcloud pubsub` errors on bootstrap | Wait for `pubsub` container to stay `running`; re-run `setup-messaging.sh` |
 | Port 8085 in use | `export FWMT_PUBSUB_EMULATOR_PORT=18085` then recreate infra |
 | `curl: (22) ... 404` during Rabbit bootstrap | Often harmless DELETE of a missing queue/exchange on first run; bootstrap should still complete. If the script exits non-zero, check RM management port `15674` is reachable |
-| Acceptance tests still fail with Pub/Sub only | Expected today — **services and Cucumber still use Rabbit**. Use `FWMT_MESSAGING=rabbit` until code migration (Stage 1+) |
+| Acceptance tests fail with Pub/Sub (Outcomes / parent case) | Run **one** sequential suite only (no overlapping `run-acceptance-test` jobs). Services must be rebuilt after listener-pause changes (`start-services.sh --replace --build-missing job-service outcome-service`). Use `FWMT_TM_MOCK_PORT=18000`. See [Acceptance tests: Rabbit ↔ Pub/Sub](#acceptance-tests-rabbit--pubsub-switch) |
+| PreFlight / tests hang on `localhost:8000` | Another process may own port 8000. Use `FWMT_TM_MOCK_PORT=18000` for tm-mock, job-service, and test runs |
+| `Found multiple occurrences of org.json.JSONObject` in test logs | Harmless classpath clash (`org.json:json` vs `jsonassert`’s `android-json`). Fixed by excluding `android-json` from `spring-boot-starter-test` in `pom.xml` |
 
 Further local-run context: [run-acceptance-tests-locally-census31.md](run-acceptance-tests-locally-census31.md) and the repo [README.md](../README.md).
 
@@ -194,7 +196,7 @@ Delivered in the acceptance-test harness:
 - Topics/subscriptions created via `scripts/setup-pubsub.sh` / `FWMT_MESSAGING=pubsub|both`
 - No FWMT service code changes yet — emulator is opt-in for bootstrap and future adapters
 
-### Stage 1 — Introduce an abstraction layer (per service) 🚧 in progress (local)
+### Stage 1 — Introduce an abstraction layer (per service) ✅ (local)
 
 Current services use RabbitMQ directly via:
 
@@ -214,7 +216,7 @@ Suggested pattern inside each service:
 Use Spring conditions to switch implementations:
 
 - `@ConditionalOnProperty(name = "app.messaging.provider", havingValue = "rabbit", matchIfMissing = true)` for Rabbit adapters
-- `@ConditionalOnProperty(name = "app.messaging.provider", havingValue = "pubsub")` for Pub/Sub adapters (Stage 1 stubs throw `UnsupportedOperationException` until Stage 2)
+- `@ConditionalOnProperty(name = "app.messaging.provider", havingValue = "pubsub")` for Pub/Sub adapters (implemented per lane in Stages 2–3)
 
 Keep routing/topic names in config (`app.messaging.destinations.*`), not hard-coded in business code.
 
@@ -223,11 +225,11 @@ Keep routing/topic names in config (`app.messaging.destinations.*`), not hard-co
 | Module | Port(s) | Rabbit adapter | Pub/Sub stub | Consumers |
 | --- | --- | --- | --- | --- |
 | `census31-fwmt-common` | `MessagingProperties`, `QueueMessagePublisher`, `ExchangeMessagePublisher` | — | — | — |
-| `census31-fwmt-job-service` | `RmFieldMessagePublisher` | `RabbitRmFieldMessagePublisher` | `PubSubRmFieldMessagePublisher` | `RmReceiver` / `GWReceiver` still `@RabbitListener` (handler = `GWMessageProcessor`) |
-| `census31-fwmt-csv-service` | `GatewayActionPublisher` | `RabbitGatewayActionPublisher` | `PubSubGatewayActionPublisher` | — |
-| `census31-fwmt-outcome-service` | `OutcomePreprocessingPublisher` | `RabbitOutcomePreprocessingPublisher` | `PubSubOutcomePreprocessingPublisher` | — |
+| `census31-fwmt-job-service` | `RmFieldMessagePublisher` | `RabbitRmFieldMessagePublisher` | `PubSubRmFieldMessagePublisher` | Rabbit: `RmReceiver` / `GWReceiver`; Pub/Sub: `JobServicePubSubConfig` (Stage 3) |
+| `census31-fwmt-csv-service` | `GatewayActionPublisher` | `RabbitGatewayActionPublisher` | `PubSubGatewayActionPublisher` | publish-only (Stage 3) |
+| `census31-fwmt-outcome-service` | `OutcomePreprocessingPublisher` | `RabbitOutcomePreprocessingPublisher` | `PubSubOutcomePreprocessingPublisher` | Rabbit: SMLC; Pub/Sub: inbound adapter (Stage 2) |
 | `census31-fwmt-fulfillment-event-service` | `RmFieldPausePublisher` | `RabbitRmFieldPausePublisher` | `PubSubRmFieldPausePublisher` | `FulfilmentEventReceiver` still `@RabbitListener` |
-| `census31-fwmt-events` | `GatewayEventProducer` (existing) | `RabbitMQGatewayEventProducer` | `PubSubGatewayEventProducer` | — |
+| `census31-fwmt-events` | `GatewayEventProducer` (existing) | `RabbitMQGatewayEventProducer` | `PubSubGatewayEventProducer` | publish-only (Stage 3) |
 
 Default property (all services above):
 
@@ -266,17 +268,237 @@ Requires `PUBSUB_EMULATOR_HOST=localhost:8085` (set automatically by `local-test
 
 - Other outcome-service Rabbit usage (gateway outcomes, DLQ republish, etc.) remains Rabbit-only.
 - Acceptance tests that **read** `Outcome.Preprocessing` via the Rabbit management API still expect Rabbit; outcome HTTP → internal Pub/Sub loop works without that queue.
-- Job-service, csv-service, etc. are unchanged (Stage 3).
 
-### Stage 3 — Iterate lane-by-lane
+### Stage 3 — Remaining service lanes ✅ (local fedora)
 
-For each lane:
+Migrated lanes (topic name = former Rabbit queue/exchange where noted):
 
-- map Rabbit queue/exchange names to a topic/subscription scheme (temporary mapping is fine)
-- run acceptance tests with `FWMT_MESSAGING=pubsub` for migrated lanes
-- keep Rabbit on for the rest
+| Lane | Service | Publish (pubsub) | Consume (pubsub) | Subscription |
+| --- | --- | --- | --- | --- |
+| `RM.Field` | job-service | `PubSubRmFieldMessagePublisher` | `JobServicePubSubConfig` (RM) | `job-service-RM-Field` |
+| `GW.Field` | job-service | — (tests / external inject) | `JobServicePubSubConfig` (GW) | `job-service-GW-Field` |
+| `RM.Field` pause | fulfilment-event-service | `PubSubRmFieldPausePublisher` | — | — |
+| `Gateway.Actions.Exchange` | csv-service | `PubSubGatewayActionPublisher` | — (no FWMT consumer) | — |
+| `Gateway.Events.Exchange` | events (lib) | `PubSubGatewayEventProducer` | — | — |
+| `Outcome.Preprocessing` | outcome-service | (Stage 2) | (Stage 2) | `outcome-service-Outcome-Preprocessing` |
+
+Shared codec: `FieldWorkerInstructionJsonCodec` in `census31-fwmt-common` (`__TypeId__` + `timestamp` attributes, aligned with job-service Rabbit JSON).
+
+**Harness (per-service overrides, or all via `FWMT_MESSAGING=pubsub`):**
+
+```bash
+cd census31-fwmt-acceptance-tests/scripts
+./start-infra.sh
+FWMT_MESSAGING=pubsub ./setup-messaging.sh
+FWMT_MESSAGING=pubsub ./start-services.sh --build-missing job-service
+# or per service:
+FWMT_JOB_MESSAGING_PROVIDER=pubsub ./start-services.sh job-service
+FWMT_CSV_MESSAGING_PROVIDER=pubsub ./start-services.sh csv-service
+```
+
+### Additional lanes converted (after Stage 3)
+
+These work when `app.messaging.provider=pubsub` (local fedora, May 2026):
+
+| Lane | Service | Notes |
+| --- | --- | --- |
+| **Fulfilment pause events** | `census31-fwmt-fulfillment-event-service` | `FulfilmentPausePubSubConfig` on topic `fulfilment-event-service-events`; filters `routingKey == event.fulfilment.request`. Rabbit `FulfilmentEventReceiver` gated with `@ConditionalOnProperty(rabbit)`. |
+| **Outcome gateway outcomes** | `census31-fwmt-outcome-service` | `GatewayOutcomeProducer` publishes to topic `events` with routing-key attributes; maps `event.respondent.refusal` → `Field.refusals`, other gateway keys → `Field.other`. |
+| **Outcome preprocessing DLQ** | `census31-fwmt-outcome-service` | `OutcomeProcessPreprocessingDlq` pulls `outcome-service-Outcome-PreprocessingDLQ`, republishes to `Outcome.Preprocessing`. |
+| **Job GW error / retry** | `census31-fwmt-job-service` | `MessageExceptionHandler` republishes to `GW.Transient.ErrorQ` / `GW.Permanent.ErrorQ` on Pub/Sub failure paths. |
+| **Outcome feedback → RM.Field** | `census31-fwmt-outcome-service` | `RmFieldRepublishProducer` publishes feedback follow-ups to topic `RM.Field` via `FieldWorkerInstructionJsonCodec`; `FeedbackQueueConfig` (Rabbit template) is rabbit-only. |
+| **Acceptance inject/assert** | `census31-fwmt-acceptance-tests` | `MessagingTestClient`, `DelegatingMessagingTestClient`, `PubSubEmulatorMessaging`; test subscriptions in `setup-pubsub.sh`. |
+| **Acceptance gateway events** | `census31-fwmt-acceptance-tests` | `AcceptanceGatewayEventMonitor` / `PubSubGatewayEventMonitor` on `acceptance-tests-Gateway-Events`. |
+| **Outcomes acceptance** | `census31-fwmt-acceptance-tests` | Six `Outcomes*` runners on Pub/Sub — `pullMessageWithEventType` on `Field.refusals` / `Field.other`; `QueueClient.reset()` pauses Pub/Sub listeners and drains `job-service-RM-Field` / `outcome-service-Outcome-Preprocessing` between scenarios. |
+
+### Still Rabbit-only (blocks full suite) {#still-rabbit-only-blocks-full-suite}
+
+No acceptance-test runners remain Rabbit-only for local parity (May 2026). Remaining migration work is service/CI lanes outside the Cucumber suite — see [Migration plan](#migration-plan-staged).
 
 Avoid long-lived “dual publish” unless you absolutely need it (it increases the risk of duplicates).
+
+---
+
+## Acceptance tests: Rabbit ↔ Pub/Sub switch
+
+This section documents the **test harness** switch. Service lanes are listed in [Additional lanes converted](#additional-lanes-converted-after-stage-3) and [Still Rabbit-only](#still-rabbit-only-blocks-full-suite) above.
+
+Goal: Cucumber can run against the Pub/Sub emulator the same way it runs against Rabbit today, switchable via one harness flag.
+
+### Current state (what works today)
+
+| Layer | Rabbit | Pub/Sub |
+| --- | --- | --- |
+| Infra bootstrap | `setup-rabbitmq.sh` | `setup-pubsub.sh` |
+| `FWMT_MESSAGING` | `rabbit` (default), `pubsub`, `both` | same |
+| Service JVM (`start-services.sh`) | default `app.messaging.provider=rabbit` | `APP_MESSAGING_PROVIDER=pubsub` + `PUBSUB_EMULATOR_HOST` when `FWMT_MESSAGING=pubsub` or per-service overrides (`FWMT_JOB_MESSAGING_PROVIDER`, `FWMT_OUTCOME_MESSAGING_PROVIDER`, `FWMT_CSV_MESSAGING_PROVIDER`) |
+| **Cucumber / Maven test JVM** | full suite (~217 scenarios, `BUILD SUCCESS` on local Rabbit run) | **Full suite ✅** — all 11 runners on Pub/Sub (May 2026) |
+
+**Verified Rabbit run (local):** all 11 Cucumber runners pass with `FWMT_MESSAGING=rabbit` (`Cancel`, `Create`, `Feedback`, six `Outcomes*`, `Resilience`, `Update`). Surefire reports `Tests run: 0` because scenarios run inside JUnit runner classes, not as separate JUnit test methods.
+
+**Verified Pub/Sub MVP + Feedback (local, May 2026):** `CreateTestRunner`, `CancelTestRunner`, `UpdateTestRunner`, `ResilienceTestRunner`, `FeedbackTestRunner` — `BUILD SUCCESS`, 0 failures. Typical command:
+
+```bash
+cd census31-fwmt-acceptance-tests/scripts
+FWMT_MESSAGING=pubsub FWMT_TM_MOCK_PORT=18000 ./setup-messaging.sh
+FWMT_MESSAGING=pubsub FWMT_TM_MOCK_PORT=18000 ./start-services.sh --no-setup-messaging job-service outcome-service
+for r in CreateTestRunner CancelTestRunner UpdateTestRunner ResilienceTestRunner FeedbackTestRunner; do
+  FWMT_MESSAGING=pubsub FWMT_TM_MOCK_PORT=18000 ./run-acceptance-test.sh "$r" || exit 1
+done
+```
+
+Log examples: `scripts/logs/run-mvp-pubsub-20260528-150727.log`, `scripts/logs/run-feedback-pubsub-6.log`.
+
+**Verified Pub/Sub full Outcomes (local, May 2026):** all six `Outcomes*` runners in one sequential pass — `ALL OUTCOMES RUNNERS PASSED`, exit 0 (~13 min). Log: `scripts/logs/run-outcomes-pubsub-20260528-165229.log`.
+
+```bash
+for r in OutcomesHardRefusalTestRunner OutcomesTestRunner OutcomesSwitchRunner \
+  OutcomesSwitchCeSIteRunner OutcomesNewAddressReportedRunner OutcomesAddressTypeChangeTestRunner; do
+  FWMT_MESSAGING=pubsub FWMT_TM_MOCK_PORT=18000 ./run-acceptance-test.sh "$r" || exit 1
+done
+```
+
+**Test harness:** `MessagingTestClient` / `AcceptanceGatewayEventMonitor` with `fwmt.messaging.provider` (`rabbit` default, `pubsub` when `FWMT_MESSAGING=pubsub`). `QueueClient.reset()` pauses job/outcome Pub/Sub inbound adapters (same as Rabbit `stopListener`) before draining subscriptions.
+
+### Rules for a sane switch
+
+1. **One messaging provider per run** — every service started for the scenario must use the same `app.messaging.provider` (all `rabbit` or all `pubsub`). Do not mix job on Pub/Sub and outcome on Rabbit in one test run.
+2. **Same logical names** — keep topic names aligned with former queue names (`RM.Field`, `Outcome.Preprocessing`, …) via `app.messaging.destinations.*` and `setup-pubsub.sh`.
+3. **No dual publish** in services during tests.
+4. **`FWMT_MESSAGING=both`** is for bootstrap/debug only (both topologies exist); services should still use a single provider.
+
+### Harness flow (implemented)
+
+```text
+FWMT_MESSAGING=rabbit|pubsub
+        │
+        ├─ setup-messaging.sh     → Rabbit and/or Pub/Sub topology
+        ├─ start-services.sh      → JAVA_TOOL_OPTIONS -Dapp.messaging.provider=pubsub (via local-test-env.sh)
+        └─ run-acceptance-test.sh
+               → -Dfwmt.messaging.provider=rabbit|pubsub
+               → -Dfwmt.pubsub.emulatorHost=localhost:8085
+               → -Dfwmt.pubsub.project=fwmt-local
+               → -Dservice.rabbit.port / -Dspring.rabbitmq.port (still set for mixed bootstrap)
+               → MessagingTestClient (Rabbit | Pub/Sub implementation)
+```
+
+Additional harness knobs already useful on Rabbit runs:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `FWMT_TM_MOCK_PORT` | `8000` | tm-mock / job-service / tests. **Use `18000` if port 8000 is taken** (common on fedora — connections to 8000 can hang with no HTTP response) |
+| `FWMT_JOB_MESSAGING_PROVIDER` | inherits `FWMT_MESSAGING` | Override job-service only |
+| `FWMT_OUTCOME_MESSAGING_PROVIDER` | inherits `FWMT_MESSAGING` | Override outcome-service only |
+| `FWMT_CSV_MESSAGING_PROVIDER` | inherits `FWMT_MESSAGING` | Override csv-service only |
+
+Test JVM properties (passed from `run-acceptance-test.sh` when `FWMT_MESSAGING=pubsub`):
+
+| Property | Example | Purpose |
+| --- | --- | --- |
+| `fwmt.messaging.provider` | `rabbit` \| `pubsub` | Select test client implementation |
+| `fwmt.pubsub.emulatorHost` | `localhost:8085` | Emulator endpoint |
+| `fwmt.pubsub.project` | `fwmt-local` | Emulator project id |
+
+### Cucumber messaging (historical vs current)
+
+**Before:** steps used **`QueueClient` → `QueueUtils`** (Rabbit only).
+
+**Now:** `QueueClient` delegates to **`MessagingTestClient`** (`QueueUtils` for Rabbit, `PubSubEmulatorMessaging` for Pub/Sub). Implemented mappings:
+
+| Test operation | Rabbit | Pub/Sub (implemented) |
+| --- | --- | --- |
+| Inject RM create/cancel/update | `basicPublish` to `RM.Field` | Publish to topic `RM.Field` (`__TypeId__` + `timestamp`) |
+| Reset between scenarios | `queuePurge` | Drain acceptance test subscriptions |
+| Assert / poll queues | `getMessage` / count | Pull from `acceptance-tests-*` subscriptions |
+| Preflight | Rabbit purge + HTTP health | Emulator check + HTTP timeouts on service URLs |
+| Gateway events | `GatewayEventMonitor` | `PubSubGatewayEventMonitor` |
+| Listener control | HTTP stop Rabbit listeners | Skipped when `fwmt.messaging.provider=pubsub` |
+
+**OutcomeSteps on Pub/Sub:** asserts on `Field.refusals` / `Field.other` via test subscriptions and `pullMessageWithEventType`; gateway events via `PubSubGatewayEventMonitor`.
+
+### Recommended implementation order
+
+#### 1. Test-side messaging abstraction — **done**
+
+- **`MessagingTestClient`** + **`DelegatingMessagingTestClient`** (`rabbit` → `QueueUtils`, `pubsub` → emulator HTTP pull/publish).
+- **`QueueClient`** delegates inject/purge/poll to the client; skips Rabbit listener HTTP when `pubsub`.
+- **`AcceptanceGatewayEventMonitor`** + **`PubSubGatewayEventMonitor`** (poll `acceptance-tests-Gateway-Events`).
+- `run-acceptance-test.sh` passes `fwmt.messaging.provider` and Pub/Sub host/project when `FWMT_MESSAGING=pubsub`.
+
+**Pub/Sub “purge” patterns:**
+
+- Delete and recreate subscription in `@Before` / `setup-pubsub.sh`, or
+- Pull-and-ack until empty before each scenario, or
+- Dedicated acceptance-only subscriptions (e.g. `acceptance-tests-RM-Field`).
+
+#### 2. Gateway events in tests — **done**
+
+See `AcceptanceGatewayEventMonitor` / `PubSubGatewayEventMonitor` under `src/main/java/.../messaging/`.
+
+#### 3. Test subscriptions in bootstrap — **done**
+
+`setup-pubsub.sh` creates acceptance-only subscriptions (in addition to service subscriptions):
+
+| Logical queue (Rabbit) | Topic | Suggested test subscription |
+| --- | --- | --- |
+| `RM.Field` | `RM.Field` | `acceptance-tests-RM-Field` |
+| `Outcome.Preprocessing` | `Outcome.Preprocessing` | `acceptance-tests-Outcome-Preprocessing` |
+| `Field.refusals` | `events` (filter / routing strategy TBD) | `acceptance-tests-Field-refusals` |
+| `Field.other` | `events` | `acceptance-tests-Field-other` |
+| Gateway events | `Gateway.Events.Exchange` | `acceptance-tests-Gateway-Events` |
+
+Service subscriptions remain as today (`job-service-RM-Field`, `outcome-service-Outcome-Preprocessing`, …). Tests should use **separate** subscriptions so draining does not steal messages from running services.
+
+#### 4. Remaining service lanes (blocks full 217-scenario suite)
+
+Outcomes runners validated on Pub/Sub — see [Verified Pub/Sub full Outcomes](#acceptance-tests-rabbit--pubsub-switch) in the harness section.
+
+#### 5. CI and docs
+
+- Required: `FWMT_MESSAGING=rabbit` on main path.
+- Optional matrix / nightly: `FWMT_MESSAGING=pubsub` starting with a **subset** of runners, then full suite.
+
+### Minimum viable vs full parity
+
+| Scope | Runners (examples) | Status |
+| --- | --- | --- |
+| **MVP Pub/Sub acceptance** | `CreateTestRunner`, `CancelTestRunner`, `UpdateTestRunner`, `ResilienceTestRunner` | ✅ Verified local (May 2026) |
+| **MVP + Feedback** | Above + `FeedbackTestRunner` (2 scenarios) | ✅ Verified local — outcome `RmFieldRepublishProducer` → `RM.Field` on Pub/Sub |
+| **Full parity** | All 11 runners (~217 scenarios) | ✅ Verified local (May 2026) — single `run-all.sh all`: `scripts/logs/run-all-pubsub-20260528-171537.log` (`BUILD SUCCESS`, ~8 min tests) |
+
+### Commands today vs target
+
+**Today (supported):**
+
+```bash
+cd census31-fwmt-acceptance-tests/scripts
+FWMT_MESSAGING=rabbit ./run-all.sh all
+# if port 8000 is busy:
+FWMT_MESSAGING=rabbit FWMT_TM_MOCK_PORT=18000 ./run-all.sh all
+```
+
+**Pub/Sub MVP (verified):**
+
+```bash
+FWMT_MESSAGING=pubsub FWMT_TM_MOCK_PORT=18000 ./run-acceptance-test.sh CreateTestRunner
+# … CancelTestRunner, UpdateTestRunner, ResilienceTestRunner
+```
+
+**Pub/Sub full suite (verified May 2026):**
+
+```bash
+FWMT_MESSAGING=pubsub FWMT_TM_MOCK_PORT=18000 ./run-all.sh all
+```
+
+**Manual service debugging on Pub/Sub:**
+
+```bash
+./start-infra.sh
+FWMT_MESSAGING=pubsub ./setup-messaging.sh
+FWMT_MESSAGING=pubsub FWMT_TM_MOCK_PORT=18000 ./start-services.sh --build-missing job-service outcome-service
+```
+
+---
 
 ### Stage 4 — Remove RabbitMQ
 
@@ -307,16 +529,17 @@ Repos with `FMT-10_Introduce_Google_Pub_Sub` branch created on Mac (off current 
 - `census31-fwmt-acceptance-tests` (was on `FMT-10_Introducing-Google-PubSub`)
 - `census31-fwmt-common`, `census31-fwmt-job-service`, `census31-fwmt-csv-service`, `census31-fwmt-events`, `census31-fwmt-outcome-service`, `census31-fwmt-fulfillment-event-service`, `census31-fwmt-canonical`, `census31-fwmt-tm-mock`, `census31-fwmt-storage-utils`, `census31-fwmt-gateway-version-tracker`, `census31-fwmt-perf-msg-builder`
 
-Harness-only files on fedora not yet on Mac (sync when committing FMT-10 harness work): `docs/pubsub-emulator-and-migration.md`, `scripts/setup-pubsub.sh`, `scripts/setup-messaging.sh`.
+Harness files to keep in sync when committing FMT-10 work: `docs/pubsub-emulator-and-migration.md`, `scripts/setup-pubsub.sh`, `scripts/setup-messaging.sh`, `pom.xml` (android-json exclusion).
 
 ---
 
 ## Notes specific to this harness
 
-- The harness currently uses **two brokers** (RM + GW) and bootstraps topology via the RabbitMQ **management API** in `scripts/setup-rabbitmq.sh`.
-- The acceptance-test runner (`scripts/run-acceptance-test.sh`) forces:
-  - `-Dservice.rabbit.port="$RM_RABBIT_PORT"`
-  - `-Dspring.rabbitmq.port="$RM_RABBIT_PORT"`
-  which means tests currently assume “one Rabbit port”.
-  When you start moving consumers to Pub/Sub, expect acceptance tests to need a new configuration path (e.g. `service.pubsub.emulatorHost`) to avoid coupling to Rabbit ports.
+- The harness currently uses **two Rabbit brokers** (RM + GW) and bootstraps topology via the RabbitMQ **management API** in `scripts/setup-rabbitmq.sh`.
+- The acceptance-test runner (`scripts/run-acceptance-test.sh`) passes:
+  - `-Dservice.rabbit.port` / `-Dspring.rabbitmq.port` (Rabbit bootstrap and default provider)
+  - `-Dfwmt.messaging.provider`, `-Dfwmt.pubsub.emulatorHost`, `-Dfwmt.pubsub.project` when `FWMT_MESSAGING=pubsub`
+  - `-Dservice.tm.url` / `-Dservice.mocktm.url` (aligned with `FWMT_TM_MOCK_PORT`)
+- Prefer `FWMT_TM_MOCK_PORT=18000` when host port 8000 is occupied; see [Troubleshooting](#troubleshooting).
+- `install-local-decryption-key.sh` accepts an existing `~/.fwmt/keys/decryption.private` without requiring a git clone of `census31-fwmt-job-service` (useful on fedora working copies).
 

@@ -25,7 +25,7 @@ import freemarker.template.Template;
 import freemarker.template.TemplateException;
 import freemarker.template.TemplateExceptionHandler;
 import lombok.extern.slf4j.Slf4j;
-import uk.gov.ons.census.fwmt.events.utils.GatewayEventMonitor;
+import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.spg.outcome.SPGOutcomeSteps;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
@@ -44,7 +44,7 @@ public class FeedbackSteps {
   private CommonUtils commonUtils;
 
   @Autowired
-  private GatewayEventMonitor gatewayEventMonitor;
+  private AcceptanceGatewayEventMonitor gatewayEventMonitor;
 
   private String caseId;
 

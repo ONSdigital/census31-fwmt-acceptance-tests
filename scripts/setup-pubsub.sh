@@ -102,12 +102,15 @@ for topic in "${TOPICS[@]}"; do
   create_topic_if_missing "$topic"
 done
 
+# Publishers only (no subscription): Gateway.Actions.Exchange (csv-service), Gateway.Events.Exchange (events lib)
 SUBS=(
   "job-service:RM.Field"
   "job-service:GW.Field"
+  "job-service:GW.Transient.ErrorQ"
+  "job-service:GW.Permanent.ErrorQ"
   "outcome-service:Outcome.Preprocessing"
+  "outcome-service:Outcome.PreprocessingDLQ"
   "outcome-service:events"
-  "csv-service:Gateway.Actions.Exchange"
   "fulfilment-event-service:events"
 )
 
@@ -115,6 +118,25 @@ for pair in "${SUBS[@]}"; do
   service="${pair%%:*}"
   topic="${pair#*:}"
   subscription="$(safe_sub_name "$service-$topic")"
+  create_subscription_if_missing "$subscription" "$topic"
+done
+
+# Acceptance-test-only subscriptions (drain in Cucumber without stealing service traffic)
+ACCEPTANCE_TEST_SUBS=(
+  "acceptance-tests-RM-Field:RM.Field"
+  "acceptance-tests-RM-FieldDLQ:RM.FieldDLQ"
+  "acceptance-tests-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
+  "acceptance-tests-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
+  "acceptance-tests-Outcome-Preprocessing:Outcome.Preprocessing"
+  "acceptance-tests-Outcome-PreprocessingDLQ:Outcome.PreprocessingDLQ"
+  "acceptance-tests-Field-refusals:Field.refusals"
+  "acceptance-tests-Field-other:Field.other"
+  "acceptance-tests-Gateway-Events:Gateway.Events.Exchange"
+)
+
+for pair in "${ACCEPTANCE_TEST_SUBS[@]}"; do
+  subscription="${pair%%:*}"
+  topic="${pair#*:}"
   create_subscription_if_missing "$subscription" "$topic"
 done
 

@@ -8,6 +8,7 @@ WITH_CSV=false
 BUILD_MISSING=false
 BOOT_RUN=false
 PREPARE=false
+REPLACE=false
 SETUP_RABBIT=true
 SETUP_PUBSUB=true
 services=()
@@ -33,6 +34,7 @@ Options:
   --build-missing      Build a service jar only when no boot jar exists.
   --prepare            Run local dependency artifact preparation first.
   --boot-run           Use Maven spring-boot:run instead of java -jar.
+  --replace            Stop any running service PIDs from a previous harness start before launching.
   --messaging MODE     rabbit | pubsub | both (default: rabbit, or FWMT_MESSAGING)
   --no-setup-rabbitmq  Skip RabbitMQ queue/bootstrap (when mode includes rabbit).
   --no-setup-pubsub    Skip Pub/Sub topic/bootstrap (when mode includes pubsub).
@@ -62,6 +64,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --boot-run)
       BOOT_RUN=true
+      shift
+      ;;
+    --replace)
+      REPLACE=true
       shift
       ;;
     --messaging)
@@ -192,9 +198,18 @@ start_service() {
   load_service_env_args "$name"
 
   if is_running "$pid_file"; then
-    echo "$name already appears to be running with PID $(cat "$pid_file")."
-    wait_for_http "$name" "$health_url" "$log_file"
-    return
+    if [[ "$REPLACE" == "true" ]]; then
+      local pid
+      pid="$(cat "$pid_file")"
+      echo "Stopping $name (PID $pid) for --replace"
+      kill -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+      rm -f "$pid_file"
+      sleep 2
+    else
+      echo "$name already appears to be running with PID $(cat "$pid_file")."
+      wait_for_http "$name" "$health_url" "$log_file"
+      return
+    fi
   fi
 
   if [[ "$BOOT_RUN" == "true" ]]; then
