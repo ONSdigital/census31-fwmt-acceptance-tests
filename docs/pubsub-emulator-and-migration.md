@@ -629,8 +629,8 @@ Detail (original plan):
 
 | Delete / gut | Refactor (shared logic — do not blind-delete) |
 | --- | --- |
-| `JSRabbitConfig`, `RmReceiver`, `GWReceiver` | `GWMessageProcessor`, `FieldWorkerInstructionMessageDispatcher` — move out of `rabbit/` package |
-| `messaging/rabbit/RabbitRmFieldMessagePublisher` | `MessageExceptionHandler` — today autowires `RabbitTemplate`; must be Pub/Sub-only (`PubSubTemplate` → `GW.Transient.ErrorQ` / `GW.Permanent.ErrorQ`) |
+| `JSRabbitConfig`, `RmReceiver`, `GWReceiver` | ~~`GWMessageProcessor`, `FieldWorkerInstructionMessageDispatcher` — move out of `rabbit/` package~~ **done:** both in `jobservice.messaging` |
+| `messaging/rabbit/RabbitRmFieldMessagePublisher` | ~~`MessageExceptionHandler` — today autowires `RabbitTemplate`; must be Pub/Sub-only~~ **done:** `MessageExceptionHandler` in `jobservice.messaging`, `PubSubTemplate` only |
 | `RabbitQueueController`, `RabbitQueuesHealthIndicator` | `RmListenerController` — keep Pub/Sub adapter stop/start; drop `RabbitListenerEndpointRegistry` |
 | `application.yml` `app.rabbitmq.*` | Unit tests: `RabbitTestUtils`, `RabbitQueueControllerTest` |
 
@@ -696,8 +696,8 @@ All services default `app.messaging.provider=pubsub` in `application.yml`.
 
 #### 4.6 Risks and gotchas
 
-1. **Shared code under `rabbit/` packages** — business processors are not Rabbit-only; plan package rename, not mass deletion.
-2. **`MessageExceptionHandler`** — fails Pub/Sub-only boot until `RabbitTemplate` autowire is removed.
+1. ~~**Shared code under `rabbit/` packages**~~ — **done (4.6 follow-up):** `GWMessageProcessor` and `MessageExceptionHandler` moved to `jobservice.messaging`.
+2. ~~**`MessageExceptionHandler`**~~ — resolved in Stage 4.2 (`PubSubTemplate` only).
 3. **RM vs GW brokers** — already mapped to separate Pub/Sub topics in `setup-pubsub.sh`; no new topology design needed.
 4. **Test listener pause** — `RmListenerController` / `DlqController` Pub/Sub paths must remain for scenario isolation.
 5. **Coordinated multi-repo PRs** — same Mac sync flow as FMT-10 Stage 5.
