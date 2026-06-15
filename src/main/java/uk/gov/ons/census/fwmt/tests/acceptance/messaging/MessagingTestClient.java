@@ -5,7 +5,7 @@ import java.util.concurrent.TimeoutException;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 
 /**
- * Test harness port for inject/purge/poll messaging lanes (Rabbit queues or Pub/Sub topics).
+ * Test harness port for inject/purge/poll messaging lanes via the Pub/Sub emulator.
  */
 public interface MessagingTestClient {
 
@@ -26,7 +26,4 @@ public interface MessagingTestClient {
   void ensureOutcomeBindings() throws IOException, TimeoutException, InterruptedException;
 
   NodeCheck doMessagingPreFlightCheck();
-
-  boolean usesRabbitListenerControl();
-
 }

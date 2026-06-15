@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.util.Strings;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -113,15 +112,6 @@ public class OutcomeSteps {
 
     @Autowired
     private TMMockUtils tmMockUtils;
-
-    @Value("${service.rabbit.url}")
-    private String rabbitLocation;
-
-    @Value("${service.rabbit.username}")
-    private String rabbitUsername;
-
-    @Value("${service.rabbit.password}")
-    private String rabbitPassword;
 
     private final ObjectMapper jsonObjectMapper = new ObjectMapper();
 

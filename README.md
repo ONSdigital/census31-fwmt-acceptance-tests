@@ -112,7 +112,6 @@ Full ports, env vars, troubleshooting, and the **RabbitMQ → Pub/Sub migration 
 | `start-services.sh` | Start tm-mock, job-service, outcome-service |
 | `stop-services.sh` / `restart-service.sh` | Stop or restart services |
 | `setup-messaging.sh` | Bootstrap Rabbit and/or Pub/Sub per `FWMT_MESSAGING` |
-| `setup-rabbitmq.sh` | Declare queues on RM/GW Rabbit management API |
 | `setup-pubsub.sh` | Create topics/subscriptions in Pub/Sub emulator |
 | `run-acceptance-test.sh` | `mvn test` in this repo |
 | `install-local-decryption-key.sh` | Restore test PGP key to `~/.fwmt/keys/` from job-service git history |
@@ -120,16 +119,7 @@ Full ports, env vars, troubleshooting, and the **RabbitMQ → Pub/Sub migration 
 
 Runtime artefacts (gitignored): `scripts/logs/`, `scripts/.pids/`, `scripts/.local-artifacts/`.
 
-## Legacy Docker compose (2021 GCR images)
-
-The repo root `docker-compose.yml` is the **old** all-in-one stack (pre-built GCR images). The harness above uses **`scripts/docker-compose-infra.yml`** plus locally built Census 31 services.
-
-```bash
-# Legacy path only — not used by scripts/run-all.sh
-docker compose up -d
-```
-
-For RM end-to-end integration: `docker-compose-rm-integration.yml` (see original census21 docs).
+Local infra uses **`scripts/docker-compose-infra.yml`** (Postgres, Redis, Pub/Sub emulator) plus locally built Census 31 services — see `scripts/run-all.sh`.
 
 ## Related
 

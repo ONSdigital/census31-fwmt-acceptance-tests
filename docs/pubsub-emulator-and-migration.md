@@ -537,7 +537,7 @@ FWMT_TM_MOCK_PORT=18000 ./start-services.sh --build-missing job-service outcome-
 
 ### Stage 4 — Remove RabbitMQ (`FMT-47_Remove-RabbitMQ`) {#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq}
 
-**Status:** in progress — branch `FMT-47_Remove-RabbitMQ` off `FMT-10_Introduce_Google_Pub_Sub` in each affected repo. **Stage 4.1 (acceptance-tests harness) done**; **Stage 4.2 (service Java) done** on fedora for common, events, job-service, outcome-service, csv-service, fulfillment-event-service; **4.3+ not started**.
+**Status:** in progress — branch `FMT-47_Remove-RabbitMQ` off `FMT-10_Introduce_Google_Pub_Sub` in each affected repo. **Stage 4.1 (acceptance-tests harness) done**; **Stage 4.2 (service Java) done**; **Stage 4.3 (acceptance-tests Java) done**; **4.4+ not started**.
 
 **Prerequisite:** FMT-10 merged or stable on all repos. Pub/Sub functional parity is already proven locally (full acceptance suite + job-service perf on Pub/Sub). FMT-47 is **deletion and simplification**, not new Pub/Sub features.
 
@@ -599,8 +599,8 @@ Repos with **no messaging** (`tm-mock`, `canonical`, `storage-utils`, etc.) need
 | Pub/Sub-only bootstrap | `scripts/setup-messaging.sh` (drop `rabbit` / `both`) | done |
 | Remove messaging toggle | `start-services.sh`, `run-all.sh`, `run-acceptance-test.sh`, `local-test-env.sh` | done |
 | Remove Rabbit JVM props | `run-acceptance-test.sh` (`-Dservice.rabbit.port`, etc.) | done |
-| Retire or rewrite legacy stacks | `docker-compose.yml`, `docker-compose-rm-integration.yml` | deprecated (banner) |
-| Simplify preflight | `PreFlightCheck` — emulator reachability only | harness always passes `fwmt.messaging.provider=pubsub` (4.3 collapses client) |
+| Retire or rewrite legacy stacks | `docker-compose.yml`, `docker-compose-rm-integration.yml` | **removed** (FMT-47 4.3) |
+| Simplify preflight | `PreFlightCheck` — emulator reachability only | done |
 
 **Keep:** `pubsub` service, `setup-pubsub.sh`, `PUBSUB_EMULATOR_HOST`, `FWMT_PUBSUB_*`.
 
@@ -650,16 +650,17 @@ Detail (original plan):
 
 **`census31-fwmt-common`:** simplify `MessagingProperties` — remove `PROVIDER_RABBIT` / provider toggle; codecs (`FieldWorkerInstructionJsonCodec`, etc.) stay.
 
-#### 4.3 Acceptance tests
+#### 4.3 Acceptance tests — **done**
 
 Collapse dual client to Pub/Sub only:
 
 | Remove | Keep / rename |
 | --- | --- |
 | `QueueUtils.java` | `PubSubEmulatorMessaging` as sole `MessagingTestClient` |
-| Rabbit branch in `DelegatingMessagingTestClient` | Direct Pub/Sub client injection |
+| `DelegatingMessagingTestClient` | Direct `PubSubEmulatorMessaging` `@Component` |
 | `spring-boot-starter-amqp` in `pom.xml` | Emulator HTTP client |
-| Rabbit listener HTTP in `QueueClient` | Pub/Sub drain + adapter pause (`job-service-RM-Field`, `outcome-service-Outcome-Preprocessing`) |
+| Rabbit properties / `fwmt.messaging.provider` toggle | Pub/Sub drain + adapter pause (`job-service-RM-Field`, `outcome-service-Outcome-Preprocessing`) |
+| Legacy `docker-compose.yml` stacks | `scripts/docker-compose-infra.yml` only |
 
 **Verification gate:**
 
@@ -747,7 +748,7 @@ For **FMT-47**, repeat the same sync pattern on branch `FMT-47_Remove-RabbitMQ` 
 
 - **FMT-47 (harness):** `scripts/docker-compose-infra.yml` runs Postgres, Redis, and the Pub/Sub emulator only; `./run-all.sh` bootstraps Pub/Sub and starts services with `app.messaging.provider=pubsub`. See [Stage 4](#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq).
 - The acceptance-test runner (`scripts/run-acceptance-test.sh`) passes:
-  - `-Dfwmt.messaging.provider=pubsub`, `-Dfwmt.pubsub.emulatorHost`, `-Dfwmt.pubsub.project`
+  - `-Dfwmt.pubsub.emulatorHost`, `-Dfwmt.pubsub.project`
   - `-Dservice.tm.url` / `-Dservice.mocktm.url` (aligned with `FWMT_TM_MOCK_PORT`)
 - Prefer `FWMT_TM_MOCK_PORT=18000` when host port 8000 is occupied; see [Troubleshooting](#troubleshooting).
 - `install-local-decryption-key.sh` accepts an existing `~/.fwmt/keys/decryption.private` without requiring a git clone of `census31-fwmt-job-service` (useful on fedora working copies).

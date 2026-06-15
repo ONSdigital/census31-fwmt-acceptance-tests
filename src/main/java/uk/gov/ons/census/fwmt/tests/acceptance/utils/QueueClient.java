@@ -91,17 +91,13 @@ public final class QueueClient {
   }
 
   public void reset() throws Exception {
-    if (messagingTestClient.usesRabbitListenerControl()) {
-      disableListeners();
-    }
+    pauseInboundAdapters();
     clearQueues(FIELD_REFUSALS_QUEUE, TEMP_FIELD_OTHERS_QUEUE, RM_FIELD_QUEUE, RM_FIELD_QUEUE_DLQ, OUTCOME_PRE_PROCESSING,
         OUTCOME_PRE_PROCESSING_DLQ);
-    if (messagingTestClient.usesRabbitListenerControl()) {
-      enableListenenrs();
-    }
+    resumeInboundAdapters();
   }
 
-  private void disableListeners() {
+  private void pauseInboundAdapters() {
     try {
       resetListeners(jobserviceServiceUrl + "/RM/stopListener", jobServiceUsername, jobServicePassword);
       resetListeners(outcomeServiceUrl + "/StopPreprocessorListener", outcomeServiceUsername, outcomeServicePassword);
@@ -110,7 +106,7 @@ public final class QueueClient {
     }
   }
 
-  private void enableListenenrs() {
+  private void resumeInboundAdapters() {
     try {
       resetListeners(jobserviceServiceUrl + "/RM/startListener", jobServiceUsername, jobServicePassword);
       resetListeners(outcomeServiceUrl + "/StartPreprocessorListener", outcomeServiceUsername, outcomeServicePassword);

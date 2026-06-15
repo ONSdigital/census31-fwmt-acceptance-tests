@@ -35,9 +35,8 @@ public class AcceptanceGatewayEventMonitor {
     }
   }
 
-  public void enableEventMonitor(String rabbitLocation, String rabbitUsername, String rabbitPassword, Integer port)
-      throws IOException, TimeoutException {
-    pubSubMonitor().enableEventMonitor(rabbitLocation, rabbitUsername, rabbitPassword, port);
+  public void enableEventMonitor() throws IOException, TimeoutException {
+    pubSubMonitor().enableEventMonitor();
   }
 
   public Boolean checkForEvent(String caseId, String eventType) {

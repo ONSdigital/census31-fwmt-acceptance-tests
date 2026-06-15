@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Maps Rabbit queue names used in acceptance tests to Pub/Sub topic + acceptance-only subscription.
+ * Maps legacy logical queue names used in acceptance tests to Pub/Sub topic + test subscription.
  */
 public enum PubSubTestLane {
 
@@ -23,20 +23,20 @@ public enum PubSubTestLane {
   FIELD_REFUSALS("Field.refusals", "Field.refusals", "acceptance-tests-Field-refusals", null),
   FIELD_OTHER("Field.other", "Field.other", "acceptance-tests-Field-other", null);
 
-  private final String rabbitQueueName;
+  private final String logicalQueueName;
   private final String topic;
   private final String testSubscription;
   private final String serviceSubscription;
 
-  PubSubTestLane(String rabbitQueueName, String topic, String testSubscription, String serviceSubscription) {
-    this.rabbitQueueName = rabbitQueueName;
+  PubSubTestLane(String logicalQueueName, String topic, String testSubscription, String serviceSubscription) {
+    this.logicalQueueName = logicalQueueName;
     this.topic = topic;
     this.testSubscription = testSubscription;
     this.serviceSubscription = serviceSubscription;
   }
 
-  public String rabbitQueueName() {
-    return rabbitQueueName;
+  public String logicalQueueName() {
+    return logicalQueueName;
   }
 
   public String topic() {
@@ -51,22 +51,22 @@ public enum PubSubTestLane {
     return Optional.ofNullable(serviceSubscription);
   }
 
-  public static Optional<PubSubTestLane> forRabbitQueue(String queueName) {
+  public static Optional<PubSubTestLane> forLogicalQueue(String queueName) {
     for (PubSubTestLane lane : values()) {
-      if (lane.rabbitQueueName.equals(queueName)) {
+      if (lane.logicalQueueName.equals(queueName)) {
         return Optional.of(lane);
       }
     }
     return Optional.empty();
   }
 
-  public static Map<String, PubSubTestLane> byRabbitQueueName() {
+  public static Map<String, PubSubTestLane> byLogicalQueueName() {
     return Map.of(
-        RM_FIELD.rabbitQueueName, RM_FIELD,
-        RM_FIELD_DLQ.rabbitQueueName, RM_FIELD_DLQ,
-        OUTCOME_PREPROCESSING.rabbitQueueName, OUTCOME_PREPROCESSING,
-        OUTCOME_PREPROCESSING_DLQ.rabbitQueueName, OUTCOME_PREPROCESSING_DLQ,
-        FIELD_REFUSALS.rabbitQueueName, FIELD_REFUSALS,
-        FIELD_OTHER.rabbitQueueName, FIELD_OTHER);
+        RM_FIELD.logicalQueueName, RM_FIELD,
+        RM_FIELD_DLQ.logicalQueueName, RM_FIELD_DLQ,
+        OUTCOME_PREPROCESSING.logicalQueueName, OUTCOME_PREPROCESSING,
+        OUTCOME_PREPROCESSING_DLQ.logicalQueueName, OUTCOME_PREPROCESSING_DLQ,
+        FIELD_REFUSALS.logicalQueueName, FIELD_REFUSALS,
+        FIELD_OTHER.logicalQueueName, FIELD_OTHER);
   }
 }
