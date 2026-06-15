@@ -537,7 +537,7 @@ FWMT_TM_MOCK_PORT=18000 ./start-services.sh --build-missing job-service outcome-
 
 ### Stage 4 — Remove RabbitMQ (`FMT-47_Remove-RabbitMQ`) {#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq}
 
-**Status:** in progress — branch `FMT-47_Remove-RabbitMQ` off `FMT-10_Introduce_Google_Pub_Sub` in each affected repo. **Stage 4.1 (acceptance-tests harness) complete** on that branch; service Java removal (4.2+) not started.
+**Status:** in progress — branch `FMT-47_Remove-RabbitMQ` off `FMT-10_Introduce_Google_Pub_Sub` in each affected repo. **Stage 4.1 (acceptance-tests harness) done**; **Stage 4.2 (service Java) done** on fedora for common, events, job-service, outcome-service, csv-service, fulfillment-event-service; **4.3+ not started**.
 
 **Prerequisite:** FMT-10 merged or stable on all repos. Pub/Sub functional parity is already proven locally (full acceptance suite + job-service perf on Pub/Sub). FMT-47 is **deletion and simplification**, not new Pub/Sub features.
 
@@ -604,9 +604,26 @@ Repos with **no messaging** (`tm-mock`, `canonical`, `storage-utils`, etc.) need
 
 **Keep:** `pubsub` service, `setup-pubsub.sh`, `PUBSUB_EMULATOR_HOST`, `FWMT_PUBSUB_*`.
 
-#### 4.2 Service Java (six services + events lib)
+#### 4.2 Service Java (six services + events lib) — **done** (fedora)
 
 Pattern per service: **delete Rabbit adapters and config**, **remove `@ConditionalOnProperty`**, make Pub/Sub beans unconditional, **drop `spring-boot-starter-amqp`**.
+
+| Repo | Status |
+| --- | --- |
+| `census31-fwmt-common` | done — `PROVIDER_RABBIT` removed, `spring-amqp` dropped |
+| `census31-fwmt-events` | done — Rabbit producer/config/monitor deleted |
+| `census31-fwmt-job-service` | done — largest; Pub/Sub-only processors and controllers |
+| `census31-fwmt-outcome-service` | done — preprocessing, DLQ, gateway outcomes Pub/Sub-only |
+| `census31-fwmt-csv-service` | done — publish-only Pub/Sub |
+| `census31-fwmt-fulfillment-event-service` | done — pause events Pub/Sub-only |
+
+**Verification gate (after Mac sync + local install):**
+
+```bash
+FWMT_TM_MOCK_PORT=18000 ./run-all.sh all
+```
+
+Detail (original plan):
 
 **`census31-fwmt-job-service`**
 
