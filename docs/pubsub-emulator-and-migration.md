@@ -195,7 +195,7 @@ Further local-run context: [run-acceptance-tests-locally-census31.md](run-accept
 | 1 | `FMT-10_Introduce_Google_Pub_Sub` | ✅ | Per-service messaging abstraction (dual-mode) |
 | 2 | FMT-10 | ✅ | `Outcome.Preprocessing` lane end-to-end |
 | 3 | FMT-10 | ✅ | Remaining service lanes + acceptance harness |
-| 4 | `FMT-47_Remove-RabbitMQ` | in progress (4.1 harness done) | Delete Rabbit infra, deps, toggles — [detail](#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq) |
+| 4 | `FMT-47_Remove-RabbitMQ` | **complete** | Delete Rabbit infra, deps, toggles — [detail](#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq) |
 | 5 | — | ongoing | Sync fedora ↔ Mac (`cen-mac-cp`) per feature branch |
 
 ### Stage 0 — Emulator landing zone (infra only) ✅ harness
@@ -537,7 +537,7 @@ FWMT_TM_MOCK_PORT=18000 ./start-services.sh --build-missing job-service outcome-
 
 ### Stage 4 — Remove RabbitMQ (`FMT-47_Remove-RabbitMQ`) {#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq}
 
-**Status:** in progress — branch `FMT-47_Remove-RabbitMQ` off `FMT-10_Introduce_Google_Pub_Sub` in each affected repo. **Stage 4.1–4.3 done**; **Stage 4.4 (performance-tests) done** on fedora; **4.5+ not started**.
+**Status:** **Stage 4 complete** on branch `FMT-47_Remove-RabbitMQ` (fedora + Mac). All sub-stages 4.1–4.5 done; local verification: full acceptance suite + job-service perf on Pub/Sub only.
 
 **Prerequisite:** FMT-10 merged or stable on all repos. Pub/Sub functional parity is already proven locally (full acceptance suite + job-service perf on Pub/Sub). FMT-47 is **deletion and simplification**, not new Pub/Sub features.
 
@@ -678,11 +678,21 @@ FMT-10 added dual `publisher.py` (`RabbitPublisher` + `PubSubPublisher`). FMT-47
 
 Locust (`fwmtg-locust/load_test.py`) is HTTP-only — docs updated only.
 
-#### 4.5 Dependencies
+#### 4.5 Dependencies — **done**
 
-Remove `spring-boot-starter-amqp` from: job-service, outcome-service, csv-service, events, fulfillment-event-service, acceptance-tests.
+Verified on fedora (FMT-47 branches):
 
-Ensure `spring-cloud-gcp-pubsub` (or existing emulator wiring) is present wherever AMQP is removed.
+| Repo | `spring-boot-starter-amqp` | Pub/Sub dependency |
+| --- | --- | --- |
+| `census31-fwmt-job-service` | removed | `spring-cloud-gcp-starter-pubsub` |
+| `census31-fwmt-outcome-service` | removed | `spring-cloud-gcp-starter-pubsub` |
+| `census31-fwmt-csv-service` | removed | `spring-cloud-gcp-starter-pubsub` |
+| `census31-fwmt-events` | removed | `spring-cloud-gcp-starter-pubsub` + `google-cloud-pubsub` |
+| `census31-fwmt-fulfillment-event-service` | removed | `spring-cloud-gcp-starter-pubsub` |
+| `census31-fwmt-common` | removed (`spring-amqp` dropped) | n/a (codecs only) |
+| `census31-fwmt-acceptance-tests` | removed | emulator HTTP client (no GCP SDK) |
+
+All services default `app.messaging.provider=pubsub` in `application.yml`.
 
 #### 4.6 Risks and gotchas
 
@@ -694,12 +704,12 @@ Ensure `spring-cloud-gcp-pubsub` (or existing emulator wiring) is present wherev
 
 #### Definition of done (FMT-47)
 
-- [ ] No `rabbit-rm` / `rabbit-gw` in `docker-compose-infra.yml`
-- [ ] No `setup-rabbitmq.sh`; no `FWMT_MESSAGING` or `app.messaging.provider=rabbit` in FWMT code/scripts
-- [ ] No `spring-boot-starter-amqp` in FWMT service POMs
-- [ ] `./run-all.sh all` green on Pub/Sub only (no messaging flag)
-- [ ] `census31-fwmt-performance-tests/Python/run-jobservice-perf.sh --local --count 10 --scenario create` green without Rabbit
-- [ ] This document updated: Stage 4 marked complete; Rabbit toggle sections archived or removed
+- [x] No `rabbit-rm` / `rabbit-gw` in `docker-compose-infra.yml`
+- [x] No `setup-rabbitmq.sh`; no `FWMT_MESSAGING` or `app.messaging.provider=rabbit` in FWMT code/scripts
+- [x] No `spring-boot-starter-amqp` in FWMT service POMs
+- [x] `./run-all.sh all` green on Pub/Sub only (no messaging flag)
+- [x] `census31-fwmt-performance-tests/Python/run-jobservice-perf.sh --local --count 10 --scenario create` green without Rabbit
+- [x] This document updated: Stage 4 marked complete
 
 #### Rough effort
 
