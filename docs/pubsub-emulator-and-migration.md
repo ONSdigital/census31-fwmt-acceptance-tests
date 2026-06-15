@@ -537,7 +537,7 @@ FWMT_TM_MOCK_PORT=18000 ./start-services.sh --build-missing job-service outcome-
 
 ### Stage 4 — Remove RabbitMQ (`FMT-47_Remove-RabbitMQ`) {#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq}
 
-**Status:** in progress — branch `FMT-47_Remove-RabbitMQ` off `FMT-10_Introduce_Google_Pub_Sub` in each affected repo. **Stage 4.1 (acceptance-tests harness) done**; **Stage 4.2 (service Java) done**; **Stage 4.3 (acceptance-tests Java) done**; **4.4+ not started**.
+**Status:** in progress — branch `FMT-47_Remove-RabbitMQ` off `FMT-10_Introduce_Google_Pub_Sub` in each affected repo. **Stage 4.1–4.3 done**; **Stage 4.4 (performance-tests) done** on fedora; **4.5+ not started**.
 
 **Prerequisite:** FMT-10 merged or stable on all repos. Pub/Sub functional parity is already proven locally (full acceptance suite + job-service perf on Pub/Sub). FMT-47 is **deletion and simplification**, not new Pub/Sub features.
 
@@ -668,15 +668,15 @@ Collapse dual client to Pub/Sub only:
 FWMT_TM_MOCK_PORT=18000 ./run-all.sh all   # no FWMT_MESSAGING
 ```
 
-#### 4.4 Performance tests (`census31-fwmt-performance-tests`)
+#### 4.4 Performance tests (`census31-fwmt-performance-tests`) — **done**
 
 FMT-10 added dual `publisher.py` (`RabbitPublisher` + `PubSubPublisher`). FMT-47:
 
-- Delete `RabbitPublisher`, `rabbit_connection_parameters()`, `FWMT_MESSAGING`, `--messaging rabbit`, rabbit preflight/purge in `run-jobservice-perf.sh`.
-- Remove `pika` from `Pipfile` / README “Path A” (legacy Docker Rabbit stack).
+- Deleted `RabbitPublisher`, `rabbit_connection_parameters()`, `FWMT_MESSAGING`, `--messaging rabbit`, rabbit preflight/purge in `run-jobservice-perf.sh`.
+- Removed `pika` from `Pipfile` / README legacy Docker Rabbit stack.
 - Default perf run publishes to topic `RM.Field` via emulator HTTP API.
 
-Locust (`fwmtg-locust/load_test.py`) is HTTP-only — no messaging change; update docs only.
+Locust (`fwmtg-locust/load_test.py`) is HTTP-only — docs updated only.
 
 #### 4.5 Dependencies
 
