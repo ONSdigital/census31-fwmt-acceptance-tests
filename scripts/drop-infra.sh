@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop acceptance-test Docker infrastructure (Postgres, Rabbit, Redis).
+# Stop acceptance-test Docker infrastructure (Postgres, Pub/Sub emulator, Redis).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,3 +1,5 @@
+# DEPRECATED (FMT-47): legacy RM integration stack with RabbitMQ.
+# Use scripts/docker-compose-infra.yml + scripts/run-all.sh for local Census 31 harness.
 version: '3'
 services:
   rabbit:

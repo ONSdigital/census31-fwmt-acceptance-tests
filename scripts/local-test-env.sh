@@ -14,12 +14,8 @@ CENSUS31_INTEGRATION_COMMON_ROOT="${CENSUS31_INTEGRATION_COMMON_ROOT:-$CENSUS31_
 LOG_DIR="${FWMT_LOG_DIR:-$SCRIPT_DIR/logs}"
 PID_DIR="${FWMT_PID_DIR:-$SCRIPT_DIR/.pids}"
 MAVEN_BIN="${FWMT_MAVEN_BIN:-mvn}"
-RM_RABBIT_PORT="${FWMT_RM_RABBIT_PORT:-5674}"
-GW_RABBIT_PORT="${FWMT_GW_RABBIT_PORT:-$RM_RABBIT_PORT}"
 PUBSUB_EMULATOR_PORT="${FWMT_PUBSUB_EMULATOR_PORT:-8085}"
 TM_MOCK_PORT="${FWMT_TM_MOCK_PORT:-8000}"
-# rabbit (default) | pubsub | both — see scripts/setup-messaging.sh
-FWMT_MESSAGING="${FWMT_MESSAGING:-rabbit}"
 
 resolve_java_home() {
   local candidates=()
@@ -119,71 +115,44 @@ service_health_url() {
 service_env() {
   case "$1" in
     tm-mock)
-      echo "RABBITMQ_PORT=$RM_RABBIT_PORT"
       echo "SERVER_PORT=$TM_MOCK_PORT"
       ;;
     job-service)
       echo "APP_TESTING=true"
-      echo "APP_RABBITMQ_RM_PORT=$RM_RABBIT_PORT"
-      echo "APP_RABBITMQ_GW_PORT=$GW_RABBIT_PORT"
       echo "TOTALMOBILE_BASEURL=http://localhost:${TM_MOCK_PORT}/"
       echo "RMAPI_BASEURL=http://localhost:${TM_MOCK_PORT}/"
       # Test key passphrase (see install-local-decryption-key.sh / gitguardian-pgp-private-key.md)
       echo "DECRYPTION_PASSWORD=${DECRYPTION_PASSWORD:-testJobService}"
-      job_messaging_provider="${FWMT_JOB_MESSAGING_PROVIDER:-rabbit}"
-      if [[ "${FWMT_MESSAGING:-rabbit}" == "pubsub" ]]; then
-        job_messaging_provider=pubsub
-      fi
-      if [[ "$job_messaging_provider" == "pubsub" ]]; then
-        echo "APP_MESSAGING_PROVIDER=pubsub"
-        echo "PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
-        echo "FWMT_PUBSUB_PROJECT=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
-        echo "SPRING_CLOUD_GCP_PROJECT_ID=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
-        echo "SPRING_CLOUD_GCP_CREDENTIALS_ENABLED=false"
-        echo "SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
-        echo "SPRING_CLOUD_GCP_PUBSUB_ENABLED=true"
-        echo "JAVA_TOOL_OPTIONS=-Dapp.messaging.provider=pubsub"
-      fi
+      echo "APP_MESSAGING_PROVIDER=pubsub"
+      echo "PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+      echo "FWMT_PUBSUB_PROJECT=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+      echo "SPRING_CLOUD_GCP_PROJECT_ID=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+      echo "SPRING_CLOUD_GCP_CREDENTIALS_ENABLED=false"
+      echo "SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+      echo "SPRING_CLOUD_GCP_PUBSUB_ENABLED=true"
+      echo "JAVA_TOOL_OPTIONS=-Dapp.messaging.provider=pubsub"
       ;;
     outcome-service)
       echo "APP_TESTING=true"
-      echo "APP_RABBITMQ_RM_PORT=$RM_RABBIT_PORT"
-      echo "APP_RABBITMQ_GW_PORT=$GW_RABBIT_PORT"
-      echo "APP_RABBITMQ_GW_QUEUES_ERRORPER=GW.Permanent.ErrorQ"
-      outcome_messaging_provider="${FWMT_OUTCOME_MESSAGING_PROVIDER:-rabbit}"
-      if [[ "${FWMT_MESSAGING:-rabbit}" == "pubsub" ]]; then
-        outcome_messaging_provider=pubsub
-      fi
-      if [[ "$outcome_messaging_provider" == "pubsub" ]]; then
-        echo "APP_MESSAGING_PROVIDER=pubsub"
-        echo "PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
-        echo "FWMT_PUBSUB_PROJECT=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
-        echo "SPRING_CLOUD_GCP_PROJECT_ID=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
-        echo "SPRING_CLOUD_GCP_CREDENTIALS_ENABLED=false"
-        echo "SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
-        echo "SPRING_CLOUD_GCP_PUBSUB_ENABLED=true"
-        echo "JAVA_TOOL_OPTIONS=-Dapp.messaging.provider=pubsub"
-      fi
+      echo "APP_MESSAGING_PROVIDER=pubsub"
+      echo "PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+      echo "FWMT_PUBSUB_PROJECT=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+      echo "SPRING_CLOUD_GCP_PROJECT_ID=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+      echo "SPRING_CLOUD_GCP_CREDENTIALS_ENABLED=false"
+      echo "SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+      echo "SPRING_CLOUD_GCP_PUBSUB_ENABLED=true"
+      echo "JAVA_TOOL_OPTIONS=-Dapp.messaging.provider=pubsub"
       ;;
     csv-service)
       echo "APP_TESTING=true"
-      echo "APP_RABBITMQ_RM_PORT=$RM_RABBIT_PORT"
-      echo "APP_RABBITMQ_GW_PORT=$GW_RABBIT_PORT"
-      echo "APP_RABBITMQ_GW_QUEUES_ERRORPER=GW.Permanent.ErrorQ"
-      csv_messaging_provider="${FWMT_CSV_MESSAGING_PROVIDER:-rabbit}"
-      if [[ "${FWMT_MESSAGING:-rabbit}" == "pubsub" ]]; then
-        csv_messaging_provider=pubsub
-      fi
-      if [[ "$csv_messaging_provider" == "pubsub" ]]; then
-        echo "APP_MESSAGING_PROVIDER=pubsub"
-        echo "PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
-        echo "FWMT_PUBSUB_PROJECT=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
-        echo "SPRING_CLOUD_GCP_PROJECT_ID=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
-        echo "SPRING_CLOUD_GCP_CREDENTIALS_ENABLED=false"
-        echo "SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
-        echo "SPRING_CLOUD_GCP_PUBSUB_ENABLED=true"
-        echo "JAVA_TOOL_OPTIONS=-Dapp.messaging.provider=pubsub"
-      fi
+      echo "APP_MESSAGING_PROVIDER=pubsub"
+      echo "PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+      echo "FWMT_PUBSUB_PROJECT=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+      echo "SPRING_CLOUD_GCP_PROJECT_ID=${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+      echo "SPRING_CLOUD_GCP_CREDENTIALS_ENABLED=false"
+      echo "SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
+      echo "SPRING_CLOUD_GCP_PUBSUB_ENABLED=true"
+      echo "JAVA_TOOL_OPTIONS=-Dapp.messaging.provider=pubsub"
       ;;
   esac
 }

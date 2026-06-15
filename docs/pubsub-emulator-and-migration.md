@@ -11,6 +11,7 @@ The goal of this document is to outline:
 
 1. How to introduce a **local Google Pub/Sub emulator** into the existing infra harness as a **non-invasive “landing zone”** (no service refactors required yet).
 2. A staged migration plan from **RabbitMQ → Pub/Sub**, including an **abstraction layer** approach that fits the current code layout.
+3. **Stage 4 (`FMT-47_Remove-RabbitMQ`)** — removing RabbitMQ entirely from the FWMT workspace once Pub/Sub parity is proven (see [Stage 4 — Remove RabbitMQ](#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq)).
 
 ---
 
@@ -188,6 +189,15 @@ Further local-run context: [run-acceptance-tests-locally-census31.md](run-accept
 
 ## Migration plan (staged)
 
+| Stage | Jira / branch | Status | Summary |
+| --- | --- | --- | --- |
+| 0 | — | ✅ | Pub/Sub emulator landing zone in harness |
+| 1 | `FMT-10_Introduce_Google_Pub_Sub` | ✅ | Per-service messaging abstraction (dual-mode) |
+| 2 | FMT-10 | ✅ | `Outcome.Preprocessing` lane end-to-end |
+| 3 | FMT-10 | ✅ | Remaining service lanes + acceptance harness |
+| 4 | `FMT-47_Remove-RabbitMQ` | in progress (4.1 harness done) | Delete Rabbit infra, deps, toggles — [detail](#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq) |
+| 5 | — | ongoing | Sync fedora ↔ Mac (`cen-mac-cp`) per feature branch |
+
 ### Stage 0 — Emulator landing zone (infra only) ✅ harness
 
 Delivered in the acceptance-test harness:
@@ -264,10 +274,9 @@ FWMT_OUTCOME_MESSAGING_PROVIDER=pubsub ./start-services.sh outcome-service
 
 Requires `PUBSUB_EMULATOR_HOST=localhost:8085` (set automatically by `local-test-env.sh` when provider is `pubsub`).
 
-**Caveats:**
+**Caveats (historical — superseded on Pub/Sub by Stage 3+):**
 
-- Other outcome-service Rabbit usage (gateway outcomes, DLQ republish, etc.) remains Rabbit-only.
-- Acceptance tests that **read** `Outcome.Preprocessing` via the Rabbit management API still expect Rabbit; outcome HTTP → internal Pub/Sub loop works without that queue.
+- Gateway outcomes, DLQ republish, feedback → `RM.Field`, and acceptance inject/assert all work on Pub/Sub when `app.messaging.provider=pubsub` — see [Additional lanes converted](#additional-lanes-converted-after-stage-3).
 
 ### Stage 3 — Remaining service lanes ✅ (local fedora)
 
@@ -311,9 +320,17 @@ These work when `app.messaging.provider=pubsub` (local fedora, May 2026):
 | **Acceptance gateway events** | `census31-fwmt-acceptance-tests` | `AcceptanceGatewayEventMonitor` / `PubSubGatewayEventMonitor` on `acceptance-tests-Gateway-Events`. |
 | **Outcomes acceptance** | `census31-fwmt-acceptance-tests` | Six `Outcomes*` runners on Pub/Sub — `pullMessageWithEventType` on `Field.refusals` / `Field.other`; `QueueClient.reset()` pauses Pub/Sub listeners and drains `job-service-RM-Field` / `outcome-service-Outcome-Preprocessing` between scenarios. |
 
-### Still Rabbit-only (blocks full suite) {#still-rabbit-only-blocks-full-suite}
+### Still Rabbit-only (dual-mode scaffolding) {#still-rabbit-only-blocks-full-suite}
 
-No acceptance-test runners remain Rabbit-only for local parity (May 2026). Remaining migration work is service/CI lanes outside the Cucumber suite — see [Migration plan](#migration-plan-staged).
+**Functional parity:** all 11 Cucumber runners pass on Pub/Sub (May 2026). No acceptance scenario is blocked by missing Pub/Sub lanes.
+
+**What remains on Rabbit today** is **dual-mode scaffolding**, not missing features:
+
+- `@ConditionalOnProperty` Rabbit adapters and `@RabbitListener` consumers still ship alongside Pub/Sub beans.
+- `FWMT_MESSAGING=rabbit` is still the harness default; Rabbit brokers still start in `docker-compose-infra.yml`.
+- `spring-boot-starter-amqp` remains on service and acceptance-test POMs.
+
+Stage 4 (`FMT-47_Remove-RabbitMQ`) deletes this scaffolding — see [below](#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq).
 
 Avoid long-lived “dual publish” unless you absolutely need it (it increases the risk of duplicates).
 
@@ -455,8 +472,8 @@ Outcomes runners validated on Pub/Sub — see [Verified Pub/Sub full Outcomes](#
 
 #### 5. CI and docs
 
-- Required: `FWMT_MESSAGING=rabbit` on main path.
-- Optional matrix / nightly: `FWMT_MESSAGING=pubsub` starting with a **subset** of runners, then full suite.
+- **Today (FMT-10):** main CI path may still use `FWMT_MESSAGING=rabbit`; Pub/Sub full suite verified locally.
+- **After FMT-47:** CI and local defaults become Pub/Sub-only; Rabbit bootstrap and toggles are removed.
 
 ### Minimum viable vs full parity
 
@@ -498,15 +515,189 @@ FWMT_MESSAGING=pubsub ./setup-messaging.sh
 FWMT_MESSAGING=pubsub FWMT_TM_MOCK_PORT=18000 ./start-services.sh --build-missing job-service outcome-service
 ```
 
+**Manual service debugging on Pub/Sub:**
+
+```bash
+./start-infra.sh
+FWMT_MESSAGING=pubsub ./setup-messaging.sh
+FWMT_MESSAGING=pubsub FWMT_TM_MOCK_PORT=18000 ./start-services.sh --build-missing job-service outcome-service
+```
+
+**Target after FMT-47 (no `FWMT_MESSAGING` flag):**
+
+```bash
+cd census31-fwmt-acceptance-tests/scripts
+./start-infra.sh
+./setup-messaging.sh
+FWMT_TM_MOCK_PORT=18000 ./start-services.sh --build-missing job-service outcome-service
+./run-all.sh all
+```
+
 ---
 
-### Stage 4 — Remove RabbitMQ
+### Stage 4 — Remove RabbitMQ (`FMT-47_Remove-RabbitMQ`) {#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq}
 
-When all lanes are migrated:
+**Status:** in progress — branch `FMT-47_Remove-RabbitMQ` off `FMT-10_Introduce_Google_Pub_Sub` in each affected repo. **Stage 4.1 (acceptance-tests harness) complete** on that branch; service Java removal (4.2+) not started.
 
-- remove `rabbit-rm` and `rabbit-gw` from `scripts/docker-compose-infra.yml`
-- delete `setup-rabbitmq.sh` and any rabbit-only harness flags
-- remove Rabbit dependencies/config from services
+**Prerequisite:** FMT-10 merged or stable on all repos. Pub/Sub functional parity is already proven locally (full acceptance suite + job-service perf on Pub/Sub). FMT-47 is **deletion and simplification**, not new Pub/Sub features.
+
+#### Goal
+
+- No RabbitMQ containers, bootstrap scripts, or AMQP dependencies in FWMT workspace projects.
+- Services, acceptance tests, and performance tests use **Pub/Sub only** (local emulator in dev; real GCP Pub/Sub in deployed environments is a separate cutover).
+- Remove `FWMT_MESSAGING`, `app.messaging.provider=rabbit`, and all `@ConditionalOnProperty` dual-mode branching.
+
+#### Branch strategy
+
+On each affected repo:
+
+```bash
+git checkout FMT-10_Introduce_Google_Pub_Sub
+git pull
+git checkout -b FMT-47_Remove-RabbitMQ
+```
+
+Open coordinated PRs per repo; align artifact versions via `census31-fwmt-parent` as for FMT-10.
+
+#### Repos in scope
+
+| Repo | Rabbit removal scope |
+| --- | --- |
+| `census31-fwmt-acceptance-tests` | Infra compose, harness scripts, test client collapse |
+| `census31-fwmt-common` | Simplify `MessagingProperties` (drop `rabbit` provider) |
+| `census31-fwmt-job-service` | Largest — listeners, config, controllers, error handler |
+| `census31-fwmt-outcome-service` | Queue configs, DLQ, feedback, Rabbit controllers |
+| `census31-fwmt-csv-service` | `RabbitMQConfig`, health indicator, Rabbit publisher |
+| `census31-fwmt-events` | `GatewayRabbitConfig`, `RabbitMQGatewayEventProducer` |
+| `census31-fwmt-fulfillment-event-service` | `RabbitMqConfig`, `FulfilmentEventReceiver` |
+| `census31-fwmt-performance-tests` | Drop `RabbitPublisher`, `pika`, rabbit preflight |
+| `census31-fwmt-parent` | Remove AMQP from BOM / dependency management if centralized |
+
+Repos with **no messaging** (`tm-mock`, `canonical`, `storage-utils`, etc.) need no FMT-47 branch unless parent POM changes force a version bump.
+
+**Out of scope (unless explicitly added):** `census31-int-common-test-framework` (shared ONS `spring-rabbit` helpers); GCP/K8s deployment manifests outside these repos; production GCP Pub/Sub cutover (FMT-47 targets **local/dev workspace** Rabbit removal).
+
+#### Implementation order
+
+```text
+1. Infra harness     → drop Rabbit compose + setup-rabbitmq.sh
+2. job-service       → then outcome-service (acceptance suite depends on both)
+3. csv + events + fulfilment-event-service
+4. Acceptance tests  → Pub/Sub-only MessagingTestClient
+5. Performance tests → Pub/Sub-only publisher + run-jobservice-perf.sh
+6. Docs + CI         → defaults, troubleshooting, pipeline snippets
+7. Verify            → run-all.sh + perf smoke (no FWMT_MESSAGING)
+```
+
+#### 4.1 Local infra harness (`census31-fwmt-acceptance-tests`) — **done**
+
+| Action | Target | Status |
+| --- | --- | --- |
+| Remove `rabbit-rm`, `rabbit-gw` | `scripts/docker-compose-infra.yml` | done |
+| Remove Rabbit from wait list | `scripts/start-infra.sh` | done |
+| Delete Rabbit bootstrap | `scripts/setup-rabbitmq.sh` | done (deleted) |
+| Pub/Sub-only bootstrap | `scripts/setup-messaging.sh` (drop `rabbit` / `both`) | done |
+| Remove messaging toggle | `start-services.sh`, `run-all.sh`, `run-acceptance-test.sh`, `local-test-env.sh` | done |
+| Remove Rabbit JVM props | `run-acceptance-test.sh` (`-Dservice.rabbit.port`, etc.) | done |
+| Retire or rewrite legacy stacks | `docker-compose.yml`, `docker-compose-rm-integration.yml` | deprecated (banner) |
+| Simplify preflight | `PreFlightCheck` — emulator reachability only | harness always passes `fwmt.messaging.provider=pubsub` (4.3 collapses client) |
+
+**Keep:** `pubsub` service, `setup-pubsub.sh`, `PUBSUB_EMULATOR_HOST`, `FWMT_PUBSUB_*`.
+
+#### 4.2 Service Java (six services + events lib)
+
+Pattern per service: **delete Rabbit adapters and config**, **remove `@ConditionalOnProperty`**, make Pub/Sub beans unconditional, **drop `spring-boot-starter-amqp`**.
+
+**`census31-fwmt-job-service`**
+
+| Delete / gut | Refactor (shared logic — do not blind-delete) |
+| --- | --- |
+| `JSRabbitConfig`, `RmReceiver`, `GWReceiver` | `GWMessageProcessor`, `FieldWorkerInstructionMessageDispatcher` — move out of `rabbit/` package |
+| `messaging/rabbit/RabbitRmFieldMessagePublisher` | `MessageExceptionHandler` — today autowires `RabbitTemplate`; must be Pub/Sub-only (`PubSubTemplate` → `GW.Transient.ErrorQ` / `GW.Permanent.ErrorQ`) |
+| `RabbitQueueController`, `RabbitQueuesHealthIndicator` | `RmListenerController` — keep Pub/Sub adapter stop/start; drop `RabbitListenerEndpointRegistry` |
+| `application.yml` `app.rabbitmq.*` | Unit tests: `RabbitTestUtils`, `RabbitQueueControllerTest` |
+
+**`census31-fwmt-outcome-service`**
+
+| Delete | Keep / promote |
+| --- | --- |
+| `RabbitMqConfig`, Rabbit SMLC in `OutcomePreprocessingQueueConfig` | `OutcomePreprocessingPubSubConfig`, emulator config |
+| `RabbitOutcomePreprocessingPublisher`, `FeedbackQueueConfig` | `DlqController` Pub/Sub path |
+| `RabbitQueueController`, `QueueMigrator`, `RabbitQueuesHealthIndicator` | Pub/Sub branches in `GatewayOutcomeProducer`, `RmFieldRepublishProducer`, `OutcomeProcessPreprocessingDlq` (already exist — remove Rabbit branches) |
+
+**`census31-fwmt-csv-service`:** delete `RabbitMQConfig`, `QueueConfig`, `RabbitGatewayActionPublisher`, `RabbitQueuesHealthIndicator`.
+
+**`census31-fwmt-events`:** delete `GatewayRabbitConfig`, `RabbitMQGatewayEventProducer`, Rabbit `GatewayEventMonitor` if unused after harness cleanup.
+
+**`census31-fwmt-fulfillment-event-service`:** delete `RabbitMqConfig`, `PausePublishQueueConfig`, `FulfilmentEventReceiver`, `RabbitRmFieldPausePublisher`; promote `FulfilmentPausePubSubConfig`.
+
+**`census31-fwmt-common`:** simplify `MessagingProperties` — remove `PROVIDER_RABBIT` / provider toggle; codecs (`FieldWorkerInstructionJsonCodec`, etc.) stay.
+
+#### 4.3 Acceptance tests
+
+Collapse dual client to Pub/Sub only:
+
+| Remove | Keep / rename |
+| --- | --- |
+| `QueueUtils.java` | `PubSubEmulatorMessaging` as sole `MessagingTestClient` |
+| Rabbit branch in `DelegatingMessagingTestClient` | Direct Pub/Sub client injection |
+| `spring-boot-starter-amqp` in `pom.xml` | Emulator HTTP client |
+| Rabbit listener HTTP in `QueueClient` | Pub/Sub drain + adapter pause (`job-service-RM-Field`, `outcome-service-Outcome-Preprocessing`) |
+
+**Verification gate:**
+
+```bash
+FWMT_TM_MOCK_PORT=18000 ./run-all.sh all   # no FWMT_MESSAGING
+```
+
+#### 4.4 Performance tests (`census31-fwmt-performance-tests`)
+
+FMT-10 added dual `publisher.py` (`RabbitPublisher` + `PubSubPublisher`). FMT-47:
+
+- Delete `RabbitPublisher`, `rabbit_connection_parameters()`, `FWMT_MESSAGING`, `--messaging rabbit`, rabbit preflight/purge in `run-jobservice-perf.sh`.
+- Remove `pika` from `Pipfile` / README “Path A” (legacy Docker Rabbit stack).
+- Default perf run publishes to topic `RM.Field` via emulator HTTP API.
+
+Locust (`fwmtg-locust/load_test.py`) is HTTP-only — no messaging change; update docs only.
+
+#### 4.5 Dependencies
+
+Remove `spring-boot-starter-amqp` from: job-service, outcome-service, csv-service, events, fulfillment-event-service, acceptance-tests.
+
+Ensure `spring-cloud-gcp-pubsub` (or existing emulator wiring) is present wherever AMQP is removed.
+
+#### 4.6 Risks and gotchas
+
+1. **Shared code under `rabbit/` packages** — business processors are not Rabbit-only; plan package rename, not mass deletion.
+2. **`MessageExceptionHandler`** — fails Pub/Sub-only boot until `RabbitTemplate` autowire is removed.
+3. **RM vs GW brokers** — already mapped to separate Pub/Sub topics in `setup-pubsub.sh`; no new topology design needed.
+4. **Test listener pause** — `RmListenerController` / `DlqController` Pub/Sub paths must remain for scenario isolation.
+5. **Coordinated multi-repo PRs** — same Mac sync flow as FMT-10 Stage 5.
+
+#### Definition of done (FMT-47)
+
+- [ ] No `rabbit-rm` / `rabbit-gw` in `docker-compose-infra.yml`
+- [ ] No `setup-rabbitmq.sh`; no `FWMT_MESSAGING` or `app.messaging.provider=rabbit` in FWMT code/scripts
+- [ ] No `spring-boot-starter-amqp` in FWMT service POMs
+- [ ] `./run-all.sh all` green on Pub/Sub only (no messaging flag)
+- [ ] `census31-fwmt-performance-tests/Python/run-jobservice-perf.sh --local --count 10 --scenario create` green without Rabbit
+- [ ] This document updated: Stage 4 marked complete; Rabbit toggle sections archived or removed
+
+#### Rough effort
+
+| Area | Estimate |
+| --- | --- |
+| Infra + harness scripts | 1–2 days |
+| job-service + outcome-service | 3–5 days |
+| csv + events + fulfilment | 1–2 days |
+| Acceptance test collapse | 2–3 days |
+| Perf tests + docs | 0.5–1 day |
+| CI / multi-repo PRs | 1–2 days |
+| **Total** | ~2–3 weeks (one developer, multi-repo) |
+
+Much less than FMT-10 because behaviour already exists on Pub/Sub.
+
+---
 
 ### Stage 5 — Sync local work to Mac (`~/dev/sourcecode/census31`)
 
@@ -531,14 +722,15 @@ Repos with `FMT-10_Introduce_Google_Pub_Sub` branch created on Mac (off current 
 
 Harness files to keep in sync when committing FMT-10 work: `docs/pubsub-emulator-and-migration.md`, `scripts/setup-pubsub.sh`, `scripts/setup-messaging.sh`, `pom.xml` (android-json exclusion).
 
+For **FMT-47**, repeat the same sync pattern on branch `FMT-47_Remove-RabbitMQ` (branched off `FMT-10_Introduce_Google_Pub_Sub`) — see [macos-integration/commands-and-skills.md](../../census31-fwmt-docs/macos-integration/commands-and-skills.md) (`cen-mac`, `cen-mac-cp`).
+
 ---
 
 ## Notes specific to this harness
 
-- The harness currently uses **two Rabbit brokers** (RM + GW) and bootstraps topology via the RabbitMQ **management API** in `scripts/setup-rabbitmq.sh`.
+- **FMT-47 (harness):** `scripts/docker-compose-infra.yml` runs Postgres, Redis, and the Pub/Sub emulator only; `./run-all.sh` bootstraps Pub/Sub and starts services with `app.messaging.provider=pubsub`. See [Stage 4](#stage-4--remove-rabbitmq-fmt-47_remove-rabbitmq).
 - The acceptance-test runner (`scripts/run-acceptance-test.sh`) passes:
-  - `-Dservice.rabbit.port` / `-Dspring.rabbitmq.port` (Rabbit bootstrap and default provider)
-  - `-Dfwmt.messaging.provider`, `-Dfwmt.pubsub.emulatorHost`, `-Dfwmt.pubsub.project` when `FWMT_MESSAGING=pubsub`
+  - `-Dfwmt.messaging.provider=pubsub`, `-Dfwmt.pubsub.emulatorHost`, `-Dfwmt.pubsub.project`
   - `-Dservice.tm.url` / `-Dservice.mocktm.url` (aligned with `FWMT_TM_MOCK_PORT`)
 - Prefer `FWMT_TM_MOCK_PORT=18000` when host port 8000 is occupied; see [Troubleshooting](#troubleshooting).
 - `install-local-decryption-key.sh` accepts an existing `~/.fwmt/keys/decryption.private` without requiring a git clone of `census31-fwmt-job-service` (useful on fedora working copies).

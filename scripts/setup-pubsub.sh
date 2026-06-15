@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Pub/Sub emulator bootstrap (topics + subscriptions) via the emulator HTTP API.
 #
-# Mirrors `setup-rabbitmq.sh`: runs from the host against the published emulator port.
+# Host HTTP bootstrap: runs from the host against the published emulator port.
 # No local gcloud install required.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

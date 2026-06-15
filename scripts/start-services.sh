@@ -9,7 +9,6 @@ BUILD_MISSING=false
 BOOT_RUN=false
 PREPARE=false
 REPLACE=false
-SETUP_RABBIT=true
 SETUP_PUBSUB=true
 services=()
 
@@ -35,9 +34,7 @@ Options:
   --prepare            Run local dependency artifact preparation first.
   --boot-run           Use Maven spring-boot:run instead of java -jar.
   --replace            Stop any running service PIDs from a previous harness start before launching.
-  --messaging MODE     rabbit | pubsub | both (default: rabbit, or FWMT_MESSAGING)
-  --no-setup-rabbitmq  Skip RabbitMQ queue/bootstrap (when mode includes rabbit).
-  --no-setup-pubsub    Skip Pub/Sub topic/bootstrap (when mode includes pubsub).
+  --no-setup-pubsub    Skip Pub/Sub topic/bootstrap.
   --no-setup-messaging Skip all messaging bootstrap steps.
 
 Examples:
@@ -70,20 +67,11 @@ while [[ $# -gt 0 ]]; do
       REPLACE=true
       shift
       ;;
-    --messaging)
-      FWMT_MESSAGING="$2"
-      shift 2
-      ;;
-    --no-setup-rabbitmq)
-      SETUP_RABBIT=false
-      shift
-      ;;
     --no-setup-pubsub)
       SETUP_PUBSUB=false
       shift
       ;;
     --no-setup-messaging)
-      SETUP_RABBIT=false
       SETUP_PUBSUB=false
       shift
       ;;
@@ -112,7 +100,7 @@ if [[ "$PREPARE" == "true" ]]; then
   "$SCRIPT_DIR/prepare-local-artifacts.sh"
 fi
 
-export SETUP_RABBIT SETUP_PUBSUB FWMT_MESSAGING
+export SETUP_PUBSUB
 "$SCRIPT_DIR/setup-messaging.sh"
 
 needs_job_service=false
