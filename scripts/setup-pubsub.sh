@@ -67,6 +67,24 @@ create_subscription_if_missing() {
     -d "{\"topic\":\"${topic_resource}\"}" >/dev/null
 }
 
+create_subscription_with_dlq_if_missing() {
+  local subscription="$1"
+  local topic="$2"
+  local dlq_topic="$3"
+  local max_attempts="${4:-5}"
+  local sub_segment topic_resource dlq_resource
+  sub_segment="$(pubsub_api_path_segment "$subscription")"
+  topic_resource="projects/${PUBSUB_PROJECT}/topics/${topic}"
+  dlq_resource="projects/${PUBSUB_PROJECT}/topics/${dlq_topic}"
+
+  if curl -fsS "${PUBSUB_API_BASE}/subscriptions/${sub_segment}" >/dev/null 2>&1; then
+    return 0
+  fi
+  curl -fsS -X PUT "${PUBSUB_API_BASE}/subscriptions/${sub_segment}" \
+    -H "Content-Type: application/json" \
+    -d "{\"topic\":\"${topic_resource}\",\"deadLetterPolicy\":{\"deadLetterTopic\":\"${dlq_resource}\",\"maxDeliveryAttempts\":${max_attempts}}}" >/dev/null
+}
+
 safe_sub_name() {
   local raw="$1"
   raw="${raw//[^a-zA-Z0-9]/-}"
@@ -118,7 +136,11 @@ for pair in "${SUBS[@]}"; do
   service="${pair%%:*}"
   topic="${pair#*:}"
   subscription="$(safe_sub_name "$service-$topic")"
-  create_subscription_if_missing "$subscription" "$topic"
+  if [[ "$service" == "outcome-service" && "$topic" == "Outcome.Preprocessing" ]]; then
+    create_subscription_with_dlq_if_missing "$subscription" "$topic" "Outcome.PreprocessingDLQ" 5
+  else
+    create_subscription_if_missing "$subscription" "$topic"
+  fi
 done
 
 # Acceptance-test-only subscriptions (drain in Cucumber without stealing service traffic)

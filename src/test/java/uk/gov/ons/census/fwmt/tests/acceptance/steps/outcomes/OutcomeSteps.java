@@ -72,6 +72,13 @@ public class OutcomeSteps {
 
     private final static String caseId = "bd6345af-d706-43d3-a13b-8c549e081a76";
 
+    // Pack code that outcome-service derives from questionnaireType HUAC1 (the value
+    // hard-coded in FULFILMENT_REQUESTED-in.ftl) via its questionnaireTypeLookup.
+    private final static String FULFILMENT_REQUESTED_PACK_CODE = "UACHHT1";
+
+    private static final String TEMPLATE_TYPE_METADATA = "Template type";
+    private static final String PROCESSOR_METADATA = "Processor";
+
     private final static String COMET_SPG_OUTCOME_RECEIVED = "COMET_SPG_OUTCOME_RECEIVED";
 
     private final static String COMET_CE_OUTCOME_RECEIVED = "COMET_CE_OUTCOME_RECEIVED";
@@ -181,15 +188,17 @@ public class OutcomeSteps {
     public void gateway_processes_the_outcome() throws Exception {
         sendTMOutcomeMessage();
         confirmOutcomeServiceReceivesMessage();
+        if (isGeneratedCaseIdFlow()) {
+            resolveGeneratedCaseIdFromPreprocessingEvent();
+        }
     }
 
     private void collectProcessingEvents() {
-        String messageCaseId = getMessageCaseId();
         long deadline = System.currentTimeMillis() + CommonUtils.TIMEOUT;
         processingEvents = new ArrayList<>();
         while (System.currentTimeMillis() < deadline) {
             processingEvents = gatewayEventMonitor.grabEventsTriggered(PROCESSING_OUTCOME, 50, 500L).stream()
-                    .filter(e -> messageCaseId.equals(e.getCaseId()))
+                    .filter(e -> matchesProcessingEventCaseId(e.getCaseId()))
                     .filter(e -> surveyType.equals(e.getMetadata().get("survey type")))
                     .collect(Collectors.toList());
             if (processingEvents.size() >= expectedProcessors.size()) {
@@ -199,12 +208,11 @@ public class OutcomeSteps {
     }
 
     private void collectRmOutcomeEvents() {
-        String messageCaseId = getMessageCaseId();
         long deadline = System.currentTimeMillis() + CommonUtils.TIMEOUT;
         rmOutcomeEvents = new ArrayList<>();
         while (System.currentTimeMillis() < deadline) {
             rmOutcomeEvents = gatewayEventMonitor.grabEventsTriggered(OUTCOME_SENT, 50, 500L).stream()
-                    .filter(e -> messageCaseId.equals(e.getCaseId()))
+                    .filter(e -> matchesRmOutcomeEventCaseId(e.getCaseId()))
                     .filter(e -> surveyType.equals(e.getMetadata().get("survey type")))
                     .collect(Collectors.toList());
             if (rmOutcomeEvents.size() >= expectedRmMessages.size()) {
@@ -214,12 +222,11 @@ public class OutcomeSteps {
     }
 
     private void collectJsOutcomeEvents() {
-        String messageCaseId = getMessageCaseId();
         long deadline = System.currentTimeMillis() + CommonUtils.TIMEOUT;
         jsOutcomeEvents = new ArrayList<>();
         while (System.currentTimeMillis() < deadline) {
             jsOutcomeEvents = gatewayEventMonitor.grabEventsTriggered(RM_FIELD_REPUBLISH, 50, 500L).stream()
-                    .filter(e -> messageCaseId.equals(e.getCaseId()))
+                    .filter(e -> matchesJsOutcomeEventCaseId(e.getCaseId()))
                     .filter(e -> surveyType.equals(e.getMetadata().get("Address Type")))
                     .collect(Collectors.toList());
             if (jsOutcomeEvents.size() >= expectedJsMessages.size()) {
@@ -233,6 +240,9 @@ public class OutcomeSteps {
     public void it_will_run_the_following_processors(String processors) {
         String[] processorsArray = (!Strings.isBlank(processors)) ? processors.split(",") : new String[0];
         expectedProcessors = Arrays.asList(processorsArray);
+        if (isGeneratedCaseIdFlow() && newCaseId == null) {
+            resolveGeneratedCaseIdFromPreprocessingEvent();
+        }
         collectProcessingEvents();
         confirmProcessorsAreExcecuted();
     }
@@ -241,6 +251,12 @@ public class OutcomeSteps {
     public void create_the_following_messages_to_RM(String rmMessages) throws Exception{
         String[] rmMessagesArray = (!Strings.isBlank(rmMessages)) ? rmMessages.split(",") : new String[0];
         expectedRmMessages = Arrays.asList(rmMessagesArray);
+        if (isGeneratedCaseIdFlow() && newCaseId == null) {
+            resolveGeneratedCaseIdFromPreprocessingEvent();
+        }
+        if (isAddressTypeChangeFlow()) {
+            resolveNewCaseIdFromAddressTypeChangedMessage();
+        }
         collectRmOutcomeEvents();
         collectRmMessages();
         confirmRmMessagesAreSent();
@@ -251,12 +267,15 @@ public class OutcomeSteps {
       expectedRmMessageMap.clear();
       for (String rmMessageType : expectedRmMessages) {
         Map<String, Object> root = new HashMap();
-        UUID newCaseId = UUID.randomUUID();
 
         root.clear();
         root.put("reason", spgReasonCodeLookup.getLookup(outcomeCode));
-        root.put("fulfilmentCode", outcomeCode);
-        root.put("newCaseId", newCaseId.toString());
+        // FULFILMENT_REQUESTED carries the RM pack code, not the outcome code. The TM
+        // fulfilment input (FULFILMENT_REQUESTED-in.ftl) always uses questionnaireType
+        // HUAC1, which outcome-service maps to pack code UACHHT1 before sending to RM.
+        root.put("fulfilmentCode",
+            "FULFILMENT_REQUESTED".equals(rmMessageType) ? FULFILMENT_REQUESTED_PACK_CODE : outcomeCode);
+        root.put("newCaseId", newCaseId != null ? newCaseId : UUID.randomUUID().toString());
         root.put("surveyType", surveyType);
         root.put("usualResidents", usesCeSiteResidentCountZero() ? 0 : 5);
         root.put("newAddressUsualResidents", expectedNewAddressUsualResidents());
@@ -277,12 +296,168 @@ public class OutcomeSteps {
 
     private void collectRmMessages() throws Exception {
       for (String rmMessageType : expectedRmMessages) {
+        if (actualRmMessageMap.containsKey(rmMessageType)) {
+          continue;
+        }
         String queue = operationToQueue(rmMessageType);
         String msg = queueClient.getMessageWithEventType(queue, rmMessageType, (int) CommonUtils.TIMEOUT, 50);
         JsonNode actualMessageRootNode = jsonObjectMapper.readTree(msg);
         JsonNode typeNode = actualMessageRootNode.path("event").path("type");
         actualRmMessageMap.put(typeNode.asText(), msg);
       }
+    }
+
+    private boolean isAddressTypeChangeFlow() {
+      return businessFunction != null && businessFunction.startsWith("Address Type Changed");
+    }
+
+    /**
+     * Address-type-change processors return a new caseId; fulfilment and linked-QID RM messages
+     * (and their OUTCOME_SENT events) are keyed to that id, not the original parent caseId.
+     */
+    private void resolveNewCaseIdFromAddressTypeChangedMessage() throws Exception {
+      if (!expectedRmMessages.contains("ADDRESS_TYPE_CHANGED") || newCaseId != null) {
+        return;
+      }
+      String queue = operationToQueue("ADDRESS_TYPE_CHANGED");
+      String msg = queueClient.getMessageWithEventType(queue, "ADDRESS_TYPE_CHANGED",
+          (int) CommonUtils.TIMEOUT, 50);
+      assertThat(msg).isNotNull();
+      actualRmMessageMap.put("ADDRESS_TYPE_CHANGED", msg);
+      addressTypeChangeMsg = msg;
+      JsonNode newCaseIdNode = jsonObjectMapper.readTree(msg).findPath("newCaseId");
+      assertThat(newCaseIdNode != null && !newCaseIdNode.isMissingNode()).isTrue();
+      newCaseId = newCaseIdNode.asText();
+    }
+
+    private boolean matchesRmOutcomeEventCaseId(String eventCaseId) {
+      if (getMessageCaseId().equals(eventCaseId)) {
+        return true;
+      }
+      if ("NC".equals(surveyType) && caseId.equals(eventCaseId)) {
+        return true;
+      }
+      if (newCaseId != null && newCaseId.equals(eventCaseId)) {
+        return true;
+      }
+      return false;
+    }
+
+    /**
+     * NC outcomes remap to the original HH caseId in the DTO, but {@code CANCEL_FEEDBACK} logs on
+     * the NC caseId. Address-type-change and new-address flows use a generated caseId stored in
+     * {@link #newCaseId}.
+     */
+    private boolean matchesProcessingEventCaseId(String eventCaseId) {
+      if (caseId.equals(eventCaseId)) {
+        return true;
+      }
+      if ("NC".equals(surveyType) && ncCaseId.equals(eventCaseId)) {
+        return true;
+      }
+      if (newCaseId != null && newCaseId.equals(eventCaseId)) {
+        return true;
+      }
+      return false;
+    }
+
+    private boolean matchesJsOutcomeEventCaseId(String eventCaseId) {
+      if (getMessageCaseId().equals(eventCaseId)) {
+        return true;
+      }
+      if ("NC".equals(surveyType) && ncCaseId.equals(eventCaseId)) {
+        return true;
+      }
+      if (newCaseId != null && newCaseId.equals(eventCaseId)) {
+        return true;
+      }
+      return false;
+    }
+
+    private boolean isGeneratedCaseIdFlow() {
+      return "New Unit Reported".equals(businessFunction)
+          || "New Standalone Address".equals(businessFunction)
+          || "Switch Feedback Site".equals(businessFunction);
+    }
+
+    /**
+     * New-unit and standalone outcomes receive {@code UUID.randomUUID()} in preprocessing; all
+     * subsequent processor and RM events are keyed to that id (not the parent case or {@code N/A}).
+     */
+    private void resolveGeneratedCaseIdFromPreprocessingEvent() {
+      if (!isGeneratedCaseIdFlow() || newCaseId != null || outcomeCode == null) {
+        return;
+      }
+      String preprocessingEvent = getPreprocessingEventName();
+      long deadline = System.currentTimeMillis() + CommonUtils.TIMEOUT;
+      while (System.currentTimeMillis() < deadline) {
+        Collection<GatewayEventDTO> events =
+            gatewayEventMonitor.grabEventsTriggered(preprocessingEvent, 50, 500L);
+        for (GatewayEventDTO event : events) {
+          if (matchesPreprocessingEvent(event)
+              && outcomeCode.equals(event.getMetadata().get("Outcome code"))) {
+            newCaseId = event.getCaseId();
+            return;
+          }
+        }
+      }
+    }
+
+    private boolean matchesPreprocessingEvent(GatewayEventDTO event) {
+      String eventSurveyType = event.getMetadata().get("Survey type");
+      if (eventSurveyType == null) {
+        eventSurveyType = event.getMetadata().get("survey type");
+      }
+      return surveyType.equals(eventSurveyType);
+    }
+
+    private String getPreprocessingEventName() {
+      switch (surveyType) {
+      case "SPG":
+        if ("New Unit Reported".equals(businessFunction)) {
+          return "PREPROCESSING_SPG_UNITADDRESS_OUTCOME";
+        }
+        if ("New Standalone Address".equals(businessFunction)) {
+          return "PREPROCESSING_SPG_STANDALONE_OUTCOME";
+        }
+        break;
+      case "CE":
+        if ("New Unit Reported".equals(businessFunction) || "Switch Feedback Site".equals(businessFunction)) {
+          return "PREPROCESSING_CE_UNITADDRESS_OUTCOME";
+        }
+        if ("New Standalone Address".equals(businessFunction)) {
+          return "PREPROCESSING_CE_STANDALONE_OUTCOME";
+        }
+        break;
+      case "HH":
+        if ("New Unit Reported".equals(businessFunction) || "Switch Feedback Site".equals(businessFunction)) {
+          return "PREPROCESSING_HH_SPLITADDRESS_OUTCOME";
+        }
+        if ("New Standalone Address".equals(businessFunction)) {
+          return "PREPROCESSING_HH_STANDALONE_OUTCOME";
+        }
+        break;
+      default:
+        break;
+      }
+      throw new IllegalStateException(
+          "No preprocessing event for surveyType=" + surveyType + " businessFunction=" + businessFunction);
+    }
+
+    private String processorFromEvent(GatewayEventDTO event) {
+      String processor = event.getMetadata().get(PROCESSOR_METADATA);
+      if (processor != null) {
+        return processor;
+      }
+      return event.getMetadata().get("processor");
+    }
+
+    private String rmMessageTypeFromEvent(GatewayEventDTO event) {
+      String templateType = event.getMetadata().get(TEMPLATE_TYPE_METADATA);
+      if (templateType != null) {
+        return templateType;
+      }
+      return event.getMetadata().get("type");
     }
 
     @Then("it will include a new caseId")
@@ -361,18 +536,17 @@ public class OutcomeSteps {
 
     private void confirmProcessorsAreExcecuted() {
         List<String> actualProcessors = processingEvents.stream()
-                .map(e -> e.getMetadata().get("processor"))
+                .map(this::processorFromEvent)
                 .collect(Collectors.toList());
         assertEquals(expectedProcessors.size(), actualProcessors.size());
         assertThat(expectedProcessors.containsAll(actualProcessors));
     }
 
     private void confirmRmMessagesAreSent() {
-        String messageCaseId = getMessageCaseId();
         List<String> actualMessages = rmOutcomeEvents.stream()
-                .filter(e -> messageCaseId.equals(e.getCaseId()))
-                .filter(e -> e.getMetadata().get("survey type").equals(surveyType))
-                .map(e -> e.getMetadata().get("type"))
+                .filter(e -> matchesRmOutcomeEventCaseId(e.getCaseId()))
+                .filter(e -> surveyType.equals(e.getMetadata().get("survey type")))
+                .map(this::rmMessageTypeFromEvent)
                 .collect(Collectors.toList());
                 assertEquals(expectedRmMessages.size(), actualRmMessageMap.size());
                 assertEquals(expectedRmMessages.size(), actualMessages.size());
@@ -380,9 +554,8 @@ public class OutcomeSteps {
     }
 
     private void confirmJsMessagesAreSent() {
-        String messageCaseId = getMessageCaseId();
         List<String> actualMessages = jsOutcomeEvents.stream()
-                .filter(e -> messageCaseId.equals(e.getCaseId()))
+                .filter(e -> matchesJsOutcomeEventCaseId(e.getCaseId()))
                 .filter(e -> surveyType.equals(e.getMetadata().get("Address Type")))
                 .map(e -> e.getMetadata().get("Action Instructions"))
                 .collect(Collectors.toList());
