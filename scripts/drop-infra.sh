@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Stop acceptance-test Docker infrastructure (Postgres, Pub/Sub emulator, Redis).
+# Stop acceptance-test container infrastructure (Postgres, Pub/Sub emulator, Redis).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=local-test-env.sh
+source "$SCRIPT_DIR/local-test-env.sh"
+
 COMPOSE_FILE="${COMPOSE_FILE:-$SCRIPT_DIR/docker-compose-infra.yml}"
 REMOVE_VOLUMES=false
 
@@ -30,11 +33,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+ensure_fwmt_container_runtime_ready
 echo "Stopping FWMT acceptance-test infrastructure..."
 if [[ "$REMOVE_VOLUMES" == true ]]; then
-  docker compose -f "$COMPOSE_FILE" down -v
+  fwmt_compose -f "$COMPOSE_FILE" down -v
   echo "Infrastructure stopped (volumes removed)."
 else
-  docker compose -f "$COMPOSE_FILE" down
+  fwmt_compose -f "$COMPOSE_FILE" down
   echo "Infrastructure stopped (volumes retained; use --volumes to remove)."
 fi

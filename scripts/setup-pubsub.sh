@@ -7,14 +7,15 @@ set -euo pipefail
 # No local gcloud install required.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=local-test-env.sh
+source "$SCRIPT_DIR/local-test-env.sh"
 
 PUBSUB_HOST="${FWMT_PUBSUB_HOST:-localhost}"
 PUBSUB_PORT="${FWMT_PUBSUB_EMULATOR_PORT:-8085}"
 PUBSUB_PROJECT="${FWMT_PUBSUB_PROJECT:-fwmt-local}"
 PUBSUB_API_BASE="http://${PUBSUB_HOST}:${PUBSUB_PORT}/v1/projects/${PUBSUB_PROJECT}"
 
-PROJECT_NAME="${FWMT_DOCKER_PROJECT_NAME:-census31-fwmt-acceptance-tests}"
-PUBSUB_CONTAINER="${FWMT_PUBSUB_CONTAINER:-$PROJECT_NAME-pubsub-1}"
+PUBSUB_CONTAINER="$(fwmt_pubsub_container)"
 
 pubsub_api_path_segment() {
   # Encode topic/subscription id for URL path (dots are fine; other chars encoded).
@@ -23,12 +24,12 @@ pubsub_api_path_segment() {
 
 ensure_emulator_reachable() {
   if ! curl -fsS "${PUBSUB_API_BASE}/topics" -H "Content-Type: application/json" >/dev/null 2>&1; then
-    if docker inspect "$PUBSUB_CONTAINER" >/dev/null 2>&1; then
+    if fwmt_container inspect "$PUBSUB_CONTAINER" >/dev/null 2>&1; then
       local status
-      status="$(docker inspect -f '{{.State.Status}}' "$PUBSUB_CONTAINER" 2>/dev/null || true)"
+      status="$(fwmt_container inspect -f '{{.State.Status}}' "$PUBSUB_CONTAINER" 2>/dev/null || true)"
       if [[ "$status" != "running" ]]; then
         echo "Pub/Sub emulator container is not running ($PUBSUB_CONTAINER status=$status)" >&2
-        docker logs "$PUBSUB_CONTAINER" 2>&1 | tail -20 >&2 || true
+        fwmt_container logs "$PUBSUB_CONTAINER" 2>&1 | tail -20 >&2 || true
         echo "Recreate infra: $SCRIPT_DIR/drop-infra.sh && $SCRIPT_DIR/start-infra.sh" >&2
         exit 1
       fi

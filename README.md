@@ -42,7 +42,10 @@ Start stack only (no Cucumber):
 
 ### Prerequisites
 
-- Docker (for infra)
+- **Docker** or **Podman** with compose support for infra
+- On **macOS with Podman only**:
+  1. `podman machine init && podman machine start` (once)
+  2. `brew install podman-compose` — Podman's built-in `podman compose` needs this (or `docker-compose`) as a provider
 - Java **25** for services and Maven builds (see `local-test-env.sh`)
 - Bash **3.2+** (macOS system bash is fine; scripts avoid Bash 4-only features)
 - Maven (`mvn`) for acceptance tests and several services
@@ -52,6 +55,7 @@ Start stack only (no Cucumber):
 
 ```bash
 export CENSUS31_FWMT_ROOT=/path/to/census31
+export FWMT_RUNTIME=podman          # or docker; auto-detects a working runtime by default
 export FWMT_TM_MOCK_PORT=18000      # when host port 8000 is in use
 export FWMT_PUBSUB_EMULATOR_PORT=8085
 export FWMT_PUBSUB_PROJECT=fwmt-local
@@ -78,8 +82,9 @@ Migration history and topology reference:
 |--------|------|
 | `run-all.sh` | Full flow (infra → prepare → services → tests) |
 | `local-test-env.sh` | Shared paths, Java, ports (sourced by others) |
-| `start-infra.sh` | `docker compose -f docker-compose-infra.yml up -d` |
-| `drop-infra.sh` | `docker compose -f docker-compose-infra.yml down` |
+| `start-infra.sh` | Postgres + Redis + Pub/Sub emulator via compose (Docker or Podman) |
+| `drop-infra.sh` | Tear down compose infra |
+| `apply-podman-runtime-support.sh` | One-shot migration for older checkouts (usually not needed) |
 | `prepare-local-artifacts.sh` | Cached wrapper for Maven local installs |
 | `prepare-local-maven-artifacts.sh` | `census31-int-*` integration JARs |
 | `prepare-local-fwmt-libs.sh` | parent BOM + common, events, canonical, storage-utils → `~/.m2` |
