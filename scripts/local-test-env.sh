@@ -17,6 +17,43 @@ MAVEN_BIN="${FWMT_MAVEN_BIN:-mvn}"
 PUBSUB_EMULATOR_PORT="${FWMT_PUBSUB_EMULATOR_PORT:-8085}"
 TM_MOCK_PORT="${FWMT_TM_MOCK_PORT:-8000}"
 
+resolve_maven_bin() {
+  # Check if MAVEN_BIN is directly available
+  if command -v "$MAVEN_BIN" >/dev/null 2>&1; then
+    echo "$MAVEN_BIN"
+    return 0
+  fi
+
+  # Try to resolve via mise
+  if command -v mise >/dev/null 2>&1; then
+    local mvn_exec
+    mvn_exec="$(mise which mvn 2>/dev/null || true)"
+    if [[ -n "$mvn_exec" && -x "$mvn_exec" ]]; then
+      echo "$mvn_exec"
+      return 0
+    fi
+
+    # Compatibility fallback for older/non-standard mise layouts.
+    local maven_root
+    maven_root="$(mise where maven 2>/dev/null || true)"
+    if [[ -n "$maven_root" && -x "$maven_root/bin/mvn" ]]; then
+      echo "$maven_root/bin/mvn"
+      return 0
+    fi
+
+    local nested_mvn
+    nested_mvn="$(find "$maven_root" -maxdepth 3 -type f -path '*/bin/mvn' 2>/dev/null | head -n 1 || true)"
+    if [[ -n "$nested_mvn" && -x "$nested_mvn" ]]; then
+      echo "$nested_mvn"
+      return 0
+    fi
+  fi
+
+  # Fallback
+  echo "$MAVEN_BIN"
+  return 1
+}
+
 resolve_java_home() {
   local candidates=()
 
@@ -74,8 +111,10 @@ run_maven_in_repo() {
     exit 1
   fi
 
-  if ! command -v "$MAVEN_BIN" >/dev/null 2>&1; then
-    echo "Unable to find Maven executable: $MAVEN_BIN" >&2
+  local resolved_maven_bin
+  resolved_maven_bin="$(resolve_maven_bin)"
+  if ! command -v "$resolved_maven_bin" >/dev/null 2>&1; then
+    echo "Unable to find Maven executable. Set FWMT_MAVEN_BIN or install Maven (or use 'mise install maven')." >&2
     exit 1
   fi
 
@@ -85,7 +124,7 @@ run_maven_in_repo() {
     cd "$repo_dir"
     JAVA_HOME="$JAVA_HOME_TO_USE" \
     PATH="$JAVA_HOME_TO_USE/bin:$PATH" \
-    "$MAVEN_BIN" "$@"
+    "$resolved_maven_bin" "$@"
   )
 }
 
@@ -389,16 +428,16 @@ fwmt_container() {
 }
 
 fwmt_postgres_container() {
-  echo "${FWMT_POSTGRES_CONTAINER:-${FWMT_COMPOSE_PROJECT_NAME}-postgres-1}"
+  echo "${FWMT_POSTGRES_CONTAINER:-${FWMT_COMPOSE_PROJECT_NAME}_postgres_1}"
 }
 
 fwmt_pubsub_container() {
-  echo "${FWMT_PUBSUB_CONTAINER:-${FWMT_COMPOSE_PROJECT_NAME}-pubsub-1}"
+  echo "${FWMT_PUBSUB_CONTAINER:-${FWMT_COMPOSE_PROJECT_NAME}_pubsub_1}"
 }
 
 fwmt_infra_container_names() {
   printf '%s\n' \
-    "${FWMT_COMPOSE_PROJECT_NAME}-postgres-1" \
-    "${FWMT_COMPOSE_PROJECT_NAME}-redis-1" \
-    "${FWMT_COMPOSE_PROJECT_NAME}-pubsub-1"
+    "${FWMT_COMPOSE_PROJECT_NAME}_postgres_1" \
+    "${FWMT_COMPOSE_PROJECT_NAME}_redis_1" \
+    "${FWMT_COMPOSE_PROJECT_NAME}_pubsub_1"
 }
