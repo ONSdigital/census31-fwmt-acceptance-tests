@@ -9,6 +9,8 @@
 
 
     <context:component-scan base-package="uk.gov.ons.census.fwmt.tests.acceptance"/>
+    <context:component-scan base-package="uk.gov.census.ffa.storage.utils"/>
+    <context:component-scan base-package="uk.gov.ons.ctp.integration.common.product"/>
     <context:property-placeholder location="classpath:application.properties"/>
 
 </beans>

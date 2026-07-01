@@ -3,6 +3,13 @@
 # Log file
 *.log
 
+# Local harness runtime (scripts/)
+scripts/logs/
+scripts/.pids/
+scripts/.gradle-home/
+scripts/.local-artifacts/
+scripts/.local-maven-artifacts/
+
 # Package Files #
 *.war
 *.ear

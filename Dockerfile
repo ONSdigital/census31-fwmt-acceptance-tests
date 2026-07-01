@@ -1,7 +1,8 @@
-FROM gradle:5.5.1-jdk11
+# Legacy CI image — prefer building a test jar locally and running via census31-fwmt-docs acceptance harness.
+FROM maven:3.9-eclipse-temurin-25
 
 RUN mkdir /opt/census-fsdr-acceptance-tests
 COPY . /opt/census-fsdr-acceptance-tests
 
 WORKDIR /opt/census-fsdr-acceptance-tests
-ENTRYPOINT [ "./gradlew", "--stacktrace", "clean", "test" ]
+ENTRYPOINT [ "mvn", "--batch-mode", "clean", "test" ]

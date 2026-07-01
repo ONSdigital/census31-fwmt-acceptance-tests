@@ -1,0 +1,51 @@
+settingsEvaluated { settings ->
+  settings.pluginManagement {
+    repositories {
+      maven {
+        name = 'ajoberstar-bintray-backup'
+        url = uri('https://ajoberstar.org/bintray-backup/')
+      }
+      gradlePluginPortal()
+      mavenCentral()
+      jcenter()
+    }
+  }
+}
+
+allprojects {
+  buildscript {
+    repositories {
+      maven {
+        name = 'ajoberstar-bintray-backup'
+        url = uri('https://ajoberstar.org/bintray-backup/')
+      }
+      maven {
+        name = 'jfrog-jars-bintray'
+        url = uri('https://dl.bintray.com/jfrog/jfrog-jars/')
+      }
+      mavenCentral()
+      jcenter()
+    }
+
+    configurations.classpath {
+      resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.jfrog.buildinfo' &&
+            details.requested.name == 'build-info-extractor-gradle') {
+          details.useVersion '4.13.0'
+          details.because 'Archived FWMT builds use latest.release, which now resolves to plugin versions too new for these projects.'
+        }
+      }
+    }
+  }
+
+  repositories {
+    maven {
+      name = 'ajoberstar-bintray-backup'
+      url = uri('https://ajoberstar.org/bintray-backup/')
+    }
+    maven {
+      name = 'jfrog-jars-bintray'
+      url = uri('https://dl.bintray.com/jfrog/jfrog-jars/')
+    }
+  }
+}
