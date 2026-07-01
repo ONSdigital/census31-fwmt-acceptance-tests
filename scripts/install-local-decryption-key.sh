@@ -37,15 +37,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -f "$KEY_FILE" && "$FORCE" != "true" ]]; then
+  echo "Decryption key already present: $KEY_FILE (use --force to replace)"
+  exit 0
+fi
+
 if [[ ! -d "$JOB_SERVICE_DIR/.git" ]]; then
   echo "Missing git repo: $JOB_SERVICE_DIR" >&2
   echo "Clone census31-fwmt-job-service with history, or copy decryption.private manually." >&2
   exit 1
-fi
-
-if [[ -f "$KEY_FILE" && "$FORCE" != "true" ]]; then
-  echo "Decryption key already present: $KEY_FILE (use --force to replace)"
-  exit 0
 fi
 
 if ! git -C "$JOB_SERVICE_DIR" cat-file -e "${TEST_KEY_COMMIT}:${TEST_KEY_GIT_PATH}" 2>/dev/null; then

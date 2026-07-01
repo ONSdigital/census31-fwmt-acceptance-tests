@@ -39,7 +39,7 @@ import freemarker.template.Template;
 import freemarker.template.TemplateExceptionHandler;
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.events.data.GatewayEventDTO;
-import uk.gov.ons.census.fwmt.events.utils.GatewayEventMonitor;
+import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.SpgReasonCodeLookup;
@@ -109,7 +109,7 @@ public class OutcomeSteps {
     private CommonUtils commonUtils;
 
     @Autowired
-    private GatewayEventMonitor gatewayEventMonitor;
+    private AcceptanceGatewayEventMonitor gatewayEventMonitor;
 
     @Autowired
     private TMMockUtils tmMockUtils;
@@ -194,15 +194,48 @@ public class OutcomeSteps {
     }
 
     private void collectProcessingEvents() {
-        processingEvents = gatewayEventMonitor.grabEventsTriggered(PROCESSING_OUTCOME, expectedProcessors.size(), CommonUtils.TIMEOUT);
+        String messageCaseId = getMessageCaseId();
+        long deadline = System.currentTimeMillis() + CommonUtils.TIMEOUT;
+        processingEvents = new ArrayList<>();
+        while (System.currentTimeMillis() < deadline) {
+            processingEvents = gatewayEventMonitor.grabEventsTriggered(PROCESSING_OUTCOME, 50, 500L).stream()
+                    .filter(e -> messageCaseId.equals(e.getCaseId()))
+                    .filter(e -> surveyType.equals(e.getMetadata().get("survey type")))
+                    .collect(Collectors.toList());
+            if (processingEvents.size() >= expectedProcessors.size()) {
+                return;
+            }
+        }
     }
 
     private void collectRmOutcomeEvents() {
-        rmOutcomeEvents = gatewayEventMonitor.grabEventsTriggered(OUTCOME_SENT, expectedRmMessages.size(), CommonUtils.TIMEOUT);
+        String messageCaseId = getMessageCaseId();
+        long deadline = System.currentTimeMillis() + CommonUtils.TIMEOUT;
+        rmOutcomeEvents = new ArrayList<>();
+        while (System.currentTimeMillis() < deadline) {
+            rmOutcomeEvents = gatewayEventMonitor.grabEventsTriggered(OUTCOME_SENT, 50, 500L).stream()
+                    .filter(e -> messageCaseId.equals(e.getCaseId()))
+                    .filter(e -> surveyType.equals(e.getMetadata().get("survey type")))
+                    .collect(Collectors.toList());
+            if (rmOutcomeEvents.size() >= expectedRmMessages.size()) {
+                return;
+            }
+        }
     }
 
     private void collectJsOutcomeEvents() {
-        jsOutcomeEvents = gatewayEventMonitor.grabEventsTriggered(RM_FIELD_REPUBLISH, expectedJsMessages.size(), CommonUtils.TIMEOUT);
+        String messageCaseId = getMessageCaseId();
+        long deadline = System.currentTimeMillis() + CommonUtils.TIMEOUT;
+        jsOutcomeEvents = new ArrayList<>();
+        while (System.currentTimeMillis() < deadline) {
+            jsOutcomeEvents = gatewayEventMonitor.grabEventsTriggered(RM_FIELD_REPUBLISH, 50, 500L).stream()
+                    .filter(e -> messageCaseId.equals(e.getCaseId()))
+                    .filter(e -> surveyType.equals(e.getMetadata().get("Address Type")))
+                    .collect(Collectors.toList());
+            if (jsOutcomeEvents.size() >= expectedJsMessages.size()) {
+                return;
+            }
+        }
     }
 
 
@@ -252,14 +285,14 @@ public class OutcomeSteps {
         assertThat(caseId.equals(caseIdNode.asText())).isTrue();
     }
 
-    private void collectRmMessages() throws Exception{
-    for (String rmMessageType : expectedRmMessages) {
-        String msg = queueClient.getMessage(operationToQueue(rmMessageType));
-
+    private void collectRmMessages() throws Exception {
+      for (String rmMessageType : expectedRmMessages) {
+        String queue = operationToQueue(rmMessageType);
+        String msg = queueClient.getMessageWithEventType(queue, rmMessageType, (int) CommonUtils.TIMEOUT, 50);
         JsonNode actualMessageRootNode = jsonObjectMapper.readTree(msg);
         JsonNode typeNode = actualMessageRootNode.path("event").path("type");
         actualRmMessageMap.put(typeNode.asText(), msg);
-    }
+      }
     }
 
     @Then("it will include a new caseId")
@@ -337,14 +370,19 @@ public class OutcomeSteps {
     }
 
     private void confirmProcessorsAreExcecuted() {
-        List<String> actualProcessors = processingEvents.stream().filter(e -> e.getMetadata().get("survey type").equals(surveyType))
-                .map(e -> e.getMetadata().get("processor")).collect(Collectors.toList());
+        List<String> actualProcessors = processingEvents.stream()
+                .map(e -> e.getMetadata().get("processor"))
+                .collect(Collectors.toList());
         assertEquals(expectedProcessors.size(), actualProcessors.size());
         assertThat(expectedProcessors.containsAll(actualProcessors));
     }
 
     private void confirmRmMessagesAreSent() {
-        List<String> actualMessages = rmOutcomeEvents.stream().filter(e -> e.getMetadata().get("survey type").equals(surveyType)).map(e -> e.getMetadata().get("type"))
+        String messageCaseId = getMessageCaseId();
+        List<String> actualMessages = rmOutcomeEvents.stream()
+                .filter(e -> messageCaseId.equals(e.getCaseId()))
+                .filter(e -> e.getMetadata().get("survey type").equals(surveyType))
+                .map(e -> e.getMetadata().get("type"))
                 .collect(Collectors.toList());
                 assertEquals(expectedRmMessages.size(), actualRmMessageMap.size());
                 assertEquals(expectedRmMessages.size(), actualMessages.size());
@@ -352,8 +390,12 @@ public class OutcomeSteps {
     }
 
     private void confirmJsMessagesAreSent() {
-        List<String> actualMessages = jsOutcomeEvents.stream().filter(e -> surveyType.equals(e.getMetadata().get("Address Type")))
-                .map(e -> e.getMetadata().get("Action Instructions")).collect(Collectors.toList());
+        String messageCaseId = getMessageCaseId();
+        List<String> actualMessages = jsOutcomeEvents.stream()
+                .filter(e -> messageCaseId.equals(e.getCaseId()))
+                .filter(e -> surveyType.equals(e.getMetadata().get("Address Type")))
+                .map(e -> e.getMetadata().get("Action Instructions"))
+                .collect(Collectors.toList());
         assertEquals(expectedJsMessages.size(), actualMessages.size());
         assertThat(expectedJsMessages.containsAll(actualMessages));
     }
@@ -625,6 +667,7 @@ public class OutcomeSteps {
         case "FIELD_CASE_UPDATED":
         case "UPDATE_RESIDENT_COUNT_1":
         case "UPDATE_RESIDENT_COUNT":
+        case "UPDATE_RESIDENT_COUNT_0":
             return TEMP_FIELD_OTHERS_QUEUE;
         default:
             throw new RuntimeException("Problem matching operation");
@@ -724,6 +767,7 @@ public class OutcomeSteps {
 
     @Given("a parent case exists")
     public void a_parent_case_exists() throws Exception {
+      gatewayEventMonitor.reset();
       String ceSpgEstabCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgEstabCreate.json"), Charsets.UTF_8);
       JSONObject json = new JSONObject(ceSpgEstabCreateJson);
 

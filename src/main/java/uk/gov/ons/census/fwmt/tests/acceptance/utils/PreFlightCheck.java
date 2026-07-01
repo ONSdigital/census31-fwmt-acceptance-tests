@@ -21,7 +21,7 @@ import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck.NodeCheckBuilder;
 public class PreFlightCheck {
 
   @Autowired
-  private QueueUtils queueUtils;
+  private uk.gov.ons.census.fwmt.tests.acceptance.messaging.MessagingTestClient messagingTestClient;
   
   @Autowired
   private TMMockUtils tmMockUtils;
@@ -58,7 +58,7 @@ public class PreFlightCheck {
 
   public void doCheck() {
     List<NodeCheck> checks = new ArrayList<>();
-    checks.add(queueUtils.doPreFlightCheck());
+    checks.add(messagingTestClient.doMessagingPreFlightCheck());
     checks.add(checkService("outcome-service", outcomeServiceUrl+"/swagger-ui.html", outcomeServiceUsername, outcomeServicePassword));
     checks.add(checkService("job-service", jobserviceServiceUrl+"/swagger-ui.html", jobServiceUsername, jobServicePassword));
     checks.add(checkService("tm-service", tmServiceUrl+"/swagger-ui.html", tmServiceUsername, tmServicePassword));
@@ -81,6 +81,9 @@ public class PreFlightCheck {
       }
 
       httpURLConnection.setRequestMethod("GET");
+      // Avoid blocking the whole suite if a peer accepts the TCP connection but never responds.
+      httpURLConnection.setConnectTimeout(2000);
+      httpURLConnection.setReadTimeout(2000);
       if (httpURLConnection.getResponseCode() == 200) {
         builder.isSuccesful(true);
       }else {

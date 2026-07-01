@@ -15,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import uk.gov.ons.census.fwmt.common.error.GatewayException;
-import uk.gov.ons.census.fwmt.events.utils.GatewayEventMonitor;
+import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.TMMockUtils;
@@ -27,7 +27,7 @@ public class ResilienceSteps {
   private TMMockUtils tmMockUtils;
 
   @Autowired
-  private GatewayEventMonitor gatewayEventMonitor;
+  private AcceptanceGatewayEventMonitor gatewayEventMonitor;
 
   @Autowired
   private QueueClient queueClient;

@@ -15,7 +15,7 @@ cd census31-fwmt-acceptance-tests/scripts
 
 That runs, in order:
 
-1. `start-infra.sh` — Docker: Postgres, RM/GW Rabbit, Redis  
+1. `start-infra.sh` — Docker: Postgres, RM/GW Rabbit, Redis, Pub/Sub emulator (8085)  
 2. `prepare-local-artifacts.sh` — local Maven FWMT libs  
 3. `start-services.sh --build-missing` — tm-mock, job-service, outcome-service  
 4. `run-acceptance-test.sh CreateTestRunner` — Cucumber via Maven  
@@ -36,7 +36,7 @@ Start stack only (no Cucumber):
 
 | Step | Command | Purpose |
 |------|---------|---------|
-| 1 | `./start-infra.sh` | Postgres + Rabbit (5674/5673) + Redis |
+| 1 | `./start-infra.sh` | Postgres + Rabbit (5674/5673) + Redis + Pub/Sub emulator (8085) |
 | 2 | `./prepare-local-artifacts.sh` | Build/install integration + FWMT libs (`--force` to rebuild) |
 | 3 | `./build-services.sh` | Optional: build boot jars before start |
 | 4 | `./start-services.sh --build-missing` | Bootstrap queues + start apps (logs in `scripts/logs/`) |
@@ -44,7 +44,7 @@ Start stack only (no Cucumber):
 | 6 | `./stop-services.sh` | Stop Spring Boot processes |
 | 7 | `./drop-infra.sh` | Tear down Docker infra (`--volumes` to wipe Postgres/Redis data) |
 
-`setup-rabbitmq.sh` runs automatically from `start-services.sh` and `run-acceptance-test.sh`.
+`setup-messaging.sh` runs automatically from `start-services.sh` and `run-acceptance-test.sh` (default: RabbitMQ only; see `FWMT_MESSAGING` below).
 
 ### Prerequisites
 
@@ -60,9 +60,42 @@ Start stack only (no Cucumber):
 export CENSUS31_FWMT_ROOT=/path/to/census31
 export FWMT_RM_RABBIT_PORT=5674
 export FWMT_LOG_DIR=/path/to/logs
+export FWMT_MESSAGING=rabbit          # rabbit | pubsub | both
+export FWMT_PUBSUB_EMULATOR_PORT=8085
 ```
 
 Details: [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md).
+
+## Pub/Sub emulator (local landing zone)
+
+A **Google Pub/Sub emulator** runs alongside RabbitMQ in `scripts/docker-compose-infra.yml`. FWMT services still default to RabbitMQ; the emulator is for bootstrap and future migration.
+
+| Item | Default |
+| --- | --- |
+| Host port | `8085` (`FWMT_PUBSUB_EMULATOR_PORT`) |
+| Emulator project id | `fwmt-local` (`FWMT_PUBSUB_PROJECT`) |
+| Client env (host JVM) | `PUBSUB_EMULATOR_HOST=localhost:8085` |
+
+**Bootstrap Pub/Sub only** (after `./start-infra.sh`):
+
+```bash
+cd scripts
+FWMT_MESSAGING=pubsub ./setup-messaging.sh
+# or: ./start-services.sh --messaging pubsub
+# or: ./run-all.sh --messaging both --no-tests
+```
+
+**Messaging mode** (`FWMT_MESSAGING` or `--messaging`):
+
+| Mode | Bootstrap |
+| --- | --- |
+| `rabbit` (default) | `setup-rabbitmq.sh` |
+| `pubsub` | `setup-pubsub.sh` |
+| `both` | Rabbit + Pub/Sub |
+
+Full ports, env vars, troubleshooting, and the **RabbitMQ → Pub/Sub migration plan**:
+
+- [docs/pubsub-emulator-and-migration.md](docs/pubsub-emulator-and-migration.md)
 
 ## Scripts reference
 
@@ -78,9 +111,12 @@ Details: [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tes
 | `build-service.sh` / `build-services.sh` | Build service boot jars |
 | `start-services.sh` | Start tm-mock, job-service, outcome-service |
 | `stop-services.sh` / `restart-service.sh` | Stop or restart services |
+| `setup-messaging.sh` | Bootstrap Rabbit and/or Pub/Sub per `FWMT_MESSAGING` |
 | `setup-rabbitmq.sh` | Declare queues on RM/GW Rabbit management API |
+| `setup-pubsub.sh` | Create topics/subscriptions in Pub/Sub emulator |
 | `run-acceptance-test.sh` | `mvn test` in this repo |
 | `install-local-decryption-key.sh` | Restore test PGP key to `~/.fwmt/keys/` from job-service git history |
+| `prepare-job-service-db.sh` | Liquibase migrate `fwmtg` tables in local Postgres (auto-run before job-service) |
 
 Runtime artefacts (gitignored): `scripts/logs/`, `scripts/.pids/`, `scripts/.local-artifacts/`.
 

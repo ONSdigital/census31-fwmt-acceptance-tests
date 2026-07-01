@@ -40,6 +40,19 @@ services:
       timeout: 5s
       retries: 10
 
+  pubsub:
+    # Requires Java (not present in cloud-sdk:slim). Official emulators image bundles JRE + Pub/Sub fake.
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command:
+      - gcloud
+      - beta
+      - emulators
+      - pubsub
+      - start
+      - --host-port=0.0.0.0:8085
+    ports:
+      - "${FWMT_PUBSUB_EMULATOR_PORT:-8085}:8085"
+
   redis:
     image: redis:4.0
     ports:
