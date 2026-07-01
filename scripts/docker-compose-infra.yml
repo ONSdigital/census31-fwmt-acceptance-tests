@@ -30,6 +30,11 @@ services:
       - --host-port=0.0.0.0:8085
     ports:
       - "${FWMT_PUBSUB_EMULATOR_PORT:-8085}:8085"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8085' 2>/dev/null && echo healthy || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:4.0

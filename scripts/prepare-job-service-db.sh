@@ -13,13 +13,14 @@ POSTGRES_PASSWORD="${FWMT_POSTGRES_PASSWORD:-postgres}"
 POSTGRES_DB="${FWMT_POSTGRES_DB:-postgres}"
 MAVEN_BIN="${FWMT_MAVEN_BIN:-mvn}"
 LIQUIBASE_PLUGIN_VERSION="${FWMT_LIQUIBASE_PLUGIN_VERSION:-4.31.1}"
+POSTGRES_CONTAINER="$(fwmt_postgres_container)"
 
 usage() {
   cat <<'EOF'
 Usage: ./prepare-job-service-db.sh
 
 Runs census31-fwmt-job-service Liquibase changelog against local Postgres
-(schema fwmtg). Requires docker postgres from ./start-infra.sh.
+(schema fwmtg). Requires Postgres from ./start-infra.sh.
 
 Uses the Liquibase Maven plugin by full coordinate (no liquibase prefix in pom).
 EOF
@@ -42,11 +43,11 @@ if ! command -v "$MAVEN_BIN" >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Ensuring fwmtg schema exists in Postgres on port $POSTGRES_PORT..."
-docker exec census31-fwmt-acceptance-tests-postgres-1 \
+echo "Ensuring fwmtg schema exists in Postgres on port $POSTGRES_PORT (container=$POSTGRES_CONTAINER)..."
+fwmt_container exec "$POSTGRES_CONTAINER" \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   -c "CREATE SCHEMA IF NOT EXISTS fwmtg;" >/dev/null 2>&1 || {
-  echo "WARN: could not exec into census31-fwmt-acceptance-tests-postgres-1; is ./start-infra.sh up?" >&2
+  echo "WARN: could not exec into $POSTGRES_CONTAINER; is ./start-infra.sh up?" >&2
 }
 
 echo "Running Liquibase update for job-service..."
@@ -62,7 +63,7 @@ echo "Running Liquibase update for job-service..."
 )
 
 echo "Verifying fwmtg tables..."
-docker exec census31-fwmt-acceptance-tests-postgres-1 \
+fwmt_container exec "$POSTGRES_CONTAINER" \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt fwmtg.*"
 
 echo "Job-service database ready."
