@@ -1,0 +1,30 @@
+timeout: 1200s
+options:
+  automapSubstitutions: true
+  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
+
+substitutions:
+  _DOCKER_REGION: "europe-west1"
+  _DOCKER_REPO: "fwmtg-docker-snapshot"
+  _IMAGE: "census31-fwmt-acceptance-tests"
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    id: "build-image"
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        BRANCH_SAFE="$$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' | cut -c1-20)"
+        docker build --pull \
+          -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${BRANCH_SAFE}-${SHORT_SHA}-SNAPSHOT" \
+          .
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: "push-image"
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        BRANCH_SAFE="$$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' | cut -c1-20)"
+        docker push "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${BRANCH_SAFE}-${SHORT_SHA}-SNAPSHOT"
