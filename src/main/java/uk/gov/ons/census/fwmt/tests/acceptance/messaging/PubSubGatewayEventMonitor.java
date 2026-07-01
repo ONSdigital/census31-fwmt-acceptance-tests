@@ -54,17 +54,11 @@ public class PubSubGatewayEventMonitor {
     gatewayErrorEventMap = null;
   }
 
-  public void enableEventMonitor(String ignoredHost, String ignoredUser, String ignoredPassword, Integer ignoredPort)
-      throws IOException, TimeoutException {
-    enableEventMonitor(ignoredHost, ignoredUser, ignoredPassword, ignoredPort, Collections.emptyList());
+  public void enableEventMonitor() throws IOException, TimeoutException {
+    enableEventMonitor(Collections.emptyList());
   }
 
-  public void enableEventMonitor(
-      String ignoredHost,
-      String ignoredUser,
-      String ignoredPassword,
-      Integer ignoredPort,
-      List<String> eventsToListen) throws IOException, TimeoutException {
+  public void enableEventMonitor(List<String> eventsToListen) throws IOException, TimeoutException {
     gatewayEventMap = new ConcurrentHashMap<>();
     gatewayErrorEventMap = new ConcurrentHashMap<>();
     eventToWatch.clear();

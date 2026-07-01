@@ -11,8 +11,6 @@ docker compose -f "$COMPOSE_FILE" up -d
 containers=(
   "$PROJECT_NAME-postgres-1"
   "$PROJECT_NAME-redis-1"
-  "$PROJECT_NAME-rabbit-rm-1"
-  "$PROJECT_NAME-rabbit-gw-1"
   "$PROJECT_NAME-pubsub-1"
 )
 

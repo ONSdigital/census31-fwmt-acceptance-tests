@@ -18,28 +18,6 @@ services:
     volumes:
       - fwmt_acceptance_postgres:/var/lib/postgresql/data
 
-  rabbit-rm:
-    image: rabbitmq:3.6.10-management
-    ports:
-      - "${FWMT_RM_RABBIT_PORT:-5674}:5672"
-      - "${FWMT_RM_RABBIT_MANAGEMENT_PORT:-15674}:15672"
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  rabbit-gw:
-    image: rabbitmq:3.6.10-management
-    ports:
-      - "${FWMT_GW_RABBIT_PORT:-5673}:5672"
-      - "${FWMT_GW_RABBIT_MANAGEMENT_PORT:-15673}:15672"
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   pubsub:
     # Requires Java (not present in cloud-sdk:slim). Official emulators image bundles JRE + Pub/Sub fake.
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators

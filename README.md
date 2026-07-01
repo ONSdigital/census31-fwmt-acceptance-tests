@@ -10,21 +10,15 @@ From the **`scripts/`** directory (first time or after dependency changes, add `
 
 ```bash
 cd census31-fwmt-acceptance-tests/scripts
-./run-all.sh
+FWMT_TM_MOCK_PORT=18000 ./run-all.sh all
 ```
 
 That runs, in order:
 
-1. `start-infra.sh` — Docker: Postgres, RM/GW Rabbit, Redis, Pub/Sub emulator (8085)  
-2. `prepare-local-artifacts.sh` — local Maven FWMT libs  
-3. `start-services.sh --build-missing` — tm-mock, job-service, outcome-service  
-4. `run-acceptance-test.sh CreateTestRunner` — Cucumber via Maven  
-
-Run the full suite:
-
-```bash
-./run-all.sh all
-```
+1. `start-infra.sh` — Docker: Postgres, Redis, Pub/Sub emulator (8085)
+2. `prepare-local-artifacts.sh` — local Maven FWMT libs
+3. `start-services.sh --build-missing` — tm-mock, job-service, outcome-service (Pub/Sub)
+4. `run-acceptance-test.sh` — Cucumber via Maven
 
 Start stack only (no Cucumber):
 
@@ -36,15 +30,15 @@ Start stack only (no Cucumber):
 
 | Step | Command | Purpose |
 |------|---------|---------|
-| 1 | `./start-infra.sh` | Postgres + Rabbit (5674/5673) + Redis + Pub/Sub emulator (8085) |
+| 1 | `./start-infra.sh` | Postgres + Redis + Pub/Sub emulator (8085) |
 | 2 | `./prepare-local-artifacts.sh` | Build/install integration + FWMT libs (`--force` to rebuild) |
 | 3 | `./build-services.sh` | Optional: build boot jars before start |
-| 4 | `./start-services.sh --build-missing` | Bootstrap queues + start apps (logs in `scripts/logs/`) |
+| 4 | `./start-services.sh --build-missing` | Bootstrap Pub/Sub + start apps (logs in `scripts/logs/`) |
 | 5 | `./run-acceptance-test.sh CreateTestRunner` | Run one Cucumber runner (or `all`) |
 | 6 | `./stop-services.sh` | Stop Spring Boot processes |
 | 7 | `./drop-infra.sh` | Tear down Docker infra (`--volumes` to wipe Postgres/Redis data) |
 
-`setup-messaging.sh` runs automatically from `start-services.sh` and `run-acceptance-test.sh` (default: RabbitMQ only; see `FWMT_MESSAGING` below).
+`setup-messaging.sh` runs automatically from `start-services.sh` and `run-acceptance-test.sh` (Pub/Sub bootstrap only).
 
 ### Prerequisites
 
@@ -58,17 +52,15 @@ Start stack only (no Cucumber):
 
 ```bash
 export CENSUS31_FWMT_ROOT=/path/to/census31
-export FWMT_RM_RABBIT_PORT=5674
-export FWMT_LOG_DIR=/path/to/logs
-export FWMT_MESSAGING=rabbit          # rabbit | pubsub | both
+export FWMT_TM_MOCK_PORT=18000      # when host port 8000 is in use
 export FWMT_PUBSUB_EMULATOR_PORT=8085
+export FWMT_PUBSUB_PROJECT=fwmt-local
+export FWMT_LOG_DIR=/path/to/logs
 ```
 
 Details: [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md).
 
-## Pub/Sub emulator (local landing zone)
-
-A **Google Pub/Sub emulator** runs alongside RabbitMQ in `scripts/docker-compose-infra.yml`. FWMT services still default to RabbitMQ; the emulator is for bootstrap and future migration.
+## Pub/Sub emulator (local)
 
 | Item | Default |
 | --- | --- |
@@ -76,24 +68,7 @@ A **Google Pub/Sub emulator** runs alongside RabbitMQ in `scripts/docker-compose
 | Emulator project id | `fwmt-local` (`FWMT_PUBSUB_PROJECT`) |
 | Client env (host JVM) | `PUBSUB_EMULATOR_HOST=localhost:8085` |
 
-**Bootstrap Pub/Sub only** (after `./start-infra.sh`):
-
-```bash
-cd scripts
-FWMT_MESSAGING=pubsub ./setup-messaging.sh
-# or: ./start-services.sh --messaging pubsub
-# or: ./run-all.sh --messaging both --no-tests
-```
-
-**Messaging mode** (`FWMT_MESSAGING` or `--messaging`):
-
-| Mode | Bootstrap |
-| --- | --- |
-| `rabbit` (default) | `setup-rabbitmq.sh` |
-| `pubsub` | `setup-pubsub.sh` |
-| `both` | Rabbit + Pub/Sub |
-
-Full ports, env vars, troubleshooting, and the **RabbitMQ → Pub/Sub migration plan**:
+Migration history and topology reference:
 
 - [docs/pubsub-emulator-and-migration.md](docs/pubsub-emulator-and-migration.md)
 
@@ -111,8 +86,7 @@ Full ports, env vars, troubleshooting, and the **RabbitMQ → Pub/Sub migration 
 | `build-service.sh` / `build-services.sh` | Build service boot jars |
 | `start-services.sh` | Start tm-mock, job-service, outcome-service |
 | `stop-services.sh` / `restart-service.sh` | Stop or restart services |
-| `setup-messaging.sh` | Bootstrap Rabbit and/or Pub/Sub per `FWMT_MESSAGING` |
-| `setup-rabbitmq.sh` | Declare queues on RM/GW Rabbit management API |
+| `setup-messaging.sh` | Bootstrap Pub/Sub topics/subscriptions |
 | `setup-pubsub.sh` | Create topics/subscriptions in Pub/Sub emulator |
 | `run-acceptance-test.sh` | `mvn test` in this repo |
 | `install-local-decryption-key.sh` | Restore test PGP key to `~/.fwmt/keys/` from job-service git history |
@@ -120,18 +94,7 @@ Full ports, env vars, troubleshooting, and the **RabbitMQ → Pub/Sub migration 
 
 Runtime artefacts (gitignored): `scripts/logs/`, `scripts/.pids/`, `scripts/.local-artifacts/`.
 
-## Legacy Docker compose (2021 GCR images)
-
-The repo root `docker-compose.yml` is the **old** all-in-one stack (pre-built GCR images). The harness above uses **`scripts/docker-compose-infra.yml`** plus locally built Census 31 services.
-
-```bash
-# Legacy path only — not used by scripts/run-all.sh
-docker compose up -d
-```
-
-For RM end-to-end integration: `docker-compose-rm-integration.yml` (see original census21 docs).
-
 ## Related
 
-- Performance tests: `census31-fwmt-performance-tests` — use `./run-jobservice-perf.sh --local` after `./start-services.sh job-service tm-mock`
+- Performance tests: `census31-fwmt-performance-tests` — `./run-jobservice-perf.sh --local` after `./start-services.sh job-service tm-mock`
 - Harness formerly in `census31-fwmt-docs/acceptance-tests/` — thin wrappers remain there pointing at `scripts/`
