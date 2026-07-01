@@ -4,7 +4,7 @@ options:
   defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
 
 substitutions:
-  _DOCKER_REGION: "europe-west1"
+  _DOCKER_REGION: "europe-west2"
   _DOCKER_REPO: "fwmtg-docker-snapshot"
   _IMAGE: "census31-fwmt-acceptance-tests"
 
