@@ -5,7 +5,7 @@ options:
 
 substitutions:
   _DOCKER_REGION: "europe-west2"
-  _DOCKER_REPO: "fwmtg-docker-snapshot"
+  _DOCKER_REPO: "fwmtg-docker-ci"
   _IMAGE: "census31-fwmt-acceptance-tests"
 
 steps:
