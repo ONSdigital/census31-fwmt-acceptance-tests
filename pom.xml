@@ -16,6 +16,12 @@
   <packaging>jar</packaging>
   <name>census31-fwmt-acceptance-tests</name>
 
+  <properties>
+    <fwmt.common.version>27.0.1</fwmt.common.version>
+    <fwmt.events.version>27.0.1</fwmt.events.version>
+    <fwmt.storage.utils.version>27.0.1</fwmt.storage.utils.version>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>org.postgresql</groupId>
@@ -25,14 +31,17 @@
     <dependency>
       <groupId>uk.gov.ons.census.fwmt</groupId>
       <artifactId>census31-fwmt-events</artifactId>
+      <version>${fwmt.events.version}</version>
     </dependency>
     <dependency>
       <groupId>uk.gov.ons.census.fwmt</groupId>
       <artifactId>census31-fwmt-common</artifactId>
+      <version>${fwmt.common.version}</version>
     </dependency>
     <dependency>
       <groupId>uk.gov.ons.census.ffa</groupId>
       <artifactId>census31-fwmt-storage-utils</artifactId>
+      <version>${fwmt.storage.utils.version}</version>
     </dependency>
     <dependency>
       <groupId>uk.gov.ons.ctp.integration.common</groupId>
