@@ -2,6 +2,7 @@
 Feature: Outcome feature flags
 
   Scenario: CE outcome is ignored when outcome feature flags are disabled
+    Given the "CE" outcome feature flag is disabled
     Given an "CE" "No Action" outcome message
     And its Primary Outcome is "Irrelavant"
     And its secondary Outcome "Irrelavant"

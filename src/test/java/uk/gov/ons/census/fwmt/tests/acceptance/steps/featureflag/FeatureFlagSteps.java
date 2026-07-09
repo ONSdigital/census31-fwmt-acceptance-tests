@@ -1,5 +1,6 @@
 package uk.gov.ons.census.fwmt.tests.acceptance.steps.featureflag;
 
+import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -11,6 +12,9 @@ import uk.gov.ons.census.fwmt.tests.acceptance.utils.TMMockUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class FeatureFlagSteps {
 
@@ -24,6 +28,44 @@ public class FeatureFlagSteps {
 
   @Autowired
   private TMMockUtils tmMockUtils;
+
+  private static final Map<String, String> JOB_FLAG_BY_SURVEY_ACTION = new HashMap<>();
+  private static final Map<String, String> OUTCOME_FLAG_BY_SURVEY = new HashMap<>();
+
+  static {
+    JOB_FLAG_BY_SURVEY_ACTION.put("HH:CREATE", "FEATURE_HH_CREATE");
+    JOB_FLAG_BY_SURVEY_ACTION.put("CE:CREATE", "FEATURE_CE_CREATE");
+    JOB_FLAG_BY_SURVEY_ACTION.put("SPG:CREATE", "FEATURE_SPG_CREATE");
+    JOB_FLAG_BY_SURVEY_ACTION.put("CCS:CREATE", "FEATURE_CCS_CREATE");
+    JOB_FLAG_BY_SURVEY_ACTION.put("NC:CREATE", "FEATURE_NC_CREATE");
+
+    OUTCOME_FLAG_BY_SURVEY.put("HH", "FEATURE_OUTCOME_HH");
+    OUTCOME_FLAG_BY_SURVEY.put("CE", "FEATURE_OUTCOME_CE");
+    OUTCOME_FLAG_BY_SURVEY.put("SPG", "FEATURE_OUTCOME_SPG");
+    OUTCOME_FLAG_BY_SURVEY.put("CCS", "FEATURE_OUTCOME_CCS");
+    OUTCOME_FLAG_BY_SURVEY.put("NC", "FEATURE_OUTCOME_NC");
+  }
+
+  @Given("the {string} {string} feature flag is disabled")
+  public void theSurveyActionFeatureFlagIsDisabled(String survey, String action) {
+    String key = normalize(survey) + ":" + normalize(action);
+    String envVar = JOB_FLAG_BY_SURVEY_ACTION.get(key);
+    assertThat(envVar)
+        .withFailMessage("No env var mapping found for survey/action key %s", key)
+        .isNotNull();
+
+    assertFlagDisabled(envVar);
+  }
+
+  @Given("the {string} outcome feature flag is disabled")
+  public void theOutcomeFeatureFlagIsDisabled(String survey) {
+    String envVar = OUTCOME_FLAG_BY_SURVEY.get(normalize(survey));
+    assertThat(envVar)
+        .withFailMessage("No outcome env var mapping found for survey %s", survey)
+        .isNotNull();
+
+    assertFlagDisabled(envVar);
+  }
 
   @Then("the request with case ID {string} is ignored because the survey or action feature flag is disabled")
   public void theRequestIsIgnoredDueToFeatureFlagForCaseId(String caseId) {
@@ -52,5 +94,17 @@ public class FeatureFlagSteps {
 
     boolean processingEventTriggered = gatewayEventMonitor.hasEventTriggered(caseId, PROCESSING_OUTCOME, CommonUtils.TIMEOUT);
     assertThat(processingEventTriggered).isFalse();
+  }
+
+  private static String normalize(String value) {
+    return value == null ? "" : value.trim().toUpperCase();
+  }
+
+  private static void assertFlagDisabled(String envVar) {
+    String value = System.getenv(envVar);
+    boolean enabled = value != null && "true".equalsIgnoreCase(value.trim());
+    assertThat(enabled)
+        .withFailMessage("Expected %s to be disabled, but value was '%s'", envVar, value)
+        .isFalse();
   }
 }
