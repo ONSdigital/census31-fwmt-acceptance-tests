@@ -25,7 +25,7 @@ public class FeatureFlagSteps {
   @Autowired
   private TMMockUtils tmMockUtils;
 
-  @Then("the request is ignored due to feature flag for case ID {string}")
+  @Then("the request with case ID {string} is ignored because the survey or action feature flag is disabled")
   public void theRequestIsIgnoredDueToFeatureFlagForCaseId(String caseId) {
     boolean ignoredEventTriggered = gatewayEventMonitor.hasEventTriggered(caseId, FEATURE_FLAG_IGNORED, CommonUtils.TIMEOUT);
     assertThat(ignoredEventTriggered).isTrue();
