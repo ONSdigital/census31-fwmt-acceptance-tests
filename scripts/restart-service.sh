@@ -39,4 +39,4 @@ if (( ${#services[@]} == 0 )); then
 fi
 
 "$SCRIPT_DIR/stop-services.sh" "${services[@]}"
-"$SCRIPT_DIR/start-services.sh" "${start_args[@]}"
+"$SCRIPT_DIR/start-services.sh" ${start_args[@]+"${start_args[@]}"}

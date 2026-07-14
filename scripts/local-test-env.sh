@@ -173,6 +173,10 @@ service_env() {
       echo "JAVA_TOOL_OPTIONS=-Dapp.messaging.provider=pubsub"
       ;;
     outcome-service)
+      local outcome_flags_default="true"
+      if [[ "${FWMT_ACCEPTANCE_SUITE_MODE:-main}" == "feature-flag-negative" ]]; then
+        outcome_flags_default="false"
+      fi
       echo "APP_TESTING=true"
       echo "APP_MESSAGING_PROVIDER=pubsub"
       echo "PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
@@ -183,6 +187,12 @@ service_env() {
       echo "SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST=localhost:${PUBSUB_EMULATOR_PORT}"
       echo "SPRING_CLOUD_GCP_PUBSUB_ENABLED=true"
       echo "JAVA_TOOL_OPTIONS=-Dapp.messaging.provider=pubsub"
+      # Feature flags for outcome processing
+      echo "FEATURE_OUTCOME_HH=${FEATURE_OUTCOME_HH:-$outcome_flags_default}"
+      echo "FEATURE_OUTCOME_SPG=${FEATURE_OUTCOME_SPG:-$outcome_flags_default}"
+      echo "FEATURE_OUTCOME_CE=${FEATURE_OUTCOME_CE:-$outcome_flags_default}"
+      echo "FEATURE_OUTCOME_CCS=${FEATURE_OUTCOME_CCS:-$outcome_flags_default}"
+      echo "FEATURE_OUTCOME_NC=${FEATURE_OUTCOME_NC:-$outcome_flags_default}"
       ;;
     csv-service)
       echo "APP_TESTING=true"

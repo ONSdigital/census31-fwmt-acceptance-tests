@@ -208,7 +208,7 @@ start_service() {
     echo "Starting $name from source with Maven spring-boot:run"
     start_detached_in_dir "$service_dir" "$log_file" \
       env "JAVA_HOME=$JAVA_HOME_TO_USE" "PATH=$JAVA_HOME_TO_USE/bin:$PATH" \
-      "${env_args[@]}" \
+      ${env_args[@]+"${env_args[@]}"} \
       mvn -q spring-boot:run
   else
     local jar_path
@@ -226,7 +226,7 @@ start_service() {
     echo "Starting $name from jar $jar_path"
     start_detached_in_dir "$service_dir" "$log_file" \
       env "JAVA_HOME=$JAVA_HOME_TO_USE" "PATH=$JAVA_HOME_TO_USE/bin:$PATH" \
-      "${env_args[@]}" \
+      ${env_args[@]+"${env_args[@]}"} \
       "$JAVA_HOME_TO_USE/bin/java" -jar "$jar_path"
   fi
 

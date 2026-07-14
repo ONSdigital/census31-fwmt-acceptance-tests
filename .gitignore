@@ -27,6 +27,7 @@ scripts/.local-maven-artifacts/
 out/
 .gradle
 build
+node_modules/
 
 #Eclipse files
 .metadata

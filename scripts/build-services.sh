@@ -45,4 +45,4 @@ if [[ "$WITH_CSV" == "true" ]]; then
   services+=(csv-service)
 fi
 
-"$SCRIPT_DIR/build-service.sh" "${args[@]}" "${services[@]}"
+"$SCRIPT_DIR/build-service.sh" ${args[@]+"${args[@]}"} "${services[@]}"
