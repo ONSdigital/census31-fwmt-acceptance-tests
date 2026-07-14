@@ -14,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,14 +40,41 @@ public class OutcomeServiceRefreshUtils {
   private static final List<String> ENV_ENDPOINT_PATHS = Arrays.asList("/actuator/env", "/env");
   private static final List<String> REFRESH_ENDPOINT_PATHS = Arrays.asList("/actuator/refresh", "/refresh");
 
+  public void enableDefaultOutcomeFeatureFlags() {
+    Map<String, Boolean> defaultFlags = new LinkedHashMap<>();
+    defaultFlags.put("HH", true);
+    defaultFlags.put("SPG", true);
+    defaultFlags.put("CE", true);
+    defaultFlags.put("CCS", true);
+    defaultFlags.put("NC", true);
+    setOutcomeFeatureFlagsAndRefresh(defaultFlags);
+  }
+
   public void setOutcomeFeatureFlagAndRefresh(String survey, boolean enabled) {
     String normalizedSurvey = survey == null ? "" : survey.trim().toUpperCase();
     if (normalizedSurvey.isEmpty()) {
       throw new IllegalArgumentException("Survey must not be blank");
     }
 
-    String propertyName = "feature-flags.outcome.surveys." + normalizedSurvey;
-    setPropertyForRefresh(propertyName, String.valueOf(enabled));
+    Map<String, Boolean> flags = new LinkedHashMap<>();
+    flags.put(normalizedSurvey, enabled);
+    setOutcomeFeatureFlagsAndRefresh(flags);
+  }
+
+  public void setOutcomeFeatureFlagsAndRefresh(Map<String, Boolean> flags) {
+    if (flags == null || flags.isEmpty()) {
+      throw new IllegalArgumentException("Flags must not be empty");
+    }
+
+    for (Map.Entry<String, Boolean> entry : flags.entrySet()) {
+      String normalizedSurvey = entry.getKey() == null ? "" : entry.getKey().trim().toUpperCase();
+      if (normalizedSurvey.isEmpty()) {
+        throw new IllegalArgumentException("Survey must not be blank");
+      }
+      String propertyName = "feature-flags.outcome.surveys." + normalizedSurvey;
+      setPropertyForRefresh(propertyName, String.valueOf(entry.getValue()));
+    }
+
     triggerRefresh();
     waitForServiceHealth();
   }

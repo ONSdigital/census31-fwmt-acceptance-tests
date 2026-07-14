@@ -5,7 +5,9 @@ const glob = require('glob');
 
 // Find all cucumber JSON report files
 const buildDir = 'build';
-const jsonFiles = glob.sync(path.join(buildDir, 'cucumber-*.json'));
+const jsonFiles = glob
+  .sync(path.join(buildDir, 'cucumber-*.json'))
+  .filter(file => path.basename(file) !== 'cucumber-merged.json');
 
 if (jsonFiles.length === 0) {
   console.error('✗ No cucumber JSON files found in build/');

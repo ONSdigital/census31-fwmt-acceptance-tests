@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -15,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.HashMap;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.events.data.GatewayErrorEventDTO;
 import uk.gov.ons.census.fwmt.events.data.GatewayEventDTO;
@@ -63,9 +65,12 @@ public class PubSubGatewayEventMonitor {
     gatewayErrorEventMap = new ConcurrentHashMap<>();
     eventToWatch.clear();
     eventToWatch.addAll(eventsToListen);
+    log.info("Enabling gateway event monitor subscription={} watchList={}", TEST_SUBSCRIPTION,
+        eventToWatch.isEmpty() ? "ALL" : eventToWatch);
     // Drop any backlog (e.g. events emitted during Maven startup or a prior scenario) before
     // starting the poller, otherwise stale events for the reused caseId pollute the map.
     http.drainSubscription(TEST_SUBSCRIPTION);
+    log.info("Drained gateway event monitor backlog for subscription={}", TEST_SUBSCRIPTION);
     running.set(true);
     poller = Executors.newSingleThreadExecutor(r -> {
       Thread thread = new Thread(r, "pubsub-gateway-event-monitor");
@@ -116,12 +121,18 @@ public class PubSubGatewayEventMonitor {
         dto.setCaseId(jsonField(body, "caseId"));
         dto.setEventType(jsonField(body, "eventType"));
         dto.setMetadata(parseMetadata(body));
+        log.info("Gateway event monitor pulled eventType={} caseId={} metadata={}", dto.getEventType(),
+            dto.getCaseId(), summarizeMetadata(dto));
         if (eventToWatch.isEmpty() || eventToWatch.contains(dto.getEventType())) {
           String key = createKey(dto.getCaseId(), dto.getEventType());
           List<GatewayEventDTO> dtoList = gatewayEventMap.containsKey(key)
               ? gatewayEventMap.get(key) : new ArrayList<>();
           dtoList.add(dto);
           gatewayEventMap.put(key, dtoList);
+          log.info("Gateway event monitor indexed key={} count={}", key, dtoList.size());
+        } else {
+          log.info("Gateway event monitor ignored eventType={} because it is not in watchList={}",
+              dto.getEventType(), eventToWatch);
         }
       }
     } catch (Exception e) {
@@ -194,7 +205,12 @@ public class PubSubGatewayEventMonitor {
       }
       sleepBriefly();
     }
-    return checkForEvent(caseId, eventType);
+    boolean found = checkForEvent(caseId, eventType);
+    if (!found) {
+      log.warn("Gateway event monitor timed out waiting for key={} after {}ms. Available keys={} matchingEventTypeKeys={}",
+          createKey(caseId, eventType), timeOut, summarizeKnownKeys(), summarizeKeysForEventType(eventType));
+    }
+    return found;
   }
 
   public boolean hasErrorEventTriggered(String caseId, String eventType) {
@@ -213,8 +229,48 @@ public class PubSubGatewayEventMonitor {
   }
 
   public void reset() {
+    log.info("Resetting gateway event monitor. Clearing {} event keys and {} error keys",
+        gatewayEventMap.size(), gatewayErrorEventMap.size());
     gatewayEventMap.clear();
     gatewayErrorEventMap.clear();
+  }
+
+  private String summarizeKnownKeys() {
+    if (gatewayEventMap.isEmpty()) {
+      return "[]";
+    }
+    return gatewayEventMap.keySet().stream()
+        .sorted()
+        .limit(20)
+        .collect(Collectors.joining(", ", "[", gatewayEventMap.size() > 20 ? ", ...]" : "]"));
+  }
+
+  private String summarizeKeysForEventType(String eventType) {
+    List<String> keys = gatewayEventMap.keySet().stream()
+        .filter(key -> key.endsWith(" " + eventType))
+        .sorted()
+        .collect(Collectors.toList());
+    if (keys.isEmpty()) {
+      return "[]";
+    }
+    return keys.stream()
+        .limit(20)
+        .collect(Collectors.joining(", ", "[", keys.size() > 20 ? ", ...]" : "]"));
+  }
+
+  private String summarizeMetadata(GatewayEventDTO dto) {
+    if (dto.getMetadata() == null || dto.getMetadata().isEmpty()) {
+      return "{}";
+    }
+    return dto.getMetadata().entrySet().stream()
+        .filter(entry -> Objects.equals(entry.getKey(), "transactionId")
+            || Objects.equals(entry.getKey(), "caseId")
+            || Objects.equals(entry.getKey(), "siteCaseId")
+            || Objects.equals(entry.getKey(), "Outcome code")
+            || Objects.equals(entry.getKey(), "Primary Outcome")
+            || Objects.equals(entry.getKey(), "Secondary Outcome"))
+        .map(entry -> entry.getKey() + "=" + entry.getValue())
+        .collect(Collectors.joining(", ", "{", "}"));
   }
 
   private static void sleepBriefly() {

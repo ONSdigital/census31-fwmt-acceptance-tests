@@ -107,7 +107,7 @@ if [[ "$CLEAN" == "true" ]]; then
   run_maven_in_repo "$ACCEPTANCE_REPO" clean
 fi
 if [[ "$RUNNER" != "all" ]]; then
-  mvn_args+=(-Dtest="*${RUNNER}")
+  mvn_args+=(-Dtest="${RUNNER}")
 elif [[ "$SUITE_MODE" == "main" ]]; then
   mvn_args+=(-Dtest="!${FEATURE_FLAG_RUNNERS}")
 elif [[ "$SUITE_MODE" == "feature-flag" ]]; then

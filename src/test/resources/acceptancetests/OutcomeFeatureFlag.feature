@@ -2,7 +2,7 @@
 Feature: Outcome feature flags
 
   Scenario: CE outcome is ignored when outcome feature flags are disabled
-    Given the "CE" outcome feature flag is disabled
+    Given the "CE" outcome feature flag is set to "false" at runtime and outcome service is refreshed
     Given an "CE" "No Action" outcome message
     And its Primary Outcome is "Irrelavant"
     And its secondary Outcome "Irrelavant"

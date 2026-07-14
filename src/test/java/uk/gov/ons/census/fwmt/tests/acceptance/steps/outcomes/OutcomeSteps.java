@@ -40,6 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.events.data.GatewayEventDTO;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
+import uk.gov.ons.census.fwmt.tests.acceptance.utils.OutcomeServiceRefreshUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.SpgReasonCodeLookup;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.TMMockUtils;
@@ -120,6 +121,9 @@ public class OutcomeSteps {
     @Autowired
     private TMMockUtils tmMockUtils;
 
+    @Autowired
+    private OutcomeServiceRefreshUtils outcomeServiceRefreshUtils;
+
     private final ObjectMapper jsonObjectMapper = new ObjectMapper();
 
     @Autowired
@@ -130,6 +134,7 @@ public class OutcomeSteps {
     public void setup() throws Exception {
 
         commonUtils.setup();
+      outcomeServiceRefreshUtils.enableDefaultOutcomeFeatureFlags();
 
         surveyType = null;
         businessFunction = null;
