@@ -9,6 +9,9 @@ RUNNER="CreateTestRunner"
 PREPARE=false
 CLEAN=false
 SETUP_PUBSUB=true
+SUITE_MODE="default"
+
+FEATURE_FLAG_RUNNERS="FeatureFlagTestRunner,OutcomeFeatureFlagTestRunner"
 
 usage() {
   cat <<'EOF'
@@ -22,12 +25,15 @@ Options:
   --clean              Run clean before test.
   --no-setup-pubsub    Skip Pub/Sub topic/bootstrap.
   --no-setup-messaging Skip all messaging bootstrap steps.
+  --suite <mode>       Suite mode: default | main | feature-flag
 
 Examples:
   ./run-acceptance-test.sh CreateTestRunner
   ./run-acceptance-test.sh OutcomesTestRunner
   ./run-acceptance-test.sh --clean CreateTestRunner
   ./run-acceptance-test.sh --prepare all
+  ./run-acceptance-test.sh --suite main all
+  ./run-acceptance-test.sh --suite feature-flag all
 EOF
 }
 
@@ -49,6 +55,14 @@ while [[ $# -gt 0 ]]; do
       SETUP_PUBSUB=false
       shift
       ;;
+    --suite)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --suite (expected: default|main|feature-flag)" >&2
+        exit 1
+      fi
+      SUITE_MODE="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -60,6 +74,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "$SUITE_MODE" in
+  default|main|feature-flag)
+    ;;
+  *)
+    echo "Invalid --suite value '$SUITE_MODE' (expected: default|main|feature-flag)" >&2
+    exit 1
+    ;;
+esac
+
 require_java17
 
 if [[ "$PREPARE" == "true" ]]; then
@@ -67,6 +90,11 @@ if [[ "$PREPARE" == "true" ]]; then
 fi
 
 export SETUP_PUBSUB
+if [[ "$SUITE_MODE" == "feature-flag" ]]; then
+  export FWMT_ACCEPTANCE_SUITE_MODE="feature-flag-negative"
+else
+  export FWMT_ACCEPTANCE_SUITE_MODE="main"
+fi
 "$SCRIPT_DIR/setup-messaging.sh"
 
 if [[ ! -f "$ACCEPTANCE_REPO/pom.xml" ]]; then
@@ -80,6 +108,10 @@ if [[ "$CLEAN" == "true" ]]; then
 fi
 if [[ "$RUNNER" != "all" ]]; then
   mvn_args+=(-Dtest="*${RUNNER}")
+elif [[ "$SUITE_MODE" == "main" ]]; then
+  mvn_args+=(-Dtest="!${FEATURE_FLAG_RUNNERS}")
+elif [[ "$SUITE_MODE" == "feature-flag" ]]; then
+  mvn_args+=(-Dtest="${FEATURE_FLAG_RUNNERS}")
 fi
 
 run_maven_in_repo "$ACCEPTANCE_REPO" "${mvn_args[@]}" \

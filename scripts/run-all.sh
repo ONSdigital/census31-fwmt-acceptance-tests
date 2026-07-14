@@ -62,13 +62,13 @@ fi
 log "Step 2/4: local Maven artifacts"
 prepare_args=()
 [[ "$FORCE_PREPARE" == true ]] && prepare_args+=(--force)
-"$SCRIPT_DIR/prepare-local-artifacts.sh" "${prepare_args[@]}"
+"$SCRIPT_DIR/prepare-local-artifacts.sh" ${prepare_args[@]+"${prepare_args[@]}"}
 
 log "Step 3/4: gateway services"
 start_args=()
 [[ "$BUILD_MISSING" == true ]] && start_args+=(--build-missing)
 [[ "$BOOT_RUN" == true ]] && start_args+=(--boot-run)
-"$SCRIPT_DIR/start-services.sh" "${start_args[@]}"
+"$SCRIPT_DIR/start-services.sh" ${start_args[@]+"${start_args[@]}"}
 
 if [[ "$NO_TESTS" == true ]]; then
   log "Done (--no-tests). Stack is up; run ./run-acceptance-test.sh when ready."

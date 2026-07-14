@@ -5,7 +5,7 @@ import io.cucumber.junit.Cucumber;
 import org.junit.runner.RunWith;
 
 @RunWith(Cucumber.class)
-@CucumberOptions(plugin = {"pretty", "json:build/cucumber-report.json"},
+@CucumberOptions(plugin = {"pretty", "json:build/cucumber-outcomes-hard-refusal.json"},
     features = {"src/test/resources/acceptancetests/OutcomeHardRefusal.feature"},
     glue = {"uk.gov.ons.census.fwmt.tests.acceptance.config", "uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes"})
 public class OutcomesHardRefusalTestRunner {

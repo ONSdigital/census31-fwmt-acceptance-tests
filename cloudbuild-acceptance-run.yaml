@@ -1,0 +1,45 @@
+timeout: 1800s
+options:
+  automapSubstitutions: true
+  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
+
+substitutions:
+  _DOCKER_REGION: "europe-west2"
+  _DOCKER_REPO: "fwmtg-docker-release"
+  _IMAGE: "census31-fwmt-acceptance-tests"
+  # Override at trigger level once dev environment is provisioned:
+  _DEV_PROJECT: "c31-fwmtg-dev"
+  _DEV_NAMESPACE: "fwmt"
+
+steps:
+  - name: "gcr.io/google.com/cloudsdktool/google-cloud-cli:slim"
+    id: "auth-docker"
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gcloud auth configure-docker "${_DOCKER_REGION}-docker.pkg.dev" --quiet
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: "pull-image"
+    args:
+      - pull
+      - "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}"
+
+  # TODO (WP-6/deploy-dev): replace this placeholder with actual run steps
+  # once c31-fwmtg-dev service endpoints and credentials are provisioned.
+  # Example run command:
+  #   docker run --rm \
+  #     -e "TARGET_ENV=dev" \
+  #     -e "BASE_URL=https://..." \
+  #     "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}"
+  - name: "gcr.io/cloud-builders/docker"
+    id: "run-acceptance-tests"
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        echo "WP-4 placeholder: acceptance-test run wired but dev environment not yet provisioned."
+        echo "Image: ${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}"
+        echo "Target dev project: ${_DEV_PROJECT} / namespace: ${_DEV_NAMESPACE}"
+        echo "Replace this step with 'docker run ...' once deploy-dev infrastructure exists."
