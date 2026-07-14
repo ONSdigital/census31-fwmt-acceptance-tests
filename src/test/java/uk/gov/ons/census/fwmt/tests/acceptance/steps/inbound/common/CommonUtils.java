@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
+import uk.gov.ons.census.fwmt.tests.acceptance.utils.JobServiceRefreshUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.PreFlightCheck;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.TMMockUtils;
@@ -28,10 +29,14 @@ public class CommonUtils {
     @Autowired
     private PreFlightCheck preFlightCheck;
 
+    @Autowired
+    private JobServiceRefreshUtils jobServiceRefreshUtils;
+
     public static Map<String, String> testBucket = new HashMap<>();
 
     public void setup() throws Exception {
       preFlightCheck.doCheck();
+      jobServiceRefreshUtils.enableDefaultFeatureFlags();
       tmMockUtils.enableRequestRecorder();
       tmMockUtils.resetMock();
       tmMockUtils.clearDownDatabase();

@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
+import uk.gov.ons.census.fwmt.tests.acceptance.utils.JobServiceRefreshUtils;
+import uk.gov.ons.census.fwmt.tests.acceptance.utils.OutcomeServiceRefreshUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.TMMockUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,6 +30,12 @@ public class FeatureFlagSteps {
 
   @Autowired
   private TMMockUtils tmMockUtils;
+
+  @Autowired
+  private OutcomeServiceRefreshUtils outcomeServiceRefreshUtils;
+
+  @Autowired
+  private JobServiceRefreshUtils jobServiceRefreshUtils;
 
   private static final Map<String, String> JOB_FLAG_BY_SURVEY_ACTION = new HashMap<>();
   private static final Map<String, String> OUTCOME_FLAG_BY_SURVEY = new HashMap<>();
@@ -65,6 +73,30 @@ public class FeatureFlagSteps {
         .isNotNull();
 
     assertFlagDisabled(envVar);
+  }
+
+  @Given("the {string} outcome feature flag is set to {string} at runtime and outcome service is refreshed")
+  public void theOutcomeFeatureFlagIsSetAtRuntimeAndRefreshed(String survey, String enabled) {
+    String normalizedSurvey = normalize(survey);
+    assertThat(OUTCOME_FLAG_BY_SURVEY.containsKey(normalizedSurvey))
+        .withFailMessage("No outcome env var mapping found for survey %s", survey)
+        .isTrue();
+
+    boolean enabledValue = Boolean.parseBoolean(enabled);
+    outcomeServiceRefreshUtils.setOutcomeFeatureFlagAndRefresh(normalizedSurvey, enabledValue);
+  }
+
+  @Given("the {string} {string} feature flag is set to {string} at runtime and job service is refreshed")
+  public void theSurveyActionFeatureFlagIsSetAtRuntimeAndRefreshed(String survey, String action,
+      String enabled) {
+    String key = normalize(survey) + ":" + normalize(action);
+    String envVar = JOB_FLAG_BY_SURVEY_ACTION.get(key);
+    assertThat(envVar)
+        .withFailMessage("No env var mapping found for survey/action key %s", key)
+        .isNotNull();
+
+    boolean enabledValue = Boolean.parseBoolean(enabled);
+    jobServiceRefreshUtils.setCreateFeatureFlagAndRefresh(normalize(survey), normalize(action), enabledValue);
   }
 
   @Then("the request with case ID {string} is ignored because the survey or action feature flag is disabled")

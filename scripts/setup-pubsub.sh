@@ -42,20 +42,25 @@ ensure_emulator_reachable() {
 
 create_topic_if_missing() {
   local topic="$1"
-  local segment
+  local segment status
   segment="$(pubsub_api_path_segment "$topic")"
   if curl -fsS "${PUBSUB_API_BASE}/topics/${segment}" >/dev/null 2>&1; then
     return 0
   fi
-  curl -fsS -X PUT "${PUBSUB_API_BASE}/topics/${segment}" \
+  status="$(curl -sS -o /dev/null -w "%{http_code}" -X PUT "${PUBSUB_API_BASE}/topics/${segment}" \
     -H "Content-Type: application/json" \
-    -d '{}' >/dev/null
+    -d '{}')"
+  if [[ "$status" == "200" || "$status" == "201" || "$status" == "409" ]]; then
+    return 0
+  fi
+  echo "Failed to create topic ${topic}: HTTP ${status}" >&2
+  return 1
 }
 
 create_subscription_if_missing() {
   local subscription="$1"
   local topic="$2"
-  local sub_segment topic_segment topic_resource
+  local sub_segment topic_segment topic_resource status
   sub_segment="$(pubsub_api_path_segment "$subscription")"
   topic_segment="$(pubsub_api_path_segment "$topic")"
   topic_resource="projects/${PUBSUB_PROJECT}/topics/${topic}"
@@ -63,9 +68,14 @@ create_subscription_if_missing() {
   if curl -fsS "${PUBSUB_API_BASE}/subscriptions/${sub_segment}" >/dev/null 2>&1; then
     return 0
   fi
-  curl -fsS -X PUT "${PUBSUB_API_BASE}/subscriptions/${sub_segment}" \
+  status="$(curl -sS -o /dev/null -w "%{http_code}" -X PUT "${PUBSUB_API_BASE}/subscriptions/${sub_segment}" \
     -H "Content-Type: application/json" \
-    -d "{\"topic\":\"${topic_resource}\"}" >/dev/null
+    -d "{\"topic\":\"${topic_resource}\"}")"
+  if [[ "$status" == "200" || "$status" == "201" || "$status" == "409" ]]; then
+    return 0
+  fi
+  echo "Failed to create subscription ${subscription} for topic ${topic}: HTTP ${status}" >&2
+  return 1
 }
 
 create_subscription_with_dlq_if_missing() {
@@ -73,7 +83,7 @@ create_subscription_with_dlq_if_missing() {
   local topic="$2"
   local dlq_topic="$3"
   local max_attempts="${4:-5}"
-  local sub_segment topic_resource dlq_resource
+  local sub_segment topic_resource dlq_resource status
   sub_segment="$(pubsub_api_path_segment "$subscription")"
   topic_resource="projects/${PUBSUB_PROJECT}/topics/${topic}"
   dlq_resource="projects/${PUBSUB_PROJECT}/topics/${dlq_topic}"
@@ -81,9 +91,14 @@ create_subscription_with_dlq_if_missing() {
   if curl -fsS "${PUBSUB_API_BASE}/subscriptions/${sub_segment}" >/dev/null 2>&1; then
     return 0
   fi
-  curl -fsS -X PUT "${PUBSUB_API_BASE}/subscriptions/${sub_segment}" \
+  status="$(curl -sS -o /dev/null -w "%{http_code}" -X PUT "${PUBSUB_API_BASE}/subscriptions/${sub_segment}" \
     -H "Content-Type: application/json" \
-    -d "{\"topic\":\"${topic_resource}\",\"deadLetterPolicy\":{\"deadLetterTopic\":\"${dlq_resource}\",\"maxDeliveryAttempts\":${max_attempts}}}" >/dev/null
+    -d "{\"topic\":\"${topic_resource}\",\"deadLetterPolicy\":{\"deadLetterTopic\":\"${dlq_resource}\",\"maxDeliveryAttempts\":${max_attempts}}}")"
+  if [[ "$status" == "200" || "$status" == "201" || "$status" == "409" ]]; then
+    return 0
+  fi
+  echo "Failed to create subscription ${subscription} with DLQ ${dlq_topic}: HTTP ${status}" >&2
+  return 1
 }
 
 safe_sub_name() {
