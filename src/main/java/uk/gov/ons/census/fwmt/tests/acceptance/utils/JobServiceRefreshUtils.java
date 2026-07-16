@@ -53,6 +53,7 @@ public class JobServiceRefreshUtils {
       defaults.put("feature-flags." + survey + ".reactivate", true);
     }
     defaults.put("feature-flags.ce.switch_ce_type", true);
+    defaults.put("feature-flags.feedback.cancel", true);
 
     for (Map.Entry<String, Boolean> entry : defaults.entrySet()) {
       setPropertyForRefresh(entry.getKey(), String.valueOf(entry.getValue()));
