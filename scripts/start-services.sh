@@ -194,7 +194,7 @@ start_service() {
       rm -f "$pid_file"
       sleep 2
     else
-      echo "$name already appears to be running with PID $(cat "$pid_file")."
+      echo "$name already appears to be running with PID $(cat \"$pid_file\"), log $log_file."
       wait_for_http "$name" "$health_url" "$log_file"
       return
     fi
