@@ -2,10 +2,10 @@
 Feature: Outcome feature flags
 
   Scenario: CE outcome is ignored when outcome feature flags are disabled
-    Given the "CE" outcome feature flag is set to "false" at runtime and outcome service is refreshed
+    Given the "CE" outcome feature flag is set to "false"
     Given an "CE" "No Action" outcome message
-    And its Primary Outcome is "Irrelavant"
-    And its secondary Outcome "Irrelavant"
+    And its Primary Outcome is "Irrelevant"
+    And its secondary Outcome "Irrelevant"
     And its Outcome code is "25-30-02"
     And the message includes a Linked QID "F"
     And the message includes a Fulfillment Request "F"

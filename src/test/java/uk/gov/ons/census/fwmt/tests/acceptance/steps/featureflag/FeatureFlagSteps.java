@@ -7,16 +7,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
-import uk.gov.ons.census.fwmt.tests.acceptance.utils.JobServiceRefreshUtils;
-import uk.gov.ons.census.fwmt.tests.acceptance.utils.OutcomeServiceRefreshUtils;
+import uk.gov.ons.census.fwmt.tests.acceptance.utils.FeatureFlagClient;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.TMMockUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class FeatureFlagSteps {
 
@@ -32,72 +28,65 @@ public class FeatureFlagSteps {
   private TMMockUtils tmMockUtils;
 
   @Autowired
-  private OutcomeServiceRefreshUtils outcomeServiceRefreshUtils;
+  private FeatureFlagClient featureFlagClient;
 
-  @Autowired
-  private JobServiceRefreshUtils jobServiceRefreshUtils;
-
-  private static final Map<String, String> JOB_FLAG_BY_SURVEY_ACTION = new HashMap<>();
-  private static final Map<String, String> OUTCOME_FLAG_BY_SURVEY = new HashMap<>();
-
-  static {
-    JOB_FLAG_BY_SURVEY_ACTION.put("HH:CREATE", "FEATURE_HH_CREATE");
-    JOB_FLAG_BY_SURVEY_ACTION.put("CE:CREATE", "FEATURE_CE_CREATE");
-    JOB_FLAG_BY_SURVEY_ACTION.put("SPG:CREATE", "FEATURE_SPG_CREATE");
-    JOB_FLAG_BY_SURVEY_ACTION.put("CCS:CREATE", "FEATURE_CCS_CREATE");
-    JOB_FLAG_BY_SURVEY_ACTION.put("NC:CREATE", "FEATURE_NC_CREATE");
-
-    OUTCOME_FLAG_BY_SURVEY.put("HH", "FEATURE_OUTCOME_HH");
-    OUTCOME_FLAG_BY_SURVEY.put("CE", "FEATURE_OUTCOME_CE");
-    OUTCOME_FLAG_BY_SURVEY.put("SPG", "FEATURE_OUTCOME_SPG");
-    OUTCOME_FLAG_BY_SURVEY.put("CCS", "FEATURE_OUTCOME_CCS");
-    OUTCOME_FLAG_BY_SURVEY.put("NC", "FEATURE_OUTCOME_NC");
-  }
+  // -----------------------------------------------------------------------
+  // Assertion steps – these read from env vars set at container start-up
+  // and assert the initial state before any runtime override is applied.
+  // -----------------------------------------------------------------------
 
   @Given("the {string} {string} feature flag is disabled")
   public void theSurveyActionFeatureFlagIsDisabled(String survey, String action) {
-    String key = normalize(survey) + ":" + normalize(action);
-    String envVar = JOB_FLAG_BY_SURVEY_ACTION.get(key);
-    assertThat(envVar)
-        .withFailMessage("No env var mapping found for survey/action key %s", key)
-        .isNotNull();
-
-    assertFlagDisabled(envVar);
+    assertEnvFlagDisabled(jobFlagEnvVar(normalize(survey), normalize(action)));
   }
 
   @Given("the {string} outcome feature flag is disabled")
   public void theOutcomeFeatureFlagIsDisabled(String survey) {
-    String envVar = OUTCOME_FLAG_BY_SURVEY.get(normalize(survey));
-    assertThat(envVar)
-        .withFailMessage("No outcome env var mapping found for survey %s", survey)
-        .isNotNull();
-
-    assertFlagDisabled(envVar);
+    assertEnvFlagDisabled(outcomeFlagEnvVar(normalize(survey)));
   }
 
+  // -----------------------------------------------------------------------
+  // Runtime-override steps (clean wording — preferred in new scenarios)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Sets a single outcome-service feature flag at runtime.
+   * Example: {@code Given the "CE" outcome feature flag is set to "false"}
+   */
+  @Given("the {string} outcome feature flag is set to {string}")
+  public void setOutcomeFeatureFlag(String survey, String enabled) {
+    featureFlagClient.setOutcomeFlag(normalize(survey), Boolean.parseBoolean(enabled));
+  }
+
+  /**
+   * Sets a single job-service feature flag at runtime.
+   * Example: {@code Given the "HH" "CREATE" feature flag is set to "false"}
+   */
+  @Given("the {string} {string} feature flag is set to {string}")
+  public void setJobFeatureFlag(String survey, String action, String enabled) {
+    featureFlagClient.setJobFlag(normalize(survey), normalize(action), Boolean.parseBoolean(enabled));
+  }
+
+  // -----------------------------------------------------------------------
+  // Legacy-wording aliases – kept so existing .feature files continue to work.
+  // They delegate to the same FeatureFlagClient methods.
+  // -----------------------------------------------------------------------
+
+  /** @deprecated Use {@link #setOutcomeFeatureFlag} — step wording without "refreshed" is preferred. */
   @Given("the {string} outcome feature flag is set to {string} at runtime and outcome service is refreshed")
   public void theOutcomeFeatureFlagIsSetAtRuntimeAndRefreshed(String survey, String enabled) {
-    String normalizedSurvey = normalize(survey);
-    assertThat(OUTCOME_FLAG_BY_SURVEY.containsKey(normalizedSurvey))
-        .withFailMessage("No outcome env var mapping found for survey %s", survey)
-        .isTrue();
-
-    boolean enabledValue = Boolean.parseBoolean(enabled);
-    outcomeServiceRefreshUtils.setOutcomeFeatureFlagAndRefresh(normalizedSurvey, enabledValue);
+    featureFlagClient.setOutcomeFlag(normalize(survey), Boolean.parseBoolean(enabled));
   }
 
+  /** @deprecated Use {@link #setJobFeatureFlag} — step wording without "refreshed" is preferred. */
   @Given("the {string} {string} feature flag is set to {string} at runtime and job service is refreshed")
-  public void theSurveyActionFeatureFlagIsSetAtRuntimeAndRefreshed(String survey, String action,
-      String enabled) {
-    String key = normalize(survey) + ":" + normalize(action);
-    String envVar = JOB_FLAG_BY_SURVEY_ACTION.get(key);
-    assertThat(envVar)
-        .withFailMessage("No env var mapping found for survey/action key %s", key)
-        .isNotNull();
-
-    boolean enabledValue = Boolean.parseBoolean(enabled);
-    jobServiceRefreshUtils.setCreateFeatureFlagAndRefresh(normalize(survey), normalize(action), enabledValue);
+  public void theSurveyActionFeatureFlagIsSetAtRuntimeAndRefreshed(String survey, String action, String enabled) {
+    featureFlagClient.setJobFlag(normalize(survey), normalize(action), Boolean.parseBoolean(enabled));
   }
+
+  // -----------------------------------------------------------------------
+  // Then steps
+  // -----------------------------------------------------------------------
 
   @Then("the request with case ID {string} is ignored because the survey or action feature flag is disabled")
   public void theRequestIsIgnoredDueToFeatureFlagForCaseId(String caseId) {
@@ -128,15 +117,27 @@ public class FeatureFlagSteps {
     assertThat(processingEventTriggered).isFalse();
   }
 
+  // -----------------------------------------------------------------------
+  // Helpers
+  // -----------------------------------------------------------------------
+
   private static String normalize(String value) {
     return value == null ? "" : value.trim().toUpperCase();
   }
 
-  private static void assertFlagDisabled(String envVar) {
+  private static String jobFlagEnvVar(String survey, String action) {
+    return "FEATURE_" + survey + "_" + action;
+  }
+
+  private static String outcomeFlagEnvVar(String survey) {
+    return "FEATURE_OUTCOME_" + survey;
+  }
+
+  private static void assertEnvFlagDisabled(String envVar) {
     String value = System.getenv(envVar);
     boolean enabled = value != null && "true".equalsIgnoreCase(value.trim());
     assertThat(enabled)
-        .withFailMessage("Expected %s to be disabled, but value was '%s'", envVar, value)
+        .withFailMessage("Expected env var %s to be disabled (not 'true'), but value was '%s'", envVar, value)
         .isFalse();
   }
 }

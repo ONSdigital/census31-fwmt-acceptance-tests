@@ -13,6 +13,7 @@ POSTGRES_PASSWORD="${FWMT_POSTGRES_PASSWORD:-postgres}"
 POSTGRES_DB="${FWMT_POSTGRES_DB:-postgres}"
 MAVEN_BIN="${FWMT_MAVEN_BIN:-mvn}"
 LIQUIBASE_PLUGIN_VERSION="${FWMT_LIQUIBASE_PLUGIN_VERSION:-4.31.1}"
+RUN_LIQUIBASE_UPDATE="${FWMT_RUN_LIQUIBASE_UPDATE:-false}"
 POSTGRES_CONTAINER="$(fwmt_postgres_container)"
 
 usage() {
@@ -23,6 +24,7 @@ Runs census31-fwmt-job-service Liquibase changelog against local Postgres
 (schema fwmtg). Requires Postgres from ./start-infra.sh.
 
 Uses the Liquibase Maven plugin by full coordinate (no liquibase prefix in pom).
+Set FWMT_RUN_LIQUIBASE_UPDATE=true to force running Liquibase here.
 EOF
 }
 
@@ -50,20 +52,24 @@ fwmt_container exec "$POSTGRES_CONTAINER" \
   echo "WARN: could not exec into $POSTGRES_CONTAINER; is ./start-infra.sh up?" >&2
 }
 
-echo "Running Liquibase update for job-service..."
-(
-  cd "$JOB_SERVICE_DIR"
-  "$MAVEN_BIN" -q "org.liquibase:liquibase-maven-plugin:${LIQUIBASE_PLUGIN_VERSION}:update" \
-    -Dliquibase.changeLogFile=src/main/resources/db/changelog/db.changelog-master.yml \
-    -Dliquibase.url="jdbc:postgresql://localhost:${POSTGRES_PORT}/${POSTGRES_DB}" \
-    -Dliquibase.defaultSchemaName=fwmtg \
-    -Dliquibase.liquibaseSchemaName=fwmtg \
-    -Dliquibase.username="$POSTGRES_USER" \
-    -Dliquibase.password="$POSTGRES_PASSWORD"
-)
+if [[ "$RUN_LIQUIBASE_UPDATE" == "true" ]]; then
+  echo "Running Liquibase update for job-service..."
+  (
+    cd "$JOB_SERVICE_DIR"
+    "$MAVEN_BIN" -q "org.liquibase:liquibase-maven-plugin:${LIQUIBASE_PLUGIN_VERSION}:update" \
+      -Dliquibase.changeLogFile=src/main/resources/db/changelog/db.changelog-master.yml \
+      -Dliquibase.url="jdbc:postgresql://localhost:${POSTGRES_PORT}/${POSTGRES_DB}" \
+      -Dliquibase.defaultSchemaName=fwmtg \
+      -Dliquibase.liquibaseSchemaName=fwmtg \
+      -Dliquibase.username="$POSTGRES_USER" \
+      -Dliquibase.password="$POSTGRES_PASSWORD"
+  )
 
-echo "Verifying fwmtg tables..."
-fwmt_container exec "$POSTGRES_CONTAINER" \
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt fwmtg.*"
+  echo "Verifying fwmtg tables..."
+  fwmt_container exec "$POSTGRES_CONTAINER" \
+    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt fwmtg.*"
+else
+  echo "Skipping Liquibase update for job-service (FWMT_RUN_LIQUIBASE_UPDATE=$RUN_LIQUIBASE_UPDATE)."
+fi
 
 echo "Job-service database ready."
