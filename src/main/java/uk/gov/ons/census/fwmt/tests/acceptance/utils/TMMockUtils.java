@@ -347,7 +347,7 @@ public final class TMMockUtils {
         stmt = conn.createStatement();
         String sql = "DELETE FROM message_cache";
         stmt.executeUpdate(sql);
-        sql = "DELETE FROM gateway_cache";
+        sql = "DELETE FROM gateway_case_record";
         stmt.executeUpdate(sql);
         sql = "DELETE FROM request_log";
         stmt.execute(sql);
@@ -371,7 +371,7 @@ public final class TMMockUtils {
       if (conn != null) {
         System.out.println("Connected to the database!");
         stmt = conn.createStatement();
-        String sql = "INSERT INTO fwmtg.gateway_cache (case_id, is_delivered, exists_in_fwmt, estab_uprn, type)\n" +
+        String sql = "INSERT INTO fwmtg.gateway_case_record (case_id, is_delivered, exists_in_fwmt, estab_uprn, type)\n" +
                 "VALUES ('" + caseId + "', false, " + existInFwmt +  ", " + estabUprn + ", " + type + ")";
         stmt.executeUpdate(sql);
       } else {
@@ -392,7 +392,7 @@ public final class TMMockUtils {
       if (conn != null) {
         System.out.println("Connected to the database!");
         stmt = conn.createStatement();
-        String sql = "INSERT INTO fwmtg.gateway_cache "
+        String sql = "INSERT INTO fwmtg.gateway_case_record "
             + "(case_id, is_delivered, exists_in_fwmt, type, original_case_id, last_action_instruction) "
             + "VALUES ('" + ncCaseId + "', false, true, 10, '" + originalCaseId + "', 'CREATE')";
         stmt.executeUpdate(sql);
@@ -418,7 +418,7 @@ public final class TMMockUtils {
         System.out.println("Checking whether caseID is in the database!");
         stmt = conn.createStatement();
         String checkCaseId = "'" + caseId + "'";
-        String sql = "SELECT * FROM fwmtg.gateway_cache WHERE case_Id = " + checkCaseId;
+        String sql = "SELECT * FROM fwmtg.gateway_case_record WHERE case_Id = " + checkCaseId;
         resultSet = stmt.executeQuery(sql);
         while (resultSet.next()) {
           recordNumbers = resultSet.getRow();
@@ -473,7 +473,7 @@ public final class TMMockUtils {
     return recordNumbers;
   }
 
-  public int checkActionExistsInGatewayCache(String storedAction, String caseId) throws Exception {
+  public int checkActionExistsInGatewayCaseRecord(String storedAction, String caseId) throws Exception {
     Statement stmt = null;
     ResultSet resultSet = null;
     int recordNumbers = 0;
@@ -482,7 +482,7 @@ public final class TMMockUtils {
         System.out.println("Checking whether caseID is in the database!");
         stmt = conn.createStatement();
         String memoryQuery = "'" + caseId + "' AND last_action_instruction = '" + normaliseStoredAction(storedAction) + "'";
-        String sql = "SELECT * FROM fwmtg.gateway_cache WHERE case_Id = " + memoryQuery;
+        String sql = "SELECT * FROM fwmtg.gateway_case_record WHERE case_Id = " + memoryQuery;
         resultSet = stmt.executeQuery(sql);
         while (resultSet.next()) {
           recordNumbers = resultSet.getRow();
@@ -517,7 +517,7 @@ public final class TMMockUtils {
         String checkCaseQuery = "'" + actionTime + "' where case_Id = '" + caseId
             + "' AND last_action_instruction = '" + normaliseStoredAction(storedAction) + "'";
 
-        String sql = "UPDATE fwmtg.gateway_cache SET last_action_time = " + checkCaseQuery;
+        String sql = "UPDATE fwmtg.gateway_case_record SET last_action_time = " + checkCaseQuery;
         stmt.executeUpdate(sql);
         conn.commit();
       } else {
@@ -544,7 +544,7 @@ public final class TMMockUtils {
       if (conn != null) {
         System.out.println("Connected to the database!");
         stmt = conn.createStatement();
-        String sql = "SELECT * FROM fwmtg.gateway_cache WHERE case_Id = 'bd6345af-d706-43d3-a13b-8c549e081a76'\n " +
+        String sql = "SELECT * FROM fwmtg.gateway_case_record WHERE case_Id = 'bd6345af-d706-43d3-a13b-8c549e081a76'\n " +
                 "AND estab_uprn = '6123456'";
         exists = stmt.execute(sql);
 
@@ -568,7 +568,7 @@ public final class TMMockUtils {
       if (conn != null) {
         System.out.println("Connected to the database!");
         stmt = conn.createStatement();
-        String sql = "SELECT * FROM fwmtg.gateway_cache";
+        String sql = "SELECT * FROM fwmtg.gateway_case_record";
         stmt.execute(sql);
         return builder.isSuccesful(true).build(); 
       } else {

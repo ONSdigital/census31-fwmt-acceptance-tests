@@ -25,6 +25,8 @@ public class OutcomeServiceRefreshUtils {
 
   private static final Duration HEALTH_TIMEOUT = Duration.ofSeconds(15);
   private static final Duration HEALTH_POLL_INTERVAL = Duration.ofMillis(250);
+  private static final String FEATURE_FLAG_RESET_PATH = "/test-support/feature-flags/reset";
+  private static final String FEATURE_FLAG_OUTCOME_PATH = "/test-support/feature-flags/outcome";
 
   @Value("${service.outcome.url}")
   private String outcomeServiceUrl;
@@ -41,6 +43,11 @@ public class OutcomeServiceRefreshUtils {
   private static final List<String> REFRESH_ENDPOINT_PATHS = Arrays.asList("/actuator/refresh", "/refresh");
 
   public void enableDefaultOutcomeFeatureFlags() {
+    if (postFeatureFlagRequest(FEATURE_FLAG_RESET_PATH, Map.of("enabled", true),
+        "Reset all outcome-service feature flags to enabled defaults via custom endpoint")) {
+      return;
+    }
+
     Map<String, Boolean> defaultFlags = new LinkedHashMap<>();
     defaultFlags.put("HH", true);
     defaultFlags.put("SPG", true);
@@ -54,6 +61,13 @@ public class OutcomeServiceRefreshUtils {
     String normalizedSurvey = survey == null ? "" : survey.trim().toUpperCase();
     if (normalizedSurvey.isEmpty()) {
       throw new IllegalArgumentException("Survey must not be blank");
+    }
+
+    if (postFeatureFlagRequest(FEATURE_FLAG_OUTCOME_PATH,
+        Map.of("survey", normalizedSurvey, "enabled", enabled),
+        String.format("Updated outcome-service feature flag %s to %s via custom endpoint",
+            normalizedSurvey, enabled))) {
+      return;
     }
 
     Map<String, Boolean> flags = new LinkedHashMap<>();
@@ -77,6 +91,26 @@ public class OutcomeServiceRefreshUtils {
 
     triggerRefresh();
     waitForServiceHealth();
+  }
+
+  private boolean postFeatureFlagRequest(String path, Map<String, Object> body, String successMessage) {
+    HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, buildJsonHeaders());
+
+    try {
+      ResponseEntity<String> response = restTemplate.exchange(outcomeServiceUrl + path, HttpMethod.POST, entity, String.class);
+      if (response.getStatusCode().is2xxSuccessful()) {
+        log.info(successMessage);
+        return true;
+      }
+    } catch (HttpClientErrorException e) {
+      if (e.getStatusCode().value() == 404) {
+        return false;
+      }
+      throw new IllegalStateException(
+          "Unable to update outcome feature flags via " + path + ", status=" + e.getStatusCode().value(), e);
+    }
+
+    throw new IllegalStateException("Unexpected response while updating outcome feature flags via " + path);
   }
 
   private void setPropertyForRefresh(String propertyName, String propertyValue) {

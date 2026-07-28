@@ -17,7 +17,7 @@
   <name>census31-fwmt-acceptance-tests</name>
 
   <properties>
-    <fwmt.common.version>27.0.1</fwmt.common.version>
+    <fwmt.common.version>27.0.2</fwmt.common.version>
     <fwmt.events.version>27.0.1</fwmt.events.version>
     <fwmt.storage.utils.version>27.0.1</fwmt.storage.utils.version>
   </properties>

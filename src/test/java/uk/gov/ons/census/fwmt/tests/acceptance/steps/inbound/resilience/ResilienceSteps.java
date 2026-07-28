@@ -232,18 +232,18 @@ public class ResilienceSteps {
   @Then("this message will have the {string} in the message cache and {string} in the gateway cache")
   public void checkActionInMessageCache(String actionGateway, String actionMessage) throws Exception {
     String caseId = testBucket.get("caseId");
-    int checkGatewayCache;
+    int checkGatewayCaseRecord;
     int checkMessageCache = 0;
 
     switch (actionGateway) {
       case "Create":
       case "Update":
       case "Cancel":
-        checkGatewayCache = waitForGatewayAction(actionGateway, caseId);
+        checkGatewayCaseRecord = waitForGatewayAction(actionGateway, caseId);
         break;
       case "Update(held)":
       case "Cancel(held)":
-        checkGatewayCache = waitForGatewayAction(actionGateway, caseId);
+        checkGatewayCaseRecord = waitForGatewayAction(actionGateway, caseId);
         checkMessageCache = waitForMessageAction(actionMessage, caseId);
         break;
       default:
@@ -251,10 +251,10 @@ public class ResilienceSteps {
     }
 
     if ((actionGateway.equals("Cancel(held)") || actionGateway.equals("Update(held)")) && !actionMessage.isEmpty()) {
-      assertThat(checkGatewayCache).isEqualTo(1);
+      assertThat(checkGatewayCaseRecord).isEqualTo(1);
       assertThat(checkMessageCache).isEqualTo(1);
     } else {
-      assertThat(checkGatewayCache).isEqualTo(1);
+      assertThat(checkGatewayCaseRecord).isEqualTo(1);
     }
   }
 
@@ -269,7 +269,7 @@ public class ResilienceSteps {
     long endTime = System.currentTimeMillis() + CommonUtils.TIMEOUT;
     int count;
     do {
-      count = tmMockUtils.checkActionExistsInGatewayCache(action, caseId);
+      count = tmMockUtils.checkActionExistsInGatewayCaseRecord(action, caseId);
       if (count == 1) {
         return count;
       }

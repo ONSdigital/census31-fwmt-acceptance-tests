@@ -24,6 +24,8 @@ public class JobServiceRefreshUtils {
 
   private static final Duration HEALTH_TIMEOUT = Duration.ofSeconds(15);
   private static final Duration HEALTH_POLL_INTERVAL = Duration.ofMillis(250);
+  private static final String FEATURE_FLAG_RESET_PATH = "/test-support/feature-flags/reset";
+  private static final String FEATURE_FLAG_JOB_PATH = "/test-support/feature-flags/job";
   private static final List<String> ENV_ENDPOINT_PATHS = Arrays.asList("/actuator/env", "/env");
   private static final List<String> REFRESH_ENDPOINT_PATHS = Arrays.asList("/actuator/refresh", "/refresh");
   private static final List<String> HEALTH_ENDPOINT_PATHS = Arrays.asList("/health/readiness", "/health");
@@ -44,6 +46,11 @@ public class JobServiceRefreshUtils {
    * Call before each inbound scenario to prevent state leakage from prior runners.
    */
   public void enableDefaultFeatureFlags() {
+    if (postFeatureFlagRequest(FEATURE_FLAG_RESET_PATH, Map.of("enabled", true),
+        "Reset all job-service feature flags to enabled defaults via custom endpoint")) {
+      return;
+    }
+
     Map<String, Boolean> defaults = new LinkedHashMap<>();
     for (String survey : Arrays.asList("hh", "ce", "spg", "ccs", "nc")) {
       defaults.put("feature-flags." + survey + ".create", true);
@@ -70,10 +77,35 @@ public class JobServiceRefreshUtils {
       throw new IllegalArgumentException("Survey and action must not be blank");
     }
 
+    if (postFeatureFlagRequest(FEATURE_FLAG_JOB_PATH,
+        Map.of("survey", normalizedSurvey, "action", normalizedAction, "enabled", enabled),
+        String.format("Updated job-service feature flag %s/%s to %s via custom endpoint",
+            normalizedSurvey, normalizedAction, enabled))) {
+      return;
+    }
+
     String propertyName = "feature-flags." + normalizedSurvey + "." + normalizedAction;
     setPropertyForRefresh(propertyName, String.valueOf(enabled));
     triggerRefresh();
     waitForServiceHealth();
+  }
+
+  private boolean postFeatureFlagRequest(String path, Map<String, Object> body, String successMessage) {
+    HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, buildJsonHeaders());
+    try {
+      ResponseEntity<String> response = restTemplate.exchange(jobServiceUrl + path, HttpMethod.POST, entity, String.class);
+      if (response.getStatusCode().is2xxSuccessful()) {
+        log.info(successMessage);
+        return true;
+      }
+    } catch (HttpClientErrorException e) {
+      if (e.getStatusCode().value() == 404) {
+        return false;
+      }
+      throw new IllegalStateException(
+          "Unable to update job-service feature flags via " + path + ", status=" + e.getStatusCode().value(), e);
+    }
+    throw new IllegalStateException("Unexpected response while updating job-service feature flags via " + path);
   }
 
   private void setPropertyForRefresh(String propertyName, String propertyValue) {

@@ -48,15 +48,15 @@ Feature: Outcome Hard Refusal Tests
 
     Examples:
       | SurveyType | BusinessFunction | Primary Outcome | Secondary Outcome | Outcome Code | HasLinkedQID | HasFulfilmentRequest | Operation List | RmMessages | JsMessages |
-      | NC | No Action | Irrelavant | Irrelavant | 04-01-01 | F | F | NO_ACTION |  |  |
-      | NC | No Action | Irrelavant | Irrelavant | 04-01-02 | F | F | NO_ACTION |  |  |
+      | NC | No Action | Irrelevant | Irrelevant | 04-01-01 | F | F | NO_ACTION |  |  |
+      | NC | No Action | Irrelevant | Irrelevant | 04-01-02 | F | F | NO_ACTION |  |  |
       | NC | Cancel Feedback | Contact Made | Cancel Feedback | 04-01-03 | F | F | CANCEL_FEEDBACK |  | CANCEL |
       | NC | Cancel Feedback | Contact Made | Cancel Feedback | 04-01-04 | F | F | CANCEL_FEEDBACK |  | CANCEL |
       | NC | Cancel Feedback | Contact Made | Linked Qid | 04-02-01 | T | F | CANCEL_FEEDBACK,LINKED_QID | QUESTIONNAIRE_LINKED | CANCEL |
       | NC | Cancel Feedback | Contact Made | Linked Qid | 04-02-02 | T | F | CANCEL_FEEDBACK,LINKED_QID | QUESTIONNAIRE_LINKED | CANCEL |
-      | NC | No Action | Irrelavant | Irrelavant | 04-02-03 | F | F | NO_ACTION |  |  |
-      | NC | No Action | Irrelavant | Irrelavant | 04-02-06 | F | F | NO_ACTION |  |  |
-      | NC | No Action | Irrelavant | Irrelavant | 04-02-07 | F | F | NO_ACTION |  |  |
+      | NC | No Action | Irrelevant | Irrelevant | 04-02-03 | F | F | NO_ACTION |  |  |
+      | NC | No Action | Irrelevant | Irrelevant | 04-02-06 | F | F | NO_ACTION |  |  |
+      | NC | No Action | Irrelevant | Irrelevant | 04-02-07 | F | F | NO_ACTION |  |  |
       | NC | Cancel Feedback | Contact Made | Cancel Feedback | 04-02-08 | F | F | CANCEL_FEEDBACK |  | CANCEL |
       | NC | Cancel Feedback | Contact Made | Cancel Feedback | 04-02-10 | F | F | CANCEL_FEEDBACK |  | CANCEL |
-      | NC | No Action | Irrelavant | Irrelavant | 04-03-01 | F | F | NO_ACTION |  |  |
+      | NC | No Action | Irrelevant | Irrelevant | 04-03-01 | F | F | NO_ACTION |  |  |
