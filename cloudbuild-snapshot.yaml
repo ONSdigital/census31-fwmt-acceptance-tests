@@ -9,14 +9,24 @@ substitutions:
   _IMAGE: "census31-fwmt-acceptance-tests"
 
 steps:
+  - name: "gcr.io/google.com/cloudsdktool/google-cloud-cli:slim"
+    id: "get-ar-token"
+    entrypoint: bash
+    args:
+      - -c
+      - gcloud auth print-access-token > /workspace/ar_token
+
   - name: "gcr.io/cloud-builders/docker"
     id: "build-image"
     entrypoint: bash
+    env:
+      - DOCKER_BUILDKIT=1
     args:
       - -c
       - |
         BRANCH_SAFE="$$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' | cut -c1-20)"
         docker build --pull \
+          --secret id=ar_token,src=/workspace/ar_token \
           -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${BRANCH_SAFE}-${SHORT_SHA}-SNAPSHOT" \
           .
 
