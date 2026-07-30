@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Maven settings used ONLY during Docker image build to resolve internal Artifact Registry
-  artifacts (e.g. census31-fwmt-parent). The file is deleted from the image after the
-  dependency:go-offline step so credentials are never stored in the final image.
+  artifacts (e.g. census31-fwmt-parent). Deleted from the image after dependency:go-offline
+  so credentials are never stored in the final image.
 
-  Authentication: the ARTIFACT_REGISTRY_TOKEN build secret is injected via
-  "RUN --mount=type=secret" and read by Maven as ${env.ARTIFACT_REGISTRY_TOKEN}.
+  Authentication: the ARTIFACT_REGISTRY_TOKEN build secret is injected via a BuildKit secret
+  mount and read by Maven as ${env.ARTIFACT_REGISTRY_TOKEN}.
 -->
 <settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
