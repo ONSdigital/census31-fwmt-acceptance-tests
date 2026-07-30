@@ -13,7 +13,8 @@ WORKDIR /opt/census-fsdr-acceptance-tests
 # Pre-download all Maven dependencies at image-build time so the container runs fully offline
 # inside GKE (where there is no outbound internet access).
 # ARTIFACT_REGISTRY_TOKEN is a BuildKit secret — it is never stored in the final image.
-RUN --mount=type=secret,id=ar_token,env=ARTIFACT_REGISTRY_TOKEN \
+RUN --mount=type=secret,id=ar_token \
+    ARTIFACT_REGISTRY_TOKEN=$(cat /run/secrets/ar_token) \
     mvn --batch-mode dependency:go-offline dependency:resolve-plugins && \
     rm /root/.m2/settings.xml
 
