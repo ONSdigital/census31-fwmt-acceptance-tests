@@ -4,21 +4,18 @@ FROM maven:3.9-eclipse-temurin-25
 
 RUN mkdir -p /root/.m2 /opt/census-fsdr-acceptance-tests
 
-# settings.xml configures Artifact Registry repos; copied here for the dependency-cache step below.
 COPY settings.xml /root/.m2/settings.xml
-COPY pom.xml /opt/census-fsdr-acceptance-tests/
+COPY . /opt/census-fsdr-acceptance-tests
 
 WORKDIR /opt/census-fsdr-acceptance-tests
 
-# Pre-download all Maven dependencies at image-build time so the container runs fully offline
-# inside GKE (where there is no outbound internet access).
-# ARTIFACT_REGISTRY_TOKEN is a BuildKit secret — it is never stored in the final image.
+# Compile test code at image-build time to fully warm the Maven cache (resolves version ranges,
+# transitive POMs, and plugin deps that dependency:go-offline misses).
+# ARTIFACT_REGISTRY_TOKEN is a BuildKit secret — never stored in the final image.
 RUN --mount=type=secret,id=ar_token \
     ARTIFACT_REGISTRY_TOKEN=$(cat /run/secrets/ar_token) \
-    mvn --batch-mode dependency:go-offline dependency:resolve-plugins && \
+    mvn --batch-mode test-compile && \
     find /root/.m2 -name "_remote.repositories" -delete && \
     rm /root/.m2/settings.xml
-
-COPY . /opt/census-fsdr-acceptance-tests
 
 ENTRYPOINT [ "mvn", "--batch-mode", "--offline", "clean", "test" ]
