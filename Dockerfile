@@ -14,7 +14,7 @@ WORKDIR /opt/census-fsdr-acceptance-tests
 # ARTIFACT_REGISTRY_TOKEN is a BuildKit secret — never stored in the final image.
 RUN --mount=type=secret,id=ar_token \
     ARTIFACT_REGISTRY_TOKEN=$(cat /run/secrets/ar_token) \
-    mvn --batch-mode clean test-compile && \
+    mvn --batch-mode clean test -DskipTests && \
     find /root/.m2 -name "_remote.repositories" -delete && \
     rm /root/.m2/settings.xml
 
