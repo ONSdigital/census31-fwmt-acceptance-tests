@@ -9,12 +9,11 @@ COPY . /opt/census-fsdr-acceptance-tests
 
 WORKDIR /opt/census-fsdr-acceptance-tests
 
-# Compile test code at image-build time to fully warm the Maven cache (resolves version ranges,
-# transitive POMs, and plugin deps that dependency:go-offline misses).
+# Run the full test lifecycle (ignoring test failures) to cache every plugin and provider.
 # ARTIFACT_REGISTRY_TOKEN is a BuildKit secret — never stored in the final image.
 RUN --mount=type=secret,id=ar_token \
     ARTIFACT_REGISTRY_TOKEN=$(cat /run/secrets/ar_token) \
-    mvn --batch-mode clean test -DskipTests && \
+    mvn --batch-mode clean test || true && \
     find /root/.m2 -name "_remote.repositories" -delete && \
     rm /root/.m2/settings.xml
 
