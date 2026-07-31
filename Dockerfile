@@ -16,6 +16,7 @@ WORKDIR /opt/census-fsdr-acceptance-tests
 RUN --mount=type=secret,id=ar_token \
     ARTIFACT_REGISTRY_TOKEN=$(cat /run/secrets/ar_token) \
     mvn --batch-mode dependency:go-offline dependency:resolve-plugins && \
+    find /root/.m2 -name "_remote.repositories" -delete && \
     rm /root/.m2/settings.xml
 
 COPY . /opt/census-fsdr-acceptance-tests
