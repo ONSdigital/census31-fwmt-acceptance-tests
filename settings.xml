@@ -40,7 +40,7 @@
         <repository>
           <id>fwmtg-maven-snapshot</id>
           <url>https://europe-west2-maven.pkg.dev/c31-fwmtg-ci-prod/fwmtg-maven-snapshot/</url>
-          <releases><enabled>false</enabled></releases>
+          <releases><enabled>true</enabled></releases>
           <snapshots><enabled>true</enabled></snapshots>
         </repository>
       </repositories>
@@ -54,7 +54,7 @@
         <pluginRepository>
           <id>fwmtg-maven-snapshot</id>
           <url>https://europe-west2-maven.pkg.dev/c31-fwmtg-ci-prod/fwmtg-maven-snapshot/</url>
-          <releases><enabled>false</enabled></releases>
+          <releases><enabled>true</enabled></releases>
           <snapshots><enabled>true</enabled></snapshots>
         </pluginRepository>
       </pluginRepositories>
