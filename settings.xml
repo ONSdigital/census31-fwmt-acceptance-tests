@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maven settings used ONLY during Docker image build to resolve internal Artifact Registry
+  artifacts (e.g. census31-fwmt-parent). Deleted from the image after dependency:go-offline
+  so credentials are never stored in the final image.
+
+  Authentication: the ARTIFACT_REGISTRY_TOKEN build secret is injected via a BuildKit secret
+  mount and read by Maven as ${env.ARTIFACT_REGISTRY_TOKEN}.
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0
+                              https://maven.apache.org/xsd/settings-1.2.0.xsd">
+  <servers>
+    <server>
+      <id>fwmtg-maven-release</id>
+      <username>oauth2accesstoken</username>
+      <password>${env.ARTIFACT_REGISTRY_TOKEN}</password>
+    </server>
+    <server>
+      <id>fwmtg-maven-snapshot</id>
+      <username>oauth2accesstoken</username>
+      <password>${env.ARTIFACT_REGISTRY_TOKEN}</password>
+    </server>
+  </servers>
+
+  <profiles>
+    <profile>
+      <id>artifact-registry</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <repositories>
+        <repository>
+          <id>fwmtg-maven-release</id>
+          <url>https://europe-west2-maven.pkg.dev/c31-fwmtg-ci-prod/fwmtg-maven-release/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+        <repository>
+          <id>fwmtg-maven-snapshot</id>
+          <url>https://europe-west2-maven.pkg.dev/c31-fwmtg-ci-prod/fwmtg-maven-snapshot/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>fwmtg-maven-release</id>
+          <url>https://europe-west2-maven.pkg.dev/c31-fwmtg-ci-prod/fwmtg-maven-release/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </pluginRepository>
+        <pluginRepository>
+          <id>fwmtg-maven-snapshot</id>
+          <url>https://europe-west2-maven.pkg.dev/c31-fwmtg-ci-prod/fwmtg-maven-snapshot/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>true</enabled></snapshots>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+  </profiles>
+</settings>

@@ -20,6 +20,8 @@
     <fwmt.common.version>27.0.2</fwmt.common.version>
     <fwmt.events.version>27.0.1</fwmt.events.version>
     <fwmt.storage.utils.version>27.0.1</fwmt.storage.utils.version>
+    <!-- AR publishes this under ons.census.int.common coords; update when census31-int-common-backend is rebuilt -->
+    <product-reference.version>1.0.0-local.20260701092235</product-reference.version>
   </properties>
 
   <dependencies>
@@ -44,9 +46,9 @@
       <version>${fwmt.storage.utils.version}</version>
     </dependency>
     <dependency>
-      <groupId>uk.gov.ons.ctp.integration.common</groupId>
+      <groupId>ons.census.int.common</groupId>
       <artifactId>product-reference</artifactId>
-      <version>${product-reference.acceptance.version}</version>
+      <version>${product-reference.version}</version>
     </dependency>
     <dependency>
       <groupId>com.google.guava</groupId>
