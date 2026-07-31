@@ -1,5 +1,5 @@
-@Census @Acceptance @FeatureFlag @Outcome
-Feature: Outcome feature flags
+@Outcome @FeatureFlag @Census27Test
+Feature: Outcomes Feature Flag Tests
 
   Scenario: CE outcome is ignored when outcome feature flags are disabled
     Given the "CE" outcome feature flag is set to "false"

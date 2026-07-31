@@ -10,6 +10,8 @@ BOOT_RUN=false
 PREPARE=false
 REPLACE=false
 SETUP_PUBSUB=true
+DEBUG=false
+SPRING_PROFILE="local"
 services=()
 
 usage() {
@@ -33,6 +35,8 @@ Options:
   --build-missing      Build a service jar only when no boot jar exists.
   --prepare            Run local dependency artifact preparation first.
   --boot-run           Use Maven spring-boot:run instead of java -jar.
+  --profile <name>     Spring profile for --boot-run (default: local).
+  --debug              Enable JVM remote debug for Java services.
   --replace            Stop any running service PIDs from a previous harness start before launching.
   --no-setup-pubsub    Skip Pub/Sub topic/bootstrap.
   --no-setup-messaging Skip all messaging bootstrap steps.
@@ -42,6 +46,8 @@ Examples:
   ./start-services.sh --build-missing
   ./start-services.sh job-service
   ./start-services.sh --boot-run outcome-service
+  ./start-services.sh --boot-run --profile int job-service
+  ./start-services.sh --debug job-service
 EOF
 }
 
@@ -61,6 +67,19 @@ while [[ $# -gt 0 ]]; do
       ;;
     --boot-run)
       BOOT_RUN=true
+      shift
+      ;;
+    --profile)
+      if [[ $# -lt 2 ]]; then
+        echo "--profile requires a value" >&2
+        usage
+        exit 1
+      fi
+      SPRING_PROFILE="$2"
+      shift 2
+      ;;
+    --debug)
+      DEBUG=true
       shift
       ;;
     --replace)
@@ -124,6 +143,16 @@ is_running() {
   [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null
 }
 
+debug_port_for_service() {
+  case "$1" in
+    tm-mock) echo "5005" ;;
+    job-service) echo "5006" ;;
+    outcome-service) echo "5007" ;;
+    csv-service) echo "5008" ;;
+    *) return 1 ;;
+  esac
+}
+
 wait_for_http() {
   local name="$1"
   local url="$2"
@@ -185,6 +214,18 @@ start_service() {
   env_args=()
   load_service_env_args "$name"
 
+  if [[ "$DEBUG" == "true" ]]; then
+    local debug_port
+    if debug_port="$(debug_port_for_service "$name")"; then
+      # Keep any existing JAVA_TOOL_OPTIONS and append JDWP args.
+      local jdwp_opts=" -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:${debug_port}"
+      env_args+=("JAVA_TOOL_OPTIONS=${JAVA_TOOL_OPTIONS:-}${jdwp_opts}")
+      echo "Debug enabled for $name on localhost:${debug_port}"
+    else
+      echo "Debug enabled, but no debug port mapping configured for $name"
+    fi
+  fi
+
   if is_running "$pid_file"; then
     if [[ "$REPLACE" == "true" ]]; then
       local pid
@@ -205,11 +246,11 @@ start_service() {
       echo "$name has no pom.xml; Census 31 services are Maven-only ($service_dir)" >&2
       exit 1
     fi
-    echo "Starting $name from source with Maven spring-boot:run"
+    echo "Starting $name from source with Maven spring-boot:run (profile=$SPRING_PROFILE)"
     start_detached_in_dir "$service_dir" "$log_file" \
       env "JAVA_HOME=$JAVA_HOME_TO_USE" "PATH=$JAVA_HOME_TO_USE/bin:$PATH" \
       ${env_args[@]+"${env_args[@]}"} \
-      mvn -q spring-boot:run
+      mvn -q "-Dspring-boot.run.profiles=$SPRING_PROFILE" spring-boot:run
   else
     local jar_path
     if ! jar_path="$(latest_boot_jar "$service_dir")"; then

@@ -1,5 +1,5 @@
-@Census @Acceptance @SPG @Feedback
-Feature: SPG Outcome Tests
+@Feedback @SPG ß@Regression
+Feature: SPG Feedback Tests
 
   Scenario Outline: As a Gateway I can receive an SPG outcome which will provide feedback to tm
     Given a job has been created in TM with case id "bd6345af-d706-43d3-a13b-8c549e081a76"

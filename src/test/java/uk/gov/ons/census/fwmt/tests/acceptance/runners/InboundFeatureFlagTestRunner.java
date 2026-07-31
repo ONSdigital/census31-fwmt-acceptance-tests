@@ -6,12 +6,12 @@ import org.junit.runner.RunWith;
 
 @RunWith(Cucumber.class)
 @CucumberOptions(
-    plugin = {"pretty", "json:build/cucumber-outcome-feature-flag-report.json"},
-    features = {"src/test/resources/acceptancetests/OutcomeFeatureFlag.feature"},
+    plugin = {"pretty", "json:build/cucumber-feature-flag-report.json"},
+    features = {"src/test/resources/acceptancetests/FeatureFlag.feature"},
     glue = {
         "uk.gov.ons.census.fwmt.tests.acceptance.config",
-        "uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes",
+        "uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create",
         "uk.gov.ons.census.fwmt.tests.acceptance.steps.featureflag"
     })
-public class OutcomeFeatureFlagTestRunner {
+public class InboundFeatureFlagTestRunner {
 }

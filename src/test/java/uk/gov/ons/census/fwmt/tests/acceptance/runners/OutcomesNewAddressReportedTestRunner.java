@@ -6,8 +6,8 @@ import org.junit.runner.RunWith;
 
 @RunWith(Cucumber.class)
 @CucumberOptions(plugin = {"pretty", "json:build/cucumber-outcomes-new-address.json"},
-    features = {"src/test/resources/acceptancetests/OutcomeNewAddressReported.feature"},
+    features = {"src/test/resources/acceptancetests/OutcomesNewAddressReported.feature"},
     glue = {"uk.gov.ons.census.fwmt.tests.acceptance.config", "uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes"})
-public class OutcomesNewAddressReportedRunner {
+public class OutcomesNewAddressReportedTestRunner {
 
 }
