@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -14,18 +15,31 @@ import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Minimal Pub/Sub emulator client over the HTTP API (same surface as {@code setup-pubsub.sh}).
+ * Pub/Sub REST client for both the local emulator and real Google Cloud Pub/Sub.
+ * Leave {@code fwmt.pubsub.emulatorHost} blank to target real Pub/Sub;
+ * GKE Workload Identity credentials are fetched automatically from the metadata server.
  */
 @Slf4j
 class PubSubEmulatorHttp {
 
   private static final Pattern ACK_ID_PATTERN = Pattern.compile("\"ackId\"\\s*:\\s*\"([^\"]+)\"");
   private static final Pattern DATA_PATTERN = Pattern.compile("\"data\"\\s*:\\s*\"([^\"]+)\"");
+  private static final Pattern ACCESS_TOKEN_PATTERN = Pattern.compile("\"access_token\"\\s*:\\s*\"([^\"]+)\"");
+  private static final Pattern EXPIRES_IN_PATTERN = Pattern.compile("\"expires_in\"\\s*:\\s*(\\d+)");
+  private static final String METADATA_TOKEN_URL =
+      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
 
+  private final java.net.http.HttpClient httpClient = java.net.http.HttpClient.newHttpClient();
   private final String apiBase;
+  private final boolean useEmulator;
+  private String bearerToken;
+  private Instant tokenExpiry = Instant.EPOCH;
 
   PubSubEmulatorHttp(String projectId, String emulatorHost) {
-    this.apiBase = "http://" + emulatorHost + "/v1/projects/" + projectId;
+    this.useEmulator = emulatorHost != null && !emulatorHost.isBlank();
+    this.apiBase = useEmulator
+        ? "http://" + emulatorHost + "/v1/projects/" + projectId
+        : "https://pubsub.googleapis.com/v1/projects/" + projectId;
   }
 
   boolean isReachable() {
@@ -33,7 +47,7 @@ class PubSubEmulatorHttp {
       httpGet(apiBase + "/topics");
       return true;
     } catch (Exception e) {
-      log.debug("Pub/Sub emulator unreachable at {}: {}", apiBase, e.getMessage());
+      log.debug("Pub/Sub not reachable at {}: {}", apiBase, e.getMessage());
       return false;
     }
   }
@@ -132,15 +146,16 @@ class PubSubEmulatorHttp {
   }
 
   private String httpPost(String url, String body) throws IOException {
-    java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
-    java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+    java.net.http.HttpRequest.Builder builder = java.net.http.HttpRequest.newBuilder()
         .uri(URI.create(url))
         .header("Content-Type", "application/json")
-        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body))
-        .build();
+        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body));
+    if (!useEmulator) {
+      builder.header("Authorization", "Bearer " + bearerToken());
+    }
     try {
       java.net.http.HttpResponse<String> response =
-          client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+          httpClient.send(builder.build(), java.net.http.HttpResponse.BodyHandlers.ofString());
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
         throw new IOException("HTTP " + response.statusCode() + " from " + url + ": " + response.body());
       }
@@ -152,14 +167,15 @@ class PubSubEmulatorHttp {
   }
 
   private void httpGet(String url) throws IOException {
-    java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
-    java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+    java.net.http.HttpRequest.Builder builder = java.net.http.HttpRequest.newBuilder()
         .uri(URI.create(url))
-        .GET()
-        .build();
+        .GET();
+    if (!useEmulator) {
+      builder.header("Authorization", "Bearer " + bearerToken());
+    }
     try {
       java.net.http.HttpResponse<String> response =
-          client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+          httpClient.send(builder.build(), java.net.http.HttpResponse.BodyHandlers.ofString());
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
         throw new IOException("HTTP " + response.statusCode() + " from " + url);
       }
@@ -167,6 +183,36 @@ class PubSubEmulatorHttp {
       Thread.currentThread().interrupt();
       throw new IOException("Interrupted calling " + url, e);
     }
+  }
+
+  // Fetches an ADC bearer token from the GCE metadata server; result is cached until near expiry.
+  private synchronized String bearerToken() {
+    if (bearerToken == null || Instant.now().isAfter(tokenExpiry.minusSeconds(60))) {
+      try {
+        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+            .uri(URI.create(METADATA_TOKEN_URL))
+            .header("Metadata-Flavor", "Google")
+            .GET()
+            .build();
+        java.net.http.HttpResponse<String> response =
+            httpClient.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+          throw new IOException("HTTP " + response.statusCode() + " fetching metadata token");
+        }
+        String body = response.body();
+        Matcher m = ACCESS_TOKEN_PATTERN.matcher(body);
+        if (!m.find()) throw new IllegalStateException("No access_token in GCE metadata response");
+        bearerToken = m.group(1);
+        Matcher expM = EXPIRES_IN_PATTERN.matcher(body);
+        int expiresIn = expM.find() ? Integer.parseInt(expM.group(1)) : 3600;
+        tokenExpiry = Instant.now().plusSeconds(expiresIn);
+        log.debug("Fetched new ADC bearer token from metadata server, expires in {}s", expiresIn);
+      } catch (IOException | InterruptedException e) {
+        if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+        throw new IllegalStateException("Failed to fetch ADC bearer token from GCE metadata server", e);
+      }
+    }
+    return bearerToken;
   }
 
   private static String encode(String segment) {
