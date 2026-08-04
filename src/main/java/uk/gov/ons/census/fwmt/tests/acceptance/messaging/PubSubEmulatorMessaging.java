@@ -9,12 +9,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import uk.gov.ons.census.fwmt.common.messaging.FieldWorkerInstructionJsonCodec;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "fwmt.pubsub.mode", havingValue = "emulator", matchIfMissing = true)
 public class PubSubEmulatorMessaging implements MessagingTestClient {
 
   private static final String TYPE_CANCEL = "cancel";
