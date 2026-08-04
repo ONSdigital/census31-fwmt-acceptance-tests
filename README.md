@@ -72,9 +72,21 @@ This repo still defaults to local infra (`run-all.sh`). As a stepping stone to C
 - DB: dedicated acceptance database in the same Cloud SQL instance (`c31-fwmtg-dev-postgres`) via local Cloud SQL Proxy
 - Messaging: target real Pub/Sub project (`c31-fwmtg-dev`) with dedicated acceptance subscriptions
 
+Before running in this mode, ensure:
+
+- `gcloud auth login` and `gcloud auth application-default login` are complete (ADC required by Java GCP clients)
+- GKE context is set to cluster `c31-fwmtg-dev` in region `europe-west2`
+- Namespace assumption is `fwmt`
+
+Shared-environment guardrails:
+
+- Keep `fwmt.pubsub.allowServiceSubscriptionDrain=false` (default) so tests do not drain service subscriptions
+- Use `acceptance-tests-*` subscriptions for assertions and queue draining
+- Use a dedicated acceptance DB/user, not shared `fwmtgateway`
+
 See the detailed command sequence in [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md#gcp-target-manual-workflow-interim-path-to-cloud-build).
 
-Cloud Build remains the target state; this manual flow is the validation baseline before full CI wiring.
+Cloud Build remains the target state; this manual flow is the validation baseline before full CI wiring. The mapping of local commands to Cloud Build execution is documented in [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md#cloud-build-target-mapping-step-6-wrap-up).
 
 ## Pub/Sub emulator (local)
 

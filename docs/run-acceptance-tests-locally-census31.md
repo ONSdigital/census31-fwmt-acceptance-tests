@@ -49,6 +49,25 @@ Use this when you want local test execution against deployed FWMT services and G
 - TM mock: use remote `fwmtgatewaytmmock` from GKE.
 - Database isolation: use a dedicated acceptance DB in the same Cloud SQL instance.
 
+### Assumptions and required auth
+
+- GCP project: `c31-fwmtg-dev`
+- GKE cluster: `c31-fwmtg-dev`
+- Region: `europe-west2`
+- Kubernetes namespace: `fwmt`
+- Pub/Sub project for tests: `c31-fwmtg-dev`
+
+Authenticate before running tests:
+
+```bash
+gcloud auth login
+gcloud auth application-default login
+gcloud config set project c31-fwmtg-dev
+gcloud auth list
+```
+
+`gcloud auth application-default login` is required for Java clients that use ADC in `fwmt.pubsub.mode=gcp`.
+
 ### 1) Authenticate and select context
 
 ```bash
@@ -80,10 +99,45 @@ kubectl -n fwmt port-forward svc/csv-service 18060:80
 kubectl -n fwmt port-forward svc/fwmtgatewaytmmock 18000:80
 ```
 
+Equivalent helper script (preferred):
+
+```bash
+cd /Users/Simon.Diaz/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
+./start-gcp-port-forwards.sh
+```
+
 ### 4) Start Cloud SQL Proxy locally
 
 ```bash
 cloud-sql-proxy --private-ip --port 15432 c31-fwmtg-dev:europe-west2:c31-fwmtg-dev-postgres
+```
+
+Equivalent helper script (preferred):
+
+```bash
+cd /Users/Simon.Diaz/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
+./start-cloudsql-proxy.sh
+```
+
+### 4b) Ensure acceptance Pub/Sub subscriptions exist (GCP mode)
+
+Bootstrap acceptance subscriptions only (safe default):
+
+```bash
+cd /Users/Simon.Diaz/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
+FWMT_PUBSUB_MODE=gcp ./setup-pubsub.sh
+```
+
+Preview commands without mutation:
+
+```bash
+FWMT_PUBSUB_MODE=gcp FWMT_PUBSUB_DRY_RUN=true ./setup-pubsub.sh
+```
+
+Only if explicitly required for service bootstrap testing:
+
+```bash
+FWMT_PUBSUB_MODE=gcp FWMT_PUBSUB_INCLUDE_SERVICE_SUBSCRIPTIONS=true ./setup-pubsub.sh
 ```
 
 ### 5) Run a local acceptance runner with explicit GCP-target overrides
@@ -116,19 +170,54 @@ mvn -B test -Dtest=CreateTestRunner \
 gcloud pubsub topics list --format='value(name)'
 gcloud pubsub subscriptions list --filter='name:acceptance-tests-' --format='value(name)'
 kubectl -n fwmt get svc
+gcloud auth application-default print-access-token >/dev/null && echo 'ADC OK'
 ```
 
 ### 7) Clean up
 
 Stop the `kubectl port-forward` and `cloud-sql-proxy` processes in their terminals.
 
-### Cloud Build mapping
+If using helper scripts:
+
+```bash
+cd /Users/Simon.Diaz/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
+./stop-gcp-port-forwards.sh
+./stop-cloudsql-proxy.sh
+```
+
+### Shared-environment safety rules
+
+- Keep `fwmt.pubsub.allowServiceSubscriptionDrain=false` (default) in GCP mode.
+- Drain only `acceptance-tests-*` subscriptions; avoid draining service subscriptions like `job-service-RM-Field`.
+- Use a dedicated acceptance DB/user and avoid pointing tests at shared `fwmtgateway`.
+- Run one acceptance flow at a time in shared dev unless subscription naming is isolated per run.
+
+### Cloud Build target mapping (Step 6 wrap-up)
 
 This manual workflow is the baseline for Cloud Build automation:
 
 - local process start (`kubectl port-forward`, proxy) -> in-cluster network access in Cloud Build execution environment
 - local Maven `-D...` overrides -> pipeline-provided environment variables/args
 - dedicated acceptance DB/user and acceptance Pub/Sub subscriptions -> reusable shared test assets for build jobs
+
+Recommended Cloud Build mapping details:
+
+- **Auth:**
+  - local: `gcloud auth login` + ADC
+  - Cloud Build: build SA identity + ADC already available to Java clients
+- **Service connectivity:**
+  - local: `kubectl port-forward` to `localhost:18025/18030/18060/18000`
+  - Cloud Build: direct in-cluster DNS/Service URLs in `fwmt` namespace
+- **DB connectivity:**
+  - local: `cloud-sql-proxy` on `localhost:15432`
+  - Cloud Build: Cloud SQL Auth Proxy sidecar/step or private connectivity
+- **Pub/Sub bootstrap:**
+  - local: `FWMT_PUBSUB_MODE=gcp ./setup-pubsub.sh`
+  - Cloud Build: same script with project/env injected, defaulting to acceptance-only subscriptions
+- **Safety constraints (must remain):**
+  - no service-subscription drain by default
+  - dedicated acceptance DB/user only
+  - acceptance subscription prefix (`acceptance-tests-`) retained
 
 ## Ports and env
 

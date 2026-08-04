@@ -104,6 +104,31 @@ Cloud Build target mapping:
 - dedicated acceptance Pub/Sub subscriptions and dedicated acceptance DB/user remain stable shared assets
 - local emulator path remains unchanged for default/local development
 
+### GCP mode guardrails and bootstrap (Step 6)
+
+When running acceptance tests against real Pub/Sub (`fwmt.pubsub.mode=gcp`), keep shared-dev safety controls in place:
+
+- keep `fwmt.pubsub.allowServiceSubscriptionDrain=false` (default)
+- use acceptance subscriptions (`acceptance-tests-*`) for test drains and assertions
+- do not drain service subscriptions such as `job-service-RM-Field` unless explicitly required for a controlled test
+
+Bootstrap commands:
+
+```bash
+cd census31-fwmt-acceptance-tests/scripts
+
+# GCP bootstrap: acceptance subscriptions only (safe default)
+FWMT_PUBSUB_MODE=gcp ./setup-pubsub.sh
+
+# Preview without mutation
+FWMT_PUBSUB_MODE=gcp FWMT_PUBSUB_DRY_RUN=true ./setup-pubsub.sh
+
+# Optional/explicit: include service subscriptions
+FWMT_PUBSUB_MODE=gcp FWMT_PUBSUB_INCLUDE_SERVICE_SUBSCRIPTIONS=true ./setup-pubsub.sh
+```
+
+Cloud Build mapping remains aligned with the same script path and defaults. See `docs/run-acceptance-tests-locally-census31.md` for the full target mapping section.
+
 ---
 
 ## How to run the Pub/Sub emulator locally
