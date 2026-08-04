@@ -10,6 +10,7 @@ PREPARE=false
 CLEAN=false
 SETUP_PUBSUB=true
 SUITE_MODE="default"
+GCP_MODE=false
 
 FEATURE_FLAG_RUNNERS="FeatureFlagTestRunner,OutcomeFeatureFlagTestRunner"
 
@@ -26,6 +27,9 @@ Options:
   --no-setup-pubsub    Skip Pub/Sub topic/bootstrap.
   --no-setup-messaging Skip all messaging bootstrap steps.
   --suite <mode>       Suite mode: default | main | feature-flag
+  --gcp-mode           Run against deployed GCP infrastructure (via local port-forwards and Cloud SQL Proxy).
+                       Requires: kubectl port-forwards running, cloud-sql-proxy on localhost:15432,
+                       and GCP credentials configured.
 
 Examples:
   ./run-acceptance-test.sh CreateTestRunner
@@ -33,7 +37,8 @@ Examples:
   ./run-acceptance-test.sh --clean CreateTestRunner
   ./run-acceptance-test.sh --prepare all
   ./run-acceptance-test.sh --suite main all
-  ./run-acceptance-test.sh --suite feature-flag all
+  ./run-acceptance-test.sh --gcp-mode CreateTestRunner
+  ./run-acceptance-test.sh --gcp-mode --suite main all
 EOF
 }
 
@@ -63,6 +68,10 @@ while [[ $# -gt 0 ]]; do
       SUITE_MODE="$2"
       shift 2
       ;;
+    --gcp-mode)
+      GCP_MODE=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -89,13 +98,22 @@ if [[ "$PREPARE" == "true" ]]; then
   "$SCRIPT_DIR/prepare-local-artifacts.sh"
 fi
 
-export SETUP_PUBSUB
-if [[ "$SUITE_MODE" == "feature-flag" ]]; then
-  export FWMT_ACCEPTANCE_SUITE_MODE="feature-flag-negative"
+if [[ "$GCP_MODE" == "true" ]]; then
+  echo "Running in GCP-target mode (port-forwards + real Pub/Sub)"
+  echo "Ensure:"
+  echo "  - kubectl port-forwards are running (job-service, outcome-service, csv-service, tm-mock)"
+  echo "  - cloud-sql-proxy is running on localhost:15432"
+  echo "  - dedicated acceptance DB exists and DB_PASSWORD is configured"
+  SETUP_PUBSUB=false  # Skip emulator bootstrap in GCP mode
 else
-  export FWMT_ACCEPTANCE_SUITE_MODE="main"
+  export SETUP_PUBSUB
+  if [[ "$SUITE_MODE" == "feature-flag" ]]; then
+    export FWMT_ACCEPTANCE_SUITE_MODE="feature-flag-negative"
+  else
+    export FWMT_ACCEPTANCE_SUITE_MODE="main"
+  fi
+  "$SCRIPT_DIR/setup-messaging.sh"
 fi
-"$SCRIPT_DIR/setup-messaging.sh"
 
 if [[ ! -f "$ACCEPTANCE_REPO/pom.xml" ]]; then
   echo "Missing acceptance-tests POM: $ACCEPTANCE_REPO/pom.xml" >&2
@@ -114,8 +132,20 @@ elif [[ "$SUITE_MODE" == "feature-flag" ]]; then
   mvn_args+=(-Dtest="${FEATURE_FLAG_RUNNERS}")
 fi
 
-run_maven_in_repo "$ACCEPTANCE_REPO" "${mvn_args[@]}" \
-  -Dservice.tm.url="http://localhost:${TM_MOCK_PORT}" \
-  -Dservice.mocktm.url="http://localhost:${TM_MOCK_PORT}" \
-  -Dfwmt.pubsub.emulatorHost="localhost:${PUBSUB_EMULATOR_PORT}" \
-  -Dfwmt.pubsub.project="${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+# Maven properties configuration
+if [[ "$GCP_MODE" == "true" ]]; then
+  # GCP mode: use application-gcp.properties profile, can override via -D at command-line
+  mvn_args+=(--projects . -Dspring.profiles.active=gcp)
+  # Note: users can override DB credentials, URLs, etc. at command-line with -D flags
+  # Example: -Dspring.datasource.username=... -Dspring.datasource.password=... -Dspring.datasource.url=...
+else
+  # Local mode: use emulator defaults with local port overrides
+  mvn_args+=(
+    -Dservice.tm.url="http://localhost:${TM_MOCK_PORT}"
+    -Dservice.mocktm.url="http://localhost:${TM_MOCK_PORT}"
+    -Dfwmt.pubsub.emulatorHost="localhost:${PUBSUB_EMULATOR_PORT}"
+    -Dfwmt.pubsub.project="${FWMT_PUBSUB_PROJECT:-fwmt-local}"
+  )
+fi
+
+run_maven_in_repo "$ACCEPTANCE_REPO" "${mvn_args[@]}"
