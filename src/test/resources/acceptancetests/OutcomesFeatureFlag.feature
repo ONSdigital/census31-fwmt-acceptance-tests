@@ -9,5 +9,5 @@ Feature: Outcomes Feature Flag Tests
     And its Outcome code is "25-30-02"
     And the message includes a Linked QID "F"
     And the message includes a Fulfillment Request "F"
-    When Gateway receives the outcome
+    When Gateway receives message with No Content Response
     Then the outcome is ignored due to feature flag for case ID "bd6345af-d706-43d3-a13b-8c549e081a76"

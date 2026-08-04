@@ -1,4 +1,4 @@
-@Feedback @SPG ß@Regression
+@Feedback @SPG @Regression
 Feature: SPG Feedback Tests
 
   Scenario Outline: As a Gateway I can receive an SPG outcome which will provide feedback to tm
