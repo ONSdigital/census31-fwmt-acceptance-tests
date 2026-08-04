@@ -38,6 +38,98 @@ cd /home/simon/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
 
 Use **`./stop-services.sh`** then **`./drop-infra.sh`** when finished (from `scripts/`; add `--volumes` to reset Postgres/Redis).
 
+## GCP target manual workflow (interim path to Cloud Build)
+
+Use this when you want local test execution against deployed FWMT services and GCP infrastructure. This does **not** replace the default local harness flow.
+
+### Confirmed operating choices
+
+- End goal: run acceptance tests in Cloud Build against GCP infrastructure.
+- Interim local mode: use `kubectl port-forward` for service connectivity.
+- TM mock: use remote `fwmtgatewaytmmock` from GKE.
+- Database isolation: use a dedicated acceptance DB in the same Cloud SQL instance.
+
+### 1) Authenticate and select context
+
+```bash
+gcloud config set project c31-fwmtg-dev
+gcloud container clusters get-credentials c31-fwmtg-dev --region=europe-west2 --project=c31-fwmtg-dev
+kubectl config current-context
+```
+
+### 2) (One-time) create dedicated acceptance DB and SQL user
+
+Choose names and manage secrets with your normal team process. Example names are shown below.
+
+```bash
+export FWMT_ACCEPTANCE_DB_NAME=fwmtgateway_acceptance
+export FWMT_ACCEPTANCE_DB_USER=fwmtg_acceptance
+
+gcloud sql databases create "$FWMT_ACCEPTANCE_DB_NAME" --instance=c31-fwmtg-dev-postgres
+gcloud sql users create "$FWMT_ACCEPTANCE_DB_USER" --instance=c31-fwmtg-dev-postgres --password='<set-secure-password>'
+```
+
+### 3) Start local connectivity to GKE services
+
+Open separate terminals (or use your preferred process manager):
+
+```bash
+kubectl -n fwmt port-forward svc/job-service 18025:80
+kubectl -n fwmt port-forward svc/outcome-service 18030:80
+kubectl -n fwmt port-forward svc/csv-service 18060:80
+kubectl -n fwmt port-forward svc/fwmtgatewaytmmock 18000:80
+```
+
+### 4) Start Cloud SQL Proxy locally
+
+```bash
+cloud-sql-proxy --private-ip --port 15432 c31-fwmtg-dev:europe-west2:c31-fwmtg-dev-postgres
+```
+
+### 5) Run a local acceptance runner with explicit GCP-target overrides
+
+Run from `census31-fwmt-acceptance-tests` root:
+
+```bash
+export FWMT_ACCEPTANCE_DB_NAME=fwmtgateway_acceptance
+export FWMT_ACCEPTANCE_DB_USER=fwmtg_acceptance
+export FWMT_ACCEPTANCE_DB_PASSWORD='<set-secure-password>'
+
+mvn -B test -Dtest=CreateTestRunner \
+  -Dservice.jobservice.url=http://localhost:18025 \
+  -Dservice.outcome.url=http://localhost:18030 \
+  -Dservice.tm.url=http://localhost:18000 \
+  -Dservice.mocktm.url=http://localhost:18000 \
+  -Dservice.ccscsv.url=http://localhost:18060/ingestCCSCsvFile \
+  -Dservice.cecsv.url=http://localhost:18060/ingestCeCsvFile \
+  -Dservice.addresscheckcsv.url=http://localhost:18060/ingestAddressCheckCsvFile \
+  -Dservice.addressfileload.url=http://localhost:18060/ingestAddressLookupCsvFile \
+  -Dspring.datasource.url="jdbc:postgresql://localhost:15432/${FWMT_ACCEPTANCE_DB_NAME}?currentSchema=fwmtg" \
+  -Dspring.datasource.username="${FWMT_ACCEPTANCE_DB_USER}" \
+  -Dspring.datasource.password="${FWMT_ACCEPTANCE_DB_PASSWORD}" \
+  -Dfwmt.pubsub.project=c31-fwmtg-dev
+```
+
+### 6) Verify environment state before/after run
+
+```bash
+gcloud pubsub topics list --format='value(name)'
+gcloud pubsub subscriptions list --filter='name:acceptance-tests-' --format='value(name)'
+kubectl -n fwmt get svc
+```
+
+### 7) Clean up
+
+Stop the `kubectl port-forward` and `cloud-sql-proxy` processes in their terminals.
+
+### Cloud Build mapping
+
+This manual workflow is the baseline for Cloud Build automation:
+
+- local process start (`kubectl port-forward`, proxy) -> in-cluster network access in Cloud Build execution environment
+- local Maven `-D...` overrides -> pipeline-provided environment variables/args
+- dedicated acceptance DB/user and acceptance Pub/Sub subscriptions -> reusable shared test assets for build jobs
+
 ## Ports and env
 
 If you run **both** census21 and census31 stacks concurrently, override host ports via env vars to avoid collisions.

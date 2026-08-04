@@ -64,6 +64,18 @@ export FWMT_LOG_DIR=/path/to/logs
 
 Details: [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md).
 
+## Manual local-against-GCP workflow (phase 1)
+
+This repo still defaults to local infra (`run-all.sh`). As a stepping stone to Cloud Build execution against GCP, use a manual runbook that keeps test execution local but points at deployed GKE services and Cloud SQL.
+
+- Connectivity: `kubectl port-forward` to `job-service`, `outcome-service`, `csv-service`, and remote `fwmtgatewaytmmock`
+- DB: dedicated acceptance database in the same Cloud SQL instance (`c31-fwmtg-dev-postgres`) via local Cloud SQL Proxy
+- Messaging: target real Pub/Sub project (`c31-fwmtg-dev`) with dedicated acceptance subscriptions
+
+See the detailed command sequence in [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md#gcp-target-manual-workflow-interim-path-to-cloud-build).
+
+Cloud Build remains the target state; this manual flow is the validation baseline before full CI wiring.
+
 ## Pub/Sub emulator (local)
 
 | Item | Default |

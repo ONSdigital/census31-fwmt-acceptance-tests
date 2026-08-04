@@ -84,6 +84,26 @@ export PUBSUB_EMULATOR_HOST=localhost:${FWMT_PUBSUB_EMULATOR_PORT:-8085}
 export GOOGLE_CLOUD_PROJECT=fwmt-local   # or FWMT_PUBSUB_PROJECT
 ```
 
+### Interim path: manual local-against-GCP run (towards Cloud Build)
+
+The default harness remains local emulator-first. For Cloud Build preparation, the agreed interim path is:
+
+- run acceptance tests locally
+- target deployed services in `c31-fwmtg-dev` using `kubectl port-forward`
+- use remote tm-mock (`fwmtgatewaytmmock`)
+- use dedicated acceptance DB in Cloud SQL instance `c31-fwmtg-dev-postgres`
+- use real Pub/Sub project `c31-fwmtg-dev` with acceptance-specific subscriptions
+
+Operator runbook commands live in:
+
+- `docs/run-acceptance-tests-locally-census31.md` (section: **GCP target manual workflow**)
+
+Cloud Build target mapping:
+
+- manual local overrides and connectivity become deterministic build-time args/env
+- dedicated acceptance Pub/Sub subscriptions and dedicated acceptance DB/user remain stable shared assets
+- local emulator path remains unchanged for default/local development
+
 ---
 
 ## How to run the Pub/Sub emulator locally
