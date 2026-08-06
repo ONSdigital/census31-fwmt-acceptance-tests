@@ -18,8 +18,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.HashMap;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import uk.gov.ons.census.fwmt.events.data.GatewayErrorEventDTO;
-import uk.gov.ons.census.fwmt.events.data.GatewayEventDTO;
+import uk.gov.ons.census.fwmt.common.events.data.GatewayErrorEventDTO;
+import uk.gov.ons.census.fwmt.common.events.data.GatewayEventDTO;
 
 /**
  * Pub/Sub-backed gateway event monitor for acceptance tests (topic {@code Gateway.Events.Exchange}).

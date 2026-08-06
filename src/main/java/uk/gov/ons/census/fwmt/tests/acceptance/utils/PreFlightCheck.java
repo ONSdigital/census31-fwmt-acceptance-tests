@@ -59,7 +59,7 @@ public class PreFlightCheck {
   public void doCheck() {
     List<NodeCheck> checks = new ArrayList<>();
     checks.add(messagingTestClient.doMessagingPreFlightCheck());
-    checks.add(checkService("outcome-service", outcomeServiceUrl+"/swagger-ui.html", outcomeServiceUsername, outcomeServicePassword));
+    checks.add(checkService("outcome-service", outcomeServiceUrl+"/ swagger-ui.html", outcomeServiceUsername, outcomeServicePassword));
     checks.add(checkService("job-service", jobserviceServiceUrl+"/swagger-ui.html", jobServiceUsername, jobServicePassword));
     checks.add(checkService("tm-service", tmServiceUrl+"/swagger-ui.html", tmServiceUsername, tmServicePassword));
     checks.add(tmMockUtils.checkDbUp());

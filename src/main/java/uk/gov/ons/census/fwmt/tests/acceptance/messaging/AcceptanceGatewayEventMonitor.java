@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.concurrent.TimeoutException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import uk.gov.ons.census.fwmt.events.data.GatewayEventDTO;
+import uk.gov.ons.census.fwmt.common.events.data.GatewayEventDTO;
 
 /**
  * Gateway event assertions via Pub/Sub emulator ({@code acceptance-tests-Gateway-Events}).
