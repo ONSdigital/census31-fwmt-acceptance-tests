@@ -84,7 +84,12 @@ Shared-environment guardrails:
 - Use `acceptance-tests-*` subscriptions for assertions and queue draining
 - Use a dedicated acceptance DB/user, not shared `fwmtgateway`
 
-See the detailed command sequence in [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md#gcp-target-manual-workflow-interim-path-to-cloud-build).
+Two GCP-target runbooks are available:
+
+| Guide | DB strategy | Network requirement |
+|-------|-------------|---------------------|
+| [run-acceptance-tests-against-existing-gcp.md](docs/run-acceptance-tests-against-existing-gcp.md) | Existing `fwmtgateway` DB via pod sidecar port-forward | No VPN needed — tunnels through existing GKE pod |
+| [run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md#gcp-target-manual-workflow-interim-path-to-cloud-build) | Dedicated `fwmtgateway_acceptance` DB | Requires VPC route or bastion to Cloud SQL private IP |
 
 Cloud Build remains the target state; this manual flow is the validation baseline before full CI wiring. The mapping of local commands to Cloud Build execution is documented in [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md#cloud-build-target-mapping-step-6-wrap-up).
 

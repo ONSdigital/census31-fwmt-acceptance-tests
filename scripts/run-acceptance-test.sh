@@ -11,6 +11,7 @@ CLEAN=false
 SETUP_PUBSUB=true
 SUITE_MODE="default"
 GCP_MODE=false
+EXTRA_MVN_ARGS=()
 
 FEATURE_FLAG_RUNNERS="FeatureFlagTestRunner,OutcomeFeatureFlagTestRunner"
 
@@ -71,6 +72,11 @@ while [[ $# -gt 0 ]]; do
     --gcp-mode)
       GCP_MODE=true
       shift
+      ;;
+    --)
+      shift
+      EXTRA_MVN_ARGS=("$@")
+      break
       ;;
     -h|--help)
       usage
@@ -146,6 +152,10 @@ else
     -Dfwmt.pubsub.emulatorHost="localhost:${PUBSUB_EMULATOR_PORT}"
     -Dfwmt.pubsub.project="${FWMT_PUBSUB_PROJECT:-fwmt-local}"
   )
+fi
+
+if [[ ${#EXTRA_MVN_ARGS[@]} -gt 0 ]]; then
+  mvn_args+=("${EXTRA_MVN_ARGS[@]}")
 fi
 
 run_maven_in_repo "$ACCEPTANCE_REPO" "${mvn_args[@]}"
