@@ -1,5 +1,5 @@
-@Census @Acceptance @FeatureFlag @Inbound
-Feature: Inbound feature flags
+@FeatureFlag @Census27Test
+Feature: Inbound Feature Flag Tests
 
   Scenario: HH create is ignored when feature flags are disabled
     Given a TM doesnt have a job with case ID "bd6345af-d706-43d3-a13b-8c549e081a76" in TM

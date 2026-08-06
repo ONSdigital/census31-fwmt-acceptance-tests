@@ -64,6 +64,35 @@ export FWMT_LOG_DIR=/path/to/logs
 
 Details: [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md).
 
+## Manual local-against-GCP workflow (phase 1)
+
+This repo still defaults to local infra (`run-all.sh`). As a stepping stone to Cloud Build execution against GCP, use a manual runbook that keeps test execution local but points at deployed GKE services and Cloud SQL.
+
+- Connectivity: `kubectl port-forward` to `job-service`, `outcome-service`, `csv-service`, and remote `fwmtgatewaytmmock`
+- DB: dedicated acceptance database in the same Cloud SQL instance (`c31-fwmtg-dev-postgres`) via local Cloud SQL Proxy
+- Messaging: target real Pub/Sub project (`c31-fwmtg-dev`) with dedicated acceptance subscriptions
+
+Before running in this mode, ensure:
+
+- `gcloud auth login` and `gcloud auth application-default login` are complete (ADC required by Java GCP clients)
+- GKE context is set to cluster `c31-fwmtg-dev` in region `europe-west2`
+- Namespace assumption is `fwmt`
+
+Shared-environment guardrails:
+
+- Keep `fwmt.pubsub.allowServiceSubscriptionDrain=false` (default) so tests do not drain service subscriptions
+- Use `acceptance-tests-*` subscriptions for assertions and queue draining
+- Use a dedicated acceptance DB/user, not shared `fwmtgateway`
+
+Two GCP-target runbooks are available:
+
+| Guide | DB strategy | Network requirement |
+|-------|-------------|---------------------|
+| [run-acceptance-tests-against-existing-gcp.md](docs/run-acceptance-tests-against-existing-gcp.md) | Existing `fwmtgateway` DB via pod sidecar port-forward | No VPN needed — tunnels through existing GKE pod |
+| [run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md#gcp-target-manual-workflow-interim-path-to-cloud-build) | Dedicated `fwmtgateway_acceptance` DB | Requires VPC route or bastion to Cloud SQL private IP |
+
+Cloud Build remains the target state; this manual flow is the validation baseline before full CI wiring. The mapping of local commands to Cloud Build execution is documented in [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md#cloud-build-target-mapping-step-6-wrap-up).
+
 ## Pub/Sub emulator (local)
 
 | Item | Default |
@@ -87,14 +116,14 @@ Migration history and topology reference:
 | `apply-podman-runtime-support.sh` | One-shot migration for older checkouts (usually not needed) |
 | `prepare-local-artifacts.sh` | Cached wrapper for Maven local installs |
 | `prepare-local-maven-artifacts.sh` | `census31-int-*` integration JARs |
-| `prepare-local-fwmt-libs.sh` | parent BOM + common, events, canonical, storage-utils → `~/.m2` |
+| `prepare-local-fwmt-libs.sh` | parent BOM + common, events, canonical, storage-utils -> `$HOME/.m2` |
 | `build-service.sh` / `build-services.sh` | Build service boot jars |
 | `start-services.sh` | Start tm-mock, job-service, outcome-service |
 | `stop-services.sh` / `restart-service.sh` | Stop or restart services |
 | `setup-messaging.sh` | Bootstrap Pub/Sub topics/subscriptions |
 | `setup-pubsub.sh` | Create topics/subscriptions in Pub/Sub emulator |
 | `run-acceptance-test.sh` | `mvn test` in this repo |
-| `install-local-decryption-key.sh` | Restore test PGP key to `~/.fwmt/keys/` from job-service git history |
+| `install-local-decryption-key.sh` | Restore test PGP key to `$HOME/.fwmt/keys/` from job-service git history |
 | `prepare-job-service-db.sh` | Liquibase migrate `fwmtg` tables in local Postgres (auto-run before job-service) |
 
 Runtime artefacts (gitignored): `scripts/logs/`, `scripts/.pids/`, `scripts/.local-artifacts/`.

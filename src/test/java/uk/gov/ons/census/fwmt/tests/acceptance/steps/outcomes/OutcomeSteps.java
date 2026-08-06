@@ -191,11 +191,17 @@ public class OutcomeSteps {
 
     @When("Gateway receives the outcome")
     public void gateway_processes_the_outcome() throws Exception {
-        sendTMOutcomeMessage();
+        sendTMOutcomeMessage(200);
         confirmOutcomeServiceReceivesMessage();
         if (isGeneratedCaseIdFlow()) {
             resolveGeneratedCaseIdFromPreprocessingEvent();
         }
+    }
+
+    @When("Gateway receives message with No Content Response")
+    public void gateway_processes_the_hidden_outcome() throws Exception {
+        sendTMOutcomeMessage(204);
+        confirmOutcomeServiceReceivesMessage();
     }
 
     private void collectProcessingEvents() {
@@ -568,7 +574,7 @@ public class OutcomeSteps {
         assertThat(expectedJsMessages.containsAll(actualMessages));
     }
 
-    private void sendTMOutcomeMessage() throws Exception {
+    private void sendTMOutcomeMessage(int responseCode) throws Exception {
         int response = -1;
         String request = getTmOutcomeRequest();
         switch (surveyType) {
@@ -587,7 +593,7 @@ public class OutcomeSteps {
         default:
             break;
         }
-        assertEquals(200, response);
+        assertEquals(responseCode, response);
     }
 
     private int sendCe(String request) {
