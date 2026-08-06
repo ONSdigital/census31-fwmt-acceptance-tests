@@ -10,8 +10,8 @@ import static io.cucumber.junit.platform.engine.Constants.PLUGIN_PROPERTY_NAME;
 
 @Suite
 @IncludeEngines("cucumber")
-@SelectClasspathResource("acceptancetests/Create.feature")
-@ConfigurationParameter(key = GLUE_PROPERTY_NAME, value = "uk.gov.ons.census.fwmt.tests.acceptance.config,uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create")
-@ConfigurationParameter(key = PLUGIN_PROPERTY_NAME, value = "pretty,json:target/jsonReports/cucumber-create.json")
-public class CreateTestRunner {
+@SelectClasspathResource("acceptancetests/InboundFeatureFlag.feature")
+@ConfigurationParameter(key = GLUE_PROPERTY_NAME, value = "uk.gov.ons.census.fwmt.tests.acceptance.config,uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create,uk.gov.ons.census.fwmt.tests.acceptance.steps.featureflag")
+@ConfigurationParameter(key = PLUGIN_PROPERTY_NAME, value = "pretty,json:target/jsonReports/cucumber-feature-flag-report.json")
+public class InboundFeatureFlagTestRunner {
 }

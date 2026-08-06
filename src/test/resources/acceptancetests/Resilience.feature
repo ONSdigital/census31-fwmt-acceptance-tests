@@ -1,4 +1,4 @@
-@Census @Acceptance @Inbound @Resilience
+@Resilience @Regression
 Feature: Resilience Tests
 
     Scenario Outline: As gateway I can process messages and store them based on their order
@@ -47,6 +47,7 @@ Feature: Resilience Tests
       | Cancel(Held)            | Cancel       | Cancel(held)         | Cancel(held)         | Older       | No Action      |
       | Cancel(Held)            | CE Switch    | Cancel(held)         | Cancel(held)         | Newer       | Reject         |
       | Cancel(Held)            | CE Switch    | Cancel(held)         | Cancel(held)         | Older       | Reject         |
+
 
   Scenario: As gateway I cannot process create messages once they are already present in the cache
     Given that gateway has a message stored of type "Create" with case ID "bd6345af-d706-43d3-a13b-8c549e081a76"

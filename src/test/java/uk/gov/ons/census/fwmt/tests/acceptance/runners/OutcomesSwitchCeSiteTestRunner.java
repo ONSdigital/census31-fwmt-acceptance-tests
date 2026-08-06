@@ -10,8 +10,9 @@ import static io.cucumber.junit.platform.engine.Constants.PLUGIN_PROPERTY_NAME;
 
 @Suite
 @IncludeEngines("cucumber")
-@SelectClasspathResource("acceptancetests/Feedback.feature")
-@ConfigurationParameter(key = GLUE_PROPERTY_NAME, value = "uk.gov.ons.census.fwmt.tests.acceptance.config,uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.feedback")
-@ConfigurationParameter(key = PLUGIN_PROPERTY_NAME, value = "pretty,json:target/jsonReports/cucumber-feedback.json")
-public class FeedbackTestRunner {
+@SelectClasspathResource("acceptancetests/OutcomesSwitchCeSite.feature")
+@ConfigurationParameter(key = GLUE_PROPERTY_NAME, value = "uk.gov.ons.census.fwmt.tests.acceptance.config,uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes")
+@ConfigurationParameter(key = PLUGIN_PROPERTY_NAME, value = "pretty,json:target/jsonReports/cucumber-outcomes-switch-ce-site.json")
+public class OutcomesSwitchCeSiteTestRunner {
+
 }
