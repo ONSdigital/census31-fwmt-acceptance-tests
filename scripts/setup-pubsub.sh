@@ -10,6 +10,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=local-test-env.sh
 source "$SCRIPT_DIR/local-test-env.sh"
 
+PUBSUB_MODE="${FWMT_PUBSUB_MODE:-emulator}"
+
+if [[ "$PUBSUB_MODE" == "gcp" ]]; then
+  if [[ ! -x "$SCRIPT_DIR/setup-pubsub-gcp.sh" ]]; then
+    echo "GCP Pub/Sub bootstrap script is not executable: $SCRIPT_DIR/setup-pubsub-gcp.sh" >&2
+    echo "Run: chmod +x $SCRIPT_DIR/setup-pubsub-gcp.sh" >&2
+    exit 1
+  fi
+  "$SCRIPT_DIR/setup-pubsub-gcp.sh"
+  exit 0
+fi
+
 PUBSUB_HOST="${FWMT_PUBSUB_HOST:-localhost}"
 PUBSUB_PORT="${FWMT_PUBSUB_EMULATOR_PORT:-8085}"
 PUBSUB_PROJECT="${FWMT_PUBSUB_PROJECT:-fwmt-local}"
