@@ -18,7 +18,7 @@ The census21 guide (`run-acceptance-tests-locally.md` in the same folder) remain
 **One command** (from `census31-fwmt-acceptance-tests/scripts`):
 
 ```bash
-cd /home/simon/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
+cd /path/to/census31-fwmt-acceptance-tests/scripts
 ./run-all.sh
 # ./run-all.sh all
 # ./run-all.sh --force-prepare   # after dependency changes
@@ -27,7 +27,7 @@ cd /home/simon/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
 **Step by step** (same directory):
 
 ```bash
-cd /home/simon/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
+cd /path/to/census31-fwmt-acceptance-tests/scripts
 
 ./start-infra.sh
 ./prepare-local-artifacts.sh --force   # first time or after seed changes
@@ -102,7 +102,7 @@ kubectl -n fwmt port-forward svc/fwmtgatewaytmmock 18000:80
 Equivalent helper script (preferred):
 
 ```bash
-cd /Users/Simon.Diaz/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
+cd /path/to/census31-fwmt-acceptance-tests/scripts
 ./start-gcp-port-forwards.sh
 ```
 
@@ -115,7 +115,7 @@ cloud-sql-proxy --private-ip --port 15432 c31-fwmtg-dev:europe-west2:c31-fwmtg-d
 Equivalent helper script (preferred):
 
 ```bash
-cd /Users/Simon.Diaz/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
+cd /path/to/census31-fwmt-acceptance-tests/scripts
 ./start-cloudsql-proxy.sh
 ```
 
@@ -124,7 +124,7 @@ cd /Users/Simon.Diaz/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scri
 Bootstrap acceptance subscriptions only (safe default):
 
 ```bash
-cd /Users/Simon.Diaz/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
+cd /path/to/census31-fwmt-acceptance-tests/scripts
 FWMT_PUBSUB_MODE=gcp ./setup-pubsub.sh
 ```
 
@@ -180,7 +180,7 @@ Stop the `kubectl port-forward` and `cloud-sql-proxy` processes in their termina
 If using helper scripts:
 
 ```bash
-cd /Users/Simon.Diaz/dev/sourcecode/census31/census31-fwmt-acceptance-tests/scripts
+cd /path/to/census31-fwmt-acceptance-tests/scripts
 ./stop-gcp-port-forwards.sh
 ./stop-cloudsql-proxy.sh
 ```

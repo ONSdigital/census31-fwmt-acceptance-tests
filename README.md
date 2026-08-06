@@ -116,14 +116,14 @@ Migration history and topology reference:
 | `apply-podman-runtime-support.sh` | One-shot migration for older checkouts (usually not needed) |
 | `prepare-local-artifacts.sh` | Cached wrapper for Maven local installs |
 | `prepare-local-maven-artifacts.sh` | `census31-int-*` integration JARs |
-| `prepare-local-fwmt-libs.sh` | parent BOM + common, events, canonical, storage-utils → `~/.m2` |
+| `prepare-local-fwmt-libs.sh` | parent BOM + common, events, canonical, storage-utils -> `$HOME/.m2` |
 | `build-service.sh` / `build-services.sh` | Build service boot jars |
 | `start-services.sh` | Start tm-mock, job-service, outcome-service |
 | `stop-services.sh` / `restart-service.sh` | Stop or restart services |
 | `setup-messaging.sh` | Bootstrap Pub/Sub topics/subscriptions |
 | `setup-pubsub.sh` | Create topics/subscriptions in Pub/Sub emulator |
 | `run-acceptance-test.sh` | `mvn test` in this repo |
-| `install-local-decryption-key.sh` | Restore test PGP key to `~/.fwmt/keys/` from job-service git history |
+| `install-local-decryption-key.sh` | Restore test PGP key to `$HOME/.fwmt/keys/` from job-service git history |
 | `prepare-job-service-db.sh` | Liquibase migrate `fwmtg` tables in local Postgres (auto-run before job-service) |
 
 Runtime artefacts (gitignored): `scripts/logs/`, `scripts/.pids/`, `scripts/.local-artifacts/`.
