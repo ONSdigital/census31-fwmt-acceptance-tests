@@ -574,7 +574,7 @@ public class OutcomeSteps {
         assertThat(expectedJsMessages.containsAll(actualMessages));
     }
 
-    private void sendTMOutcomeMessage(int responseCose) throws Exception {
+    private void sendTMOutcomeMessage(int responseCode) throws Exception {
         int response = -1;
         String request = getTmOutcomeRequest();
         switch (surveyType) {
@@ -593,7 +593,7 @@ public class OutcomeSteps {
         default:
             break;
         }
-        assertEquals(responseCose, response);
+        assertEquals(responseCode, response);
     }
 
     private int sendCe(String request) {

@@ -2,8 +2,17 @@
 set -euo pipefail
 
 # Run two tagged acceptance suites with isolated reports and bounded runtime.
-REPO_DIR="/Users/Simon.Diaz/dev/sourcecode/census31/census31-fwmt-acceptance-tests"
+# Usage:
+#   ./scripts/run-tagged-acceptance.sh
+#   REPO_DIR=/path/to/census31-fwmt-acceptance-tests MAX_SECONDS=600 ./scripts/run-tagged-acceptance.sh
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="${REPO_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 MAX_SECONDS="${MAX_SECONDS:-300}"
+
+if [[ ! -d "${REPO_DIR}" ]]; then
+  echo "REPO_DIR does not exist: ${REPO_DIR}" >&2
+  exit 1
+fi
 
 run_tag() {
   local tag="$1"
