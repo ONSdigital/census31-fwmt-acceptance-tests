@@ -9,7 +9,8 @@ import org.springframework.stereotype.Component;
 import uk.gov.ons.census.fwmt.events.data.GatewayEventDTO;
 
 /**
- * Gateway event assertions via Pub/Sub emulator ({@code acceptance-tests-Gateway-Events}).
+ * Gateway event assertions via Pub/Sub ({@code acceptance-tests-Gateway-Events}).
+ * Routes to the emulator or real GCP based on {@code fwmt.pubsub.mode}.
  */
 @Component
 public class AcceptanceGatewayEventMonitor {
@@ -20,54 +21,87 @@ public class AcceptanceGatewayEventMonitor {
   @Value("${fwmt.pubsub.emulatorHost:localhost:8085}")
   private String pubsubEmulatorHost;
 
-  private PubSubGatewayEventMonitor pubSubMonitor;
+  // "gcp" uses real GCP Pub/Sub; anything else (default "emulator") uses the HTTP emulator.
+  @Value("${fwmt.pubsub.mode:emulator}")
+  private String pubsubMode;
 
-  private PubSubGatewayEventMonitor pubSubMonitor() {
-    if (pubSubMonitor == null) {
-      pubSubMonitor = new PubSubGatewayEventMonitor(pubsubProject, pubsubEmulatorHost);
+  private PubSubGatewayEventMonitor emulatorMonitor;
+  private GcpGatewayEventMonitor gcpMonitor;
+
+  private boolean isGcp() {
+    return "gcp".equals(pubsubMode);
+  }
+
+  private PubSubGatewayEventMonitor emulatorMonitor() {
+    if (emulatorMonitor == null) {
+      emulatorMonitor = new PubSubGatewayEventMonitor(pubsubProject, pubsubEmulatorHost);
     }
-    return pubSubMonitor;
+    return emulatorMonitor;
+  }
+
+  private GcpGatewayEventMonitor gcpMonitor() {
+    if (gcpMonitor == null) {
+      gcpMonitor = new GcpGatewayEventMonitor(pubsubProject);
+    }
+    return gcpMonitor;
   }
 
   public void tearDownGatewayEventMonitor() {
-    if (pubSubMonitor != null) {
-      pubSubMonitor.tearDownGatewayEventMonitor();
+    if (isGcp()) {
+      if (gcpMonitor != null) gcpMonitor.tearDownGatewayEventMonitor();
+    } else {
+      if (emulatorMonitor != null) emulatorMonitor.tearDownGatewayEventMonitor();
     }
   }
 
   public void enableEventMonitor() throws IOException, TimeoutException {
-    pubSubMonitor().enableEventMonitor();
+    if (isGcp()) {
+      gcpMonitor().enableEventMonitor();
+    } else {
+      emulatorMonitor().enableEventMonitor();
+    }
   }
 
   public Boolean checkForEvent(String caseId, String eventType) {
-    return pubSubMonitor().checkForEvent(caseId, eventType);
+    return isGcp() ? gcpMonitor().checkForEvent(caseId, eventType)
+        : emulatorMonitor().checkForEvent(caseId, eventType);
   }
 
   public List<GatewayEventDTO> getEventsForEventType(String eventType, int qty) {
-    return pubSubMonitor().getEventsForEventType(eventType, qty);
+    return isGcp() ? gcpMonitor().getEventsForEventType(eventType, qty)
+        : emulatorMonitor().getEventsForEventType(eventType, qty);
   }
 
   public Collection<GatewayEventDTO> grabEventsTriggered(String eventType, int qty, Long timeOut) {
-    return pubSubMonitor().grabEventsTriggered(eventType, qty, timeOut);
+    return isGcp() ? gcpMonitor().grabEventsTriggered(eventType, qty, timeOut)
+        : emulatorMonitor().grabEventsTriggered(eventType, qty, timeOut);
   }
 
   public boolean hasEventTriggered(String caseId, String eventType) {
-    return pubSubMonitor().hasEventTriggered(caseId, eventType);
+    return isGcp() ? gcpMonitor().hasEventTriggered(caseId, eventType)
+        : emulatorMonitor().hasEventTriggered(caseId, eventType);
   }
 
   public boolean hasEventTriggered(String caseId, String eventType, Long timeOut) {
-    return pubSubMonitor().hasEventTriggered(caseId, eventType, timeOut);
+    return isGcp() ? gcpMonitor().hasEventTriggered(caseId, eventType, timeOut)
+        : emulatorMonitor().hasEventTriggered(caseId, eventType, timeOut);
   }
 
   public boolean hasErrorEventTriggered(String caseId, String eventType) {
-    return pubSubMonitor().hasErrorEventTriggered(caseId, eventType);
+    return isGcp() ? gcpMonitor().hasErrorEventTriggered(caseId, eventType)
+        : emulatorMonitor().hasErrorEventTriggered(caseId, eventType);
   }
 
   public boolean hasErrorEventTriggered(String caseId, String eventType, Long timeOut) {
-    return pubSubMonitor().hasErrorEventTriggered(caseId, eventType, timeOut);
+    return isGcp() ? gcpMonitor().hasErrorEventTriggered(caseId, eventType, timeOut)
+        : emulatorMonitor().hasErrorEventTriggered(caseId, eventType, timeOut);
   }
 
   public void reset() {
-    pubSubMonitor().reset();
+    if (isGcp()) {
+      gcpMonitor().reset();
+    } else {
+      emulatorMonitor().reset();
+    }
   }
 }
