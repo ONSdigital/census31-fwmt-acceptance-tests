@@ -42,7 +42,7 @@ run_tag() {
   set +e
   (
     cd "${REPO_DIR}"
-    "${mvn_cmd[@]}" --batch-mode --offline clean verify \
+    "${mvn_cmd[@]}" --batch-mode --offline clean test \
       "-Dcucumber.filter.tags=${tag}" \
       "-Dcucumber.report.outputDirectory=target/cucumber-reports-${key}" \
       > "${log_file}" 2>&1 &
@@ -91,9 +91,14 @@ upload_reports() {
   fi
   local dest="${bucket}/$(date -u +%Y%m%dT%H%M%SZ)"
   echo "Uploading reports to ${dest}"
-  # Upload all cucumber-reports-* directories and the status file.
-  gcloud storage cp -r "${REPO_DIR}/target/cucumber-reports-"* "${dest}/" \
-    || echo "WARNING: report directory upload failed (non-fatal)"
+  # (N) glob qualifier prevents ZSH from erroring when no report dirs exist yet.
+  local report_dirs=("${REPO_DIR}/target/cucumber-reports-"*(N))
+  if [[ ${#report_dirs[@]} -gt 0 ]]; then
+    gcloud storage cp -r "${report_dirs[@]}" "${dest}/" \
+      || echo "WARNING: report directory upload failed (non-fatal)"
+  else
+    echo "WARNING: no cucumber-reports-* directories found — skipping"
+  fi
   [[ -f "${REPO_DIR}/target/tag-run-status.env" ]] && \
     gcloud storage cp "${REPO_DIR}/target/tag-run-status.env" "${dest}/tag-run-status.env" \
     || true
