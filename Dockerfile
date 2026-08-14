@@ -21,11 +21,10 @@ COPY . /opt/census-fsdr-acceptance-tests
 
 WORKDIR /opt/census-fsdr-acceptance-tests
 
-# Run the full test lifecycle (ignoring test failures) to cache every plugin and provider.
-# ARTIFACT_REGISTRY_TOKEN is a BuildKit secret — never stored in the final image.
+# Run verify (not just test) so verify-phase plugins like maven-cucumber-reporting are cached.
 RUN --mount=type=secret,id=ar_token \
     ARTIFACT_REGISTRY_TOKEN=$(cat /run/secrets/ar_token) \
-    mvn --batch-mode clean test || true && \
+    mvn --batch-mode clean verify || true && \
     find /root/.m2 -name "_remote.repositories" -delete && \
     rm /root/.m2/settings.xml
 
