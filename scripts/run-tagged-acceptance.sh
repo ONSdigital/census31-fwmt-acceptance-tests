@@ -42,7 +42,7 @@ run_tag() {
   set +e
   (
     cd "${REPO_DIR}"
-    "${mvn_cmd[@]}" --batch-mode --offline clean test \
+    "${mvn_cmd[@]}" --batch-mode --offline clean verify \
       "-Dcucumber.filter.tags=${tag}" \
       "-Dcucumber.report.outputDirectory=target/cucumber-reports-${key}" \
       > "${log_file}" 2>&1 &
