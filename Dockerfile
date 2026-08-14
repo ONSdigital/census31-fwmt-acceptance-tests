@@ -17,4 +17,4 @@ RUN --mount=type=secret,id=ar_token \
     find /root/.m2 -name "_remote.repositories" -delete && \
     rm /root/.m2/settings.xml
 
-ENTRYPOINT [ "mvn", "--batch-mode", "--offline", "clean", "test" ]
+ENTRYPOINT ["bash", "-lc", "mvn --batch-mode --offline -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-gcp-incluster} -Dfwmt.pubsub.mode=${FWMT_PUBSUB_MODE:-gcp} -Dfwmt.pubsub.project=${FWMT_PUBSUB_PROJECT:-c31-fwmtg-dev} -Dtest=uk.gov.ons.census.fwmt.tests.acceptance.runners.CancelTestRunner clean test"]
