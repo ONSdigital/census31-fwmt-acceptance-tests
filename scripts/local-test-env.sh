@@ -59,6 +59,8 @@ resolve_java_home() {
 
   if [[ -n "${FWMT_JAVA_HOME:-}" ]]; then
     candidates+=("$FWMT_JAVA_HOME")
+  elif [[ -n "${JAVA_HOME:-}" ]]; then
+    candidates+=("$JAVA_HOME")
   fi
   candidates+=(
     "$HOME/.sdkman/candidates/java/25.0.2-open"

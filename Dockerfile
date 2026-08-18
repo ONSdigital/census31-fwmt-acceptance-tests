@@ -2,6 +2,18 @@
 # Legacy CI image — prefer building a test jar locally and running via census31-fwmt-docs acceptance harness.
 FROM maven:3.9-eclipse-temurin-25
 
+# Install zsh (required by run-tagged-acceptance.sh shebang) and Google Cloud CLI (for gcloud storage upload).
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl gnupg zsh && \
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] \
+         https://packages.cloud.google.com/apt cloud-sdk main" \
+         | tee /etc/apt/sources.list.d/google-cloud-sdk.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg \
+         | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends google-cloud-cli && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN mkdir -p /root/.m2 /opt/census-fsdr-acceptance-tests
 
 COPY settings.xml /root/.m2/settings.xml
@@ -9,12 +21,18 @@ COPY . /opt/census-fsdr-acceptance-tests
 
 WORKDIR /opt/census-fsdr-acceptance-tests
 
-# Run the full test lifecycle (ignoring test failures) to cache every plugin and provider.
-# ARTIFACT_REGISTRY_TOKEN is a BuildKit secret — never stored in the final image.
+# Run verify (not just test) so verify-phase plugins like maven-cucumber-reporting are cached.
 RUN --mount=type=secret,id=ar_token \
     ARTIFACT_REGISTRY_TOKEN=$(cat /run/secrets/ar_token) \
-    mvn --batch-mode clean test || true && \
+    mvn --batch-mode clean verify || true && \
     find /root/.m2 -name "_remote.repositories" -delete && \
     rm /root/.m2/settings.xml
 
-ENTRYPOINT [ "mvn", "--batch-mode", "--offline", "clean", "test" ]
+# Bucket for uploading Cucumber reports after the run (injected by the Kubernetes Job).
+ENV REPORTS_BUCKET=""
+
+# Run the @Feedback tag twice; env vars for Spring / Pub/Sub come from the Kubernetes Job manifest.
+ENTRYPOINT ["zsh", "-c", \
+  "TAG_1=@Feedback KEY_1=feedback TAG_2=@Feedback KEY_2=feedback-retry \
+   /opt/census-fsdr-acceptance-tests/scripts/run-tagged-acceptance.sh"]
+
