@@ -7,7 +7,7 @@
   <parent>
     <groupId>uk.gov.ons.census.fwmt</groupId>
     <artifactId>census31-fwmt-common-parent</artifactId>
-    <version>27.0.4</version>
+    <version>27.0.3</version>
     <relativePath/>
   </parent>
 
