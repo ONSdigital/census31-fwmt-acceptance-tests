@@ -25,8 +25,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import uk.gov.ons.census.fwmt.events.data.GatewayErrorEventDTO;
-import uk.gov.ons.census.fwmt.events.data.GatewayEventDTO;
+import uk.gov.ons.census.fwmt.common.events.data.GatewayErrorEventDTO;
+import uk.gov.ons.census.fwmt.common.events.data.GatewayEventDTO;
 
 /**
  * GCP Pub/Sub-backed gateway event monitor (real GCP subscription, no emulator).
