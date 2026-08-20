@@ -5,8 +5,9 @@ options:
 
 substitutions:
   _DOCKER_REGION: "europe-west2"
-  _DOCKER_REPO: "fwmtg-docker-release"
+  _DOCKER_REPO: "fwmtg-docker-snapshot"
   _IMAGE: "census31-fwmt-acceptance-tests"
+  _PR_NUMBER: ""
 
 steps:
   - name: "gcr.io/google.com/cloudsdktool/google-cloud-cli:slim"
@@ -16,25 +17,46 @@ steps:
       - -c
       - gcloud auth print-access-token > /workspace/ar_token
 
+  - name: "gcr.io/cloud-builders/git"
+    id: "compute-snapshot-version"
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        BASE_VERSION="$$(sed 's/-Drevision=//' .mvn/maven.config | tr -d '[:space:]')"
+        if [[ -z "$${BASE_VERSION}" ]]; then
+          echo "ERROR: could not read version from .mvn/maven.config" >&2
+          exit 1
+        fi
+        echo "$${BASE_VERSION}" > /workspace/effective-version.txt
+
   - name: "gcr.io/cloud-builders/docker"
     id: "build-image"
     entrypoint: bash
     env:
       - DOCKER_BUILDKIT=1
     args:
-      - -c
+      - -ceu
       - |
-        BRANCH_SAFE="$$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' | cut -c1-20)"
+        EFFECTIVE_VERSION="$$(cat /workspace/effective-version.txt)"
+        if [[ "${TRIGGER_NAME}" == *-build ]]; then
+          IMAGE_TAG="$${EFFECTIVE_VERSION}"
+        else
+          BRANCH_SAFE="$$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]' \
+            | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' | cut -c1-20)"
+          IMAGE_TAG="$${BRANCH_SAFE}-$${EFFECTIVE_VERSION}-${SHORT_SHA}"
+        fi
         docker build --pull \
           --secret id=ar_token,src=/workspace/ar_token \
-          -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${BRANCH_SAFE}-${SHORT_SHA}-SNAPSHOT" \
+          -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${IMAGE_TAG}" \
           .
+        echo "$${IMAGE_TAG}" > /workspace/image-tag.txt
 
   - name: "gcr.io/cloud-builders/docker"
     id: "push-image"
     entrypoint: bash
     args:
-      - -c
+      - -ceu
       - |
-        BRANCH_SAFE="$$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' | cut -c1-20)"
-        docker push "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${BRANCH_SAFE}-${SHORT_SHA}-SNAPSHOT"
+        IMAGE_TAG="$$(cat /workspace/image-tag.txt)"
+        docker push "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${IMAGE_TAG}"
