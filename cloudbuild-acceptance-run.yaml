@@ -24,7 +24,7 @@ steps:
     id: "pull-image"
     args:
       - pull
-      - "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}"
+      - "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${_IMAGE_TAG}"
 
   # TODO (WP-6/deploy-dev): replace this placeholder with actual run steps
   # once c31-fwmtg-dev service endpoints and credentials are provisioned.
@@ -40,6 +40,6 @@ steps:
       - -c
       - |
         echo "WP-4 placeholder: acceptance-test run wired but dev environment not yet provisioned."
-        echo "Image: ${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}"
+        echo "Image: ${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${_IMAGE_TAG}"
         echo "Target dev project: ${_DEV_PROJECT} / namespace: ${_DEV_NAMESPACE}"
         echo "Replace this step with 'docker run ...' once deploy-dev infrastructure exists."

@@ -7,6 +7,7 @@ substitutions:
   _DOCKER_REGION: "europe-west2"
   _DOCKER_REPO: "fwmtg-docker-release"
   _IMAGE: "census31-fwmt-acceptance-tests"
+  _CI_PROJECT_ID: c31-fwmtg-ci-prod
 
 steps:
   - name: "gcr.io/google.com/cloudsdktool/google-cloud-cli:slim"
@@ -16,24 +17,45 @@ steps:
       - -c
       - gcloud auth print-access-token > /workspace/ar_token
 
+  - name: "gcr.io/cloud-builders/git"
+    id: "compute-main-rc-version"
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        BASE_VERSION="$$(sed 's/-Drevision=//' .mvn/maven.config | tr -d '[:space:]')"
+        if [[ -z "$${BASE_VERSION}" ]]; then
+          echo "ERROR: could not read version from .mvn/maven.config" >&2
+          exit 1
+        fi
+        BASE_VERSION="$$(echo "$${BASE_VERSION}" | sed -E 's/-SNAPSHOT$//; s/-RC$//')"
+        EFFECTIVE_VERSION="$${BASE_VERSION}-RC"
+        echo "$${EFFECTIVE_VERSION}" > /workspace/effective-version.txt
+
   - name: "gcr.io/cloud-builders/docker"
     id: "build-image"
     entrypoint: bash
     env:
       - DOCKER_BUILDKIT=1
     args:
-      - -c
+      - -ceu
       - |
+        EFFECTIVE_VERSION="$$(cat /workspace/effective-version.txt)"
         docker build --pull \
           --secret id=ar_token,src=/workspace/ar_token \
           -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}" \
+          -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${EFFECTIVE_VERSION}" \
           .
 
   - name: "gcr.io/cloud-builders/docker"
     id: "push-image"
+    entrypoint: bash
     args:
-      - push
-      - "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}"
+      - -ceu
+      - |
+        EFFECTIVE_VERSION="$$(cat /workspace/effective-version.txt)"
+        docker push "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}"
+        docker push "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${EFFECTIVE_VERSION}"
 
 images:
   - "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}"
