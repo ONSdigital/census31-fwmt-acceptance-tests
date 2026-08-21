@@ -31,8 +31,5 @@ RUN --mount=type=secret,id=ar_token \
 # Bucket for uploading Cucumber reports after the run (injected by the Kubernetes Job).
 ENV REPORTS_BUCKET=""
 
-# Run the @Feedback tag twice; env vars for Spring / Pub/Sub come from the Kubernetes Job manifest.
-ENTRYPOINT ["zsh", "-c", \
-  "TAG_1=@Feedback KEY_1=feedback TAG_2=@Feedback KEY_2=feedback-retry \
-   /opt/census-fsdr-acceptance-tests/scripts/run-tagged-acceptance.sh"]
+ENTRYPOINT ["mvn", "--batch-mode", "--offline", "verify", "-Dcucumber.filter.tags=@Feedback"]
 
