@@ -76,6 +76,9 @@ run_tag() {
     echo "${key}=FAIL" >> "${REPO_DIR}/target/tag-run-status.env"
   fi
 
+  # Emit log to stdout so Cloud Logging captures Maven output.
+  [[ -f "${log_file}" ]] && cat "${log_file}" || echo "WARNING: ${log_file} missing — Maven never started"
+
   echo "${key} exit code: ${rc}"
   echo "Log: ${log_file}"
   echo "Report: ${report_dir}"

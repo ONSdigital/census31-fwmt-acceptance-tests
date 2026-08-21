@@ -31,5 +31,5 @@ RUN --mount=type=secret,id=ar_token \
 # Bucket for uploading Cucumber reports after the run (injected by the Kubernetes Job).
 ENV REPORTS_BUCKET=""
 
-ENTRYPOINT ["mvn", "--batch-mode", "--offline", "verify", "-Dcucumber.filter.tags=@Feedback"]
+ENTRYPOINT ["./scripts/docker-run.sh"]
 
