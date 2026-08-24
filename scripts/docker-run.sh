@@ -5,7 +5,7 @@ TEST_TAG="${TEST_TAG:-Feedback}"
 TEST_TAG_FILTER="@${TEST_TAG#@}"
 TEST_TAG_FOLDER="${TEST_TAG_FILTER#@}"
 # Keep bucket paths safe and predictable.
-TEST_TAG_FOLDER="$(echo "${TEST_TAG_FOLDER}" | tr -cs '[:alnum:]._-+' '-')"
+TEST_TAG_FOLDER="$(echo "${TEST_TAG_FOLDER}" | tr -cs '[:alnum:]._+-' '-')"
 TEST_TAG_FOLDER="${TEST_TAG_FOLDER#-}"
 TEST_TAG_FOLDER="${TEST_TAG_FOLDER%-}"
 
