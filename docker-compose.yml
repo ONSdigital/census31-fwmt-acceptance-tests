@@ -1,0 +1,223 @@
+name: census31-fwmt-local
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: fwmt-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/test/resources/db/groundzero.sql:/docker-entrypoint-initdb.d/001-groundzero.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  pubsub-emulator:
+    image: google/cloud-sdk:emulators
+    container_name: fwmt-pubsub-emulator
+    command: >
+      gcloud beta emulators pubsub start
+      --host-port=0.0.0.0:8085
+      --project=fwmt-local
+      --quiet
+    ports:
+      - "8085:8085"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8085'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  pubsub-init:
+    image: curlimages/curl:8.9.1
+    container_name: fwmt-pubsub-init
+    depends_on:
+      pubsub-emulator:
+        condition: service_healthy
+    entrypoint: [ "/bin/sh", "-ec" ]
+    command:
+      - |
+        BASE='http://pubsub-emulator:8085/v1/projects/fwmt-local'
+
+        put_topic() {
+          t="$$1"
+          curl -fsS -X PUT "$$BASE/topics/$$t" \
+            -H 'Content-Type: application/json' \
+            -d '{}' >/dev/null || true
+        }
+
+        put_sub() {
+          s="$$1"
+          t="$$2"
+          curl -fsS -X PUT "$$BASE/subscriptions/$$s" \
+            -H 'Content-Type: application/json' \
+            -d "{\"topic\":\"projects/fwmt-local/topics/$$t\"}" >/dev/null || true
+        }
+
+        put_sub_dlq() {
+          s="$$1"
+          t="$$2"
+          d="$$3"
+          m="$$4"
+          curl -fsS -X PUT "$$BASE/subscriptions/$$s" \
+            -H 'Content-Type: application/json' \
+            -d "{\"topic\":\"projects/fwmt-local/topics/$$t\",\"deadLetterPolicy\":{\"deadLetterTopic\":\"projects/fwmt-local/topics/$$d\",\"maxDeliveryAttempts\":$$m}}" >/dev/null || true
+        }
+
+        until curl -fsS "$$BASE/topics" >/dev/null 2>&1; do sleep 1; done
+
+        put_topic 'RM.Field'
+        put_topic 'RM.FieldDLQ'
+        put_topic 'GW.Field'
+        put_topic 'GW.Permanent.ErrorQ'
+        put_topic 'GW.Transient.ErrorQ'
+        put_topic 'GW.ErrorQ'
+        put_topic 'Outcome.Preprocessing'
+        put_topic 'Outcome.PreprocessingDLQ'
+        put_topic 'Outcome.PreprocesingDLQ'
+        put_topic 'Field.refusals'
+        put_topic 'Field.other'
+        put_topic 'events'
+        put_topic 'Gateway.Events.Exchange'
+        put_topic 'GW.Error.Exchange'
+        put_topic 'adapter-outbound-exchange'
+        put_topic 'Outcome.Preprocessing.Exchange'
+        put_topic 'Gateway.Actions.Exchange'
+
+        put_sub 'job-service-RM-Field' 'RM.Field'
+        put_sub 'job-service-GW-Field' 'GW.Field'
+        put_sub 'job-service-GW-Transient-ErrorQ' 'GW.Transient.ErrorQ'
+        put_sub 'job-service-GW-Permanent-ErrorQ' 'GW.Permanent.ErrorQ'
+        put_sub_dlq 'outcome-service-Outcome-Preprocessing' 'Outcome.Preprocessing' 'Outcome.PreprocessingDLQ' '5'
+        put_sub 'outcome-service-Outcome-PreprocessingDLQ' 'Outcome.PreprocessingDLQ'
+        put_sub 'outcome-service-events' 'events'
+        put_sub 'fulfilment-event-service-events' 'events'
+
+        put_sub 'acceptance-tests-RM-Field' 'RM.Field'
+        put_sub 'acceptance-tests-RM-FieldDLQ' 'RM.FieldDLQ'
+        put_sub 'acceptance-tests-GW-Transient-ErrorQ' 'GW.Transient.ErrorQ'
+        put_sub 'acceptance-tests-GW-Permanent-ErrorQ' 'GW.Permanent.ErrorQ'
+        put_sub 'acceptance-tests-Outcome-Preprocessing' 'Outcome.Preprocessing'
+        put_sub 'acceptance-tests-Outcome-PreprocessingDLQ' 'Outcome.PreprocessingDLQ'
+        put_sub 'acceptance-tests-Field-refusals' 'Field.refusals'
+        put_sub 'acceptance-tests-Field-other' 'Field.other'
+        put_sub 'acceptance-tests-Gateway-Events' 'Gateway.Events.Exchange'
+    restart: "no"
+
+  census31-fwmt-csv-service:
+    image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-csv-service:27.0.3-RC
+    container_name: fwmt-csv-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pubsub-init:
+        condition: service_completed_successfully
+      census31-fwmt-job-service:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_GCP_PROJECT_ID: fwmt-local
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+    ports:
+      - "8060:8060"
+
+  census31-fwmt-fulfillment-event-service:
+    image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-fulfillment-event-service:27.0.3-RC
+    container_name: fwmt-fulfillment-event-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pubsub-init:
+        condition: service_completed_successfully
+      census31-fwmt-job-service:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres?currentSchema=fwmtg
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_CLOUD_GCP_PROJECT_ID: fwmt-local
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+    ports:
+      - "8070:8070"
+
+  census31-fwmt-job-service:
+    image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-job-service:27.0.3-RC
+    container_name: fwmt-job-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pubsub-init:
+        condition: service_completed_successfully
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres?currentSchema=fwmtg
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_LIQUIBASE_URL: jdbc:postgresql://postgres:5432/postgres?currentSchema=fwmtg
+      SPRING_LIQUIBASE_USER: postgres
+      SPRING_LIQUIBASE_PASSWORD: postgres
+      SPRING_CLOUD_GCP_PROJECT_ID: fwmt-local
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      TOTALMOBILE_BASEURL: http://census31-fwmt-tm-mock:8000/
+      RMAPI_BASEURL: http://census31-fwmt-tm-mock:8000/
+    volumes:
+      - ~/.fwmt/keys/decryption.private:/home/censusjobsvc/.fwmt/keys/decryption.private:ro
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/8025"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    ports:
+      - "8025:8025"
+
+  census31-fwmt-outcome-service:
+    image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-outcome-service:27.0.3-RC
+    container_name: fwmt-outcome-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pubsub-init:
+        condition: service_completed_successfully
+      census31-fwmt-job-service:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres?currentSchema=fwmtg
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_CLOUD_GCP_PROJECT_ID: fwmt-local
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+    ports:
+      - "8030:8030"
+
+  census31-fwmt-tm-mock:
+    # TODO: put back
+    #image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-tm-mock:27.0.3-RC
+    image: localhost/tm-mock-local
+    container_name: fwmt-tm-mock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pubsub-init:
+        condition: service_completed_successfully
+      census31-fwmt-job-service:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_GCP_PROJECT_ID: fwmt-local
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:
