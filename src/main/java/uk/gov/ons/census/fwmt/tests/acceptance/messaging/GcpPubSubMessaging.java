@@ -2,7 +2,6 @@ package uk.gov.ons.census.fwmt.tests.acceptance.messaging;
 
 import com.google.api.core.ApiFuture;
 import com.google.cloud.pubsub.v1.Publisher;
-import com.google.cloud.pubsub.v1.TopicAdminClient;
 import com.google.cloud.pubsub.v1.stub.GrpcSubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStubSettings;
@@ -11,7 +10,6 @@ import com.google.pubsub.v1.AcknowledgeRequest;
 import com.google.pubsub.v1.ModifyAckDeadlineRequest;
 import com.google.pubsub.v1.ProjectSubscriptionName;
 import com.google.pubsub.v1.ProjectTopicName;
-import com.google.pubsub.v1.ProjectName;
 import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
@@ -219,13 +217,22 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
     @Override
     public boolean isReachable() {
-      try (TopicAdminClient client = TopicAdminClient.create()) {
-        client.listTopics(ProjectName.of(projectId)).iterateAll().iterator().hasNext();
-        return true;
-      } catch (Exception e) {
-        log.debug("Google Pub/Sub unreachable for project {}: {}", projectId, e.getMessage());
-        return false;
+      // Use a lightweight pull against known acceptance subscriptions so preflight
+      // does not require broad topic-list permissions.
+      for (PubSubTestLane lane : List.of(PubSubTestLane.RM_FIELD, PubSubTestLane.OUTCOME_PREPROCESSING)) {
+        try {
+          pull(lane.testSubscription(), 1);
+          return true;
+        } catch (Exception e) {
+          log.debug(
+              "Pub/Sub pull probe failed for project {} subscription {}: {}",
+              projectId,
+              lane.testSubscription(),
+              e.getMessage());
+        }
       }
+
+      return false;
     }
 
     @Override
