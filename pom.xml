@@ -180,6 +180,8 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.5</version>
                 <configuration>
+                    <!-- allow verify phase (cucumber reporting) to run even when tests fail -->
+                    <testFailureIgnore>true</testFailureIgnore>
                     <properties>
                         <configurationParameters>
                             cucumber.junit-platform.naming-strategy=long
