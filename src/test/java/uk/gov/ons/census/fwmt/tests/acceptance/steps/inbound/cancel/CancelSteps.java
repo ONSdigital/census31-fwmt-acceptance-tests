@@ -1,8 +1,8 @@
 package uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.cancel;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils.testBucket;
 
 import java.net.URISyntaxException;
@@ -109,7 +109,7 @@ public class CancelSteps {
     List<GatewayEventDTO> events = gatewayEventMonitor.getEventsForEventType(COMET_CANCEL_PRE_SENDING, 1);
     event_COMET_CANCEL_PRE_SENDING = events.get(0);
     String actualTmAction = event_COMET_CANCEL_PRE_SENDING.getMetadata().get("TM Action");
-    assertEquals("TM Actions created for TM", expectedTmAction, actualTmAction);
+    assertEquals(expectedTmAction, actualTmAction, "TM Actions created for TM");
   }
 
   @Then("the cancel job is acknowledged by TM")

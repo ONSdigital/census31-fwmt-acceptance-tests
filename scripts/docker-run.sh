@@ -1,9 +1,92 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Running acceptance tests with @Feedback tag"
-mvn --batch-mode --offline verify -Dcucumber.filter.tags="@Feedback"
-echo "Finished running acceptance tests with @Feedback tag"
+# Tag filter: default to all tests; override via CUCUMBER_TAGS env var
+cucumber_tags="${CUCUMBER_TAGS:-}"
+tag_args=""
+if [[ -n "${cucumber_tags}" ]]; then
+  tag_args="-Dcucumber.filter.tags=${cucumber_tags}"
+  echo "Running acceptance tests with filter: ${cucumber_tags}"
+else
+  echo "Running all acceptance tests"
+fi
+
+mvn_exit_code=0
+set +e
+mvn --batch-mode verify ${tag_args}
+mvn_exit_code=$?
+set -e
+
+bad_cucumber_steps=0
+json_report_count=0
+scenario_total=0
+scenario_passed=0
+scenario_failed=0
+scenario_skipped=0
+scenario_other=0
+feature_total=0
+if compgen -G "target/jsonReports/*.json" >/dev/null; then
+  # Build a scenario-level summary so logs reflect real cucumber outcomes.
+  read -r bad_cucumber_steps json_report_count feature_total scenario_total scenario_passed scenario_failed scenario_skipped scenario_other < <(
+    python3 - <<'PY'
+import glob
+import json
+
+failing_statuses = {"failed", "ambiguous", "undefined", "pending"}
+skipped_statuses = {"skipped"}
+bad = 0
+files = 0
+features = 0
+scenarios = 0
+passed = 0
+failed = 0
+skipped = 0
+other = 0
+
+for report in glob.glob("target/jsonReports/*.json"):
+    files += 1
+    with open(report, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+  for feature in data if isinstance(data, list) else []:
+    features += 1
+        for element in feature.get("elements", []) or []:
+      scenarios += 1
+      statuses = []
+            for step in element.get("steps", []) or []:
+                step_status = ((step.get("result") or {}).get("status") or "").lower()
+        if step_status:
+          statuses.append(step_status)
+        if step_status in failing_statuses:
+                    bad += 1
+            for hook in element.get("before", []) + element.get("after", []):
+                hook_status = ((hook.get("result") or {}).get("status") or "").lower()
+        if hook_status:
+          statuses.append(hook_status)
+        if hook_status in failing_statuses:
+                    bad += 1
+
+      if any(s in failing_statuses for s in statuses):
+        failed += 1
+      elif statuses and all(s in skipped_statuses for s in statuses):
+        skipped += 1
+      elif any(s == "passed" for s in statuses):
+        passed += 1
+      else:
+        other += 1
+
+print(f"{bad} {files} {features} {scenarios} {passed} {failed} {skipped} {other}")
+PY
+  )
+fi
+
+if [[ "${json_report_count}" -eq 0 ]]; then
+  echo "Warning: no cucumber JSON reports found under target/jsonReports"
+else
+  echo "Acceptance summary: json_reports=${json_report_count} features=${feature_total} scenarios_total=${scenario_total} scenarios_passed=${scenario_passed} scenarios_failed=${scenario_failed} scenarios_skipped=${scenario_skipped} scenarios_other=${scenario_other} failing_steps_or_hooks=${bad_cucumber_steps}"
+fi
+
+echo "Finished running acceptance tests"
 ls -l target/cucumber-reports 2>/dev/null || echo "Warning: cucumber-reports not found"
 
 if [[ -n "${REPORTS_BUCKET:-}" ]]; then
@@ -24,4 +107,9 @@ if [[ -n "${REPORTS_BUCKET:-}" ]]; then
   fi
 else
   echo "REPORTS_BUCKET not set - skipping report upload"
+fi
+
+if [[ "${mvn_exit_code}" -ne 0 ]]; then
+  echo "Maven verify failed with exit code ${mvn_exit_code}"
+  exit "${mvn_exit_code}"
 fi
