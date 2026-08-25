@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Tag filter: default to all tests; override via CUCUMBER_TAGS env var
+# Prefer CUCUMBER_TAGS. Fall back to TEST_TAG for backward compatibility.
 cucumber_tags="${CUCUMBER_TAGS:-}"
+if [[ -z "${cucumber_tags}" && -n "${TEST_TAG:-}" ]]; then
+  cucumber_tags="@${TEST_TAG#@}"
+fi
+
 tag_args=""
 if [[ -n "${cucumber_tags}" ]]; then
   tag_args="-Dcucumber.filter.tags=${cucumber_tags}"
@@ -48,32 +52,33 @@ for report in glob.glob("target/jsonReports/*.json"):
     with open(report, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-  for feature in data if isinstance(data, list) else []:
-    features += 1
+    for feature in data if isinstance(data, list) else []:
+        features += 1
         for element in feature.get("elements", []) or []:
-      scenarios += 1
-      statuses = []
+            scenarios += 1
+            statuses = []
             for step in element.get("steps", []) or []:
                 step_status = ((step.get("result") or {}).get("status") or "").lower()
-        if step_status:
-          statuses.append(step_status)
-        if step_status in failing_statuses:
-                    bad += 1
-            for hook in element.get("before", []) + element.get("after", []):
-                hook_status = ((hook.get("result") or {}).get("status") or "").lower()
-        if hook_status:
-          statuses.append(hook_status)
-        if hook_status in failing_statuses:
+                if step_status:
+                    statuses.append(step_status)
+                if step_status in failing_statuses:
                     bad += 1
 
-      if any(s in failing_statuses for s in statuses):
-        failed += 1
-      elif statuses and all(s in skipped_statuses for s in statuses):
-        skipped += 1
-      elif any(s == "passed" for s in statuses):
-        passed += 1
-      else:
-        other += 1
+            for hook in (element.get("before", []) or []) + (element.get("after", []) or []):
+                hook_status = ((hook.get("result") or {}).get("status") or "").lower()
+                if hook_status:
+                    statuses.append(hook_status)
+                if hook_status in failing_statuses:
+                    bad += 1
+
+            if any(s in failing_statuses for s in statuses):
+                failed += 1
+            elif statuses and all(s in skipped_statuses for s in statuses):
+                skipped += 1
+            elif any(s == "passed" for s in statuses):
+                passed += 1
+            else:
+                other += 1
 
 print(f"{bad} {files} {features} {scenarios} {passed} {failed} {skipped} {other}")
 PY
@@ -88,6 +93,7 @@ fi
 
 echo "Finished running acceptance tests"
 ls -l target/cucumber-reports 2>/dev/null || echo "Warning: cucumber-reports not found"
+ls -l target/cucumber-html-reports 2>/dev/null || true
 
 if [[ -n "${REPORTS_BUCKET:-}" ]]; then
   echo "Uploading reports to ${REPORTS_BUCKET}"
@@ -104,6 +110,10 @@ if [[ -n "${REPORTS_BUCKET:-}" ]]; then
     gcloud storage cp -r target/cucumber-reports "${REPORTS_BUCKET}/"
   else
     echo "Warning: cucumber report directory not found"
+  fi
+
+  if [[ -d target/cucumber-html-reports ]]; then
+    gcloud storage cp -r target/cucumber-html-reports "${REPORTS_BUCKET}/"
   fi
 else
   echo "REPORTS_BUCKET not set - skipping report upload"
