@@ -30,9 +30,10 @@ scenario_skipped=0
 scenario_other=0
 feature_total=0
 if compgen -G "target/jsonReports/*.json" >/dev/null; then
-  # Build a scenario-level summary so logs reflect real cucumber outcomes.
-  read -r bad_cucumber_steps json_report_count feature_total scenario_total scenario_passed scenario_failed scenario_skipped scenario_other < <(
-    python3 - <<'PY'
+  if command -v python3 >/dev/null 2>&1; then
+    # Build a scenario-level summary so logs reflect real cucumber outcomes.
+    read -r bad_cucumber_steps json_report_count feature_total scenario_total scenario_passed scenario_failed scenario_skipped scenario_other < <(
+      python3 - <<'PY'
 import glob
 import json
 
@@ -82,7 +83,10 @@ for report in glob.glob("target/jsonReports/*.json"):
 
 print(f"{bad} {files} {features} {scenarios} {passed} {failed} {skipped} {other}")
 PY
-  )
+    )
+  else
+    echo "Warning: python3 not found; skipping cucumber JSON summary"
+  fi
 fi
 
 if [[ "${json_report_count}" -eq 0 ]]; then

@@ -4,7 +4,7 @@ FROM maven:3.9-eclipse-temurin-25
 
 # Install zsh (required by run-tagged-acceptance.sh shebang) and Google Cloud CLI (for gcloud storage upload).
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl gnupg zsh && \
+    apt-get install -y --no-install-recommends curl gnupg python3 zsh && \
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] \
          https://packages.cloud.google.com/apt cloud-sdk main" \
          | tee /etc/apt/sources.list.d/google-cloud-sdk.list && \
