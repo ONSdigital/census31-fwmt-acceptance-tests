@@ -343,7 +343,7 @@ public final class TMMockUtils {
   }
 
   public void clearDownDatabase() throws Exception {
-    System.out.println("CLEARDB" + url + username + password);
+    log.info("CLEARDB database cleanup requested");
     Statement stmt = null;
     try (Connection conn = DriverManager.getConnection(url, username, password)) {
       if (conn != null) {
