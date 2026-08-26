@@ -93,8 +93,12 @@ public final class TMMockUtils {
 
   private JAXBContext jaxbContext;
 
+  private String mockTmBaseUrl() {
+    return mockTmUrl.endsWith("/") ? mockTmUrl.substring(0, mockTmUrl.length() - 1) : mockTmUrl;
+  }
+
   public void resetMock() throws IOException {
-    URL url = new URL(mockTmUrl + "/logger/reset");
+    URL url = new URL(mockTmBaseUrl() + "/logger/reset");
     log.info("reset-mock_url:" + url.toString());
     HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
     httpURLConnection.setRequestMethod("GET");
@@ -104,13 +108,13 @@ public final class TMMockUtils {
   }
 
   public MockMessage[] getMessages() {
-    String url = mockTmUrl + "/logger/allMessages";
+    String url = mockTmBaseUrl() + "/logger/allMessages";
     log.info("allMessages-mock_url:" + url);
     return restTemplate.getForObject(url, MockMessage[].class);
   }
 
   public Case getCaseById(String id) {
-    String url = mockTmUrl + "/cases/" + id;
+    String url = mockTmBaseUrl() + "/cases/" + id;
     log.info("getCaseById-mock_url:" + url);
     ResponseEntity<Case> responseEntity;
     responseEntity = restTemplate.getForEntity(url, Case.class);
@@ -118,7 +122,7 @@ public final class TMMockUtils {
   }
 
   public CasePause getPauseCase(String id) {
-    String url = mockTmUrl + "/cases/" + id + "/pause";
+    String url = mockTmBaseUrl() + "/cases/" + id + "/pause";
     log.info("getCancelCaseById-mock.url:" + url);
     ResponseEntity<CasePause> responseEntity;
     responseEntity = restTemplate.getForEntity(url, CasePause.class);
@@ -319,7 +323,7 @@ public final class TMMockUtils {
   }
 
   public void enableRequestRecorder() throws IOException {
-    URL url = new URL(mockTmUrl + "/logger/enableRequestRecorder");
+    URL url = new URL(mockTmBaseUrl() + "/logger/enableRequestRecorder");
     log.info("enableRequestRecorder-mock_url:" + url.toString());
     HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
     httpURLConnection.setRequestMethod("GET");
@@ -329,7 +333,7 @@ public final class TMMockUtils {
   }
 
   public void disableRequestRecorder() throws IOException {
-    URL url = new URL(mockTmUrl + "/logger/disableRequestRecorder");
+    URL url = new URL(mockTmBaseUrl() + "/logger/disableRequestRecorder");
     log.info("disableRequestRecorder-mock_url:" + url.toString());
     HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
     httpURLConnection.setRequestMethod("GET");
