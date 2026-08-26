@@ -20,6 +20,8 @@ import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck.NodeCheckBuilder;
 @Slf4j
 public class PreFlightCheck {
 
+  private static final String TM_HEALTHCHECK_PATH = "swagger-ui.html";
+
   @Autowired
   private uk.gov.ons.census.fwmt.tests.acceptance.messaging.MessagingTestClient messagingTestClient;
   
@@ -61,7 +63,7 @@ public class PreFlightCheck {
     checks.add(messagingTestClient.doMessagingPreFlightCheck());
     checks.add(checkService("outcome-service", outcomeServiceUrl+"/swagger-ui.html", outcomeServiceUsername, outcomeServicePassword));
     checks.add(checkService("job-service", jobserviceServiceUrl+"/swagger-ui.html", jobServiceUsername, jobServicePassword));
-    checks.add(checkService("tm-service", tmServiceUrl+"/swagger-ui.html", tmServiceUsername, tmServicePassword));
+    checks.add(checkService("tm-service", tmServiceUrl + TM_HEALTHCHECK_PATH, tmServiceUsername, tmServicePassword));
     checks.add(tmMockUtils.checkDbUp());
     checks.stream().forEach(n -> System.out.println(n.toString()));
   }
