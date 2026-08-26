@@ -29,6 +29,12 @@ scenario_failed=0
 scenario_skipped=0
 scenario_other=0
 feature_total=0
+junit_xml_count=0
+junit_tests=0
+junit_failures=0
+junit_errors=0
+junit_skipped=0
+artifact_failure=0
 if compgen -G "target/jsonReports/*.json" >/dev/null; then
   if command -v python3 >/dev/null 2>&1; then
     # Build a scenario-level summary so logs reflect real cucumber outcomes.
@@ -95,6 +101,42 @@ else
   echo "Acceptance summary: json_reports=${json_report_count} features=${feature_total} scenarios_total=${scenario_total} scenarios_passed=${scenario_passed} scenarios_failed=${scenario_failed} scenarios_skipped=${scenario_skipped} scenarios_other=${scenario_other} failing_steps_or_hooks=${bad_cucumber_steps}"
 fi
 
+if compgen -G "target/surefire-reports/TEST-*.xml" >/dev/null; then
+  if command -v python3 >/dev/null 2>&1; then
+    read -r junit_xml_count junit_tests junit_failures junit_errors junit_skipped < <(
+      python3 - <<'PY'
+import glob
+import xml.etree.ElementTree as ET
+
+files = 0
+tests = 0
+failures = 0
+errors = 0
+skipped = 0
+
+for report in glob.glob("target/surefire-reports/TEST-*.xml"):
+    files += 1
+    root = ET.parse(report).getroot()
+    tests += int(root.attrib.get("tests", "0"))
+    failures += int(root.attrib.get("failures", "0"))
+    errors += int(root.attrib.get("errors", "0"))
+    skipped += int(root.attrib.get("skipped", "0"))
+
+print(f"{files} {tests} {failures} {errors} {skipped}")
+PY
+    )
+    echo "JUnit summary: xml_reports=${junit_xml_count} tests=${junit_tests} failures=${junit_failures} errors=${junit_errors} skipped=${junit_skipped}"
+  else
+    echo "Warning: python3 not found; skipping JUnit XML summary"
+  fi
+else
+  echo "Warning: no JUnit XML files found under target/surefire-reports"
+fi
+
+if [[ "${scenario_failed}" -gt 0 || "${bad_cucumber_steps}" -gt 0 || "${junit_failures}" -gt 0 || "${junit_errors}" -gt 0 ]]; then
+  artifact_failure=1
+fi
+
 echo "Finished running acceptance tests"
 ls -l target/cucumber-reports 2>/dev/null || echo "Warning: cucumber-reports not found"
 ls -l target/cucumber-html-reports 2>/dev/null || true
@@ -126,4 +168,9 @@ fi
 if [[ "${mvn_exit_code}" -ne 0 ]]; then
   echo "Maven verify failed with exit code ${mvn_exit_code}"
   exit "${mvn_exit_code}"
+fi
+
+if [[ "${artifact_failure}" -ne 0 ]]; then
+  echo "Failing job due to test failures found in generated reports"
+  exit 1
 fi
