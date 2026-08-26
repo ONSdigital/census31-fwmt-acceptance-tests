@@ -24,7 +24,7 @@ WORKDIR /opt/census-fsdr-acceptance-tests
 # Prime Maven and fail the image build if package-phase plugin dependencies are not fully cached.
 RUN --mount=type=secret,id=ar_token \
     export ARTIFACT_REGISTRY_TOKEN="$(cat /run/secrets/ar_token)" && \
-    mvn --batch-mode -U -DskipTests dependency:resolve dependency:resolve-plugins && \
+    mvn --batch-mode -U -DskipTests dependency:go-offline && \
     mvn --batch-mode --offline -DskipTests clean package && \
     find /root/.m2 -name "_remote.repositories" -delete && \
     rm /root/.m2/settings.xml
