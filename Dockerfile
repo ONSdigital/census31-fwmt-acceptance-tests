@@ -26,6 +26,7 @@ RUN --mount=type=secret,id=ar_token \
     export ARTIFACT_REGISTRY_TOKEN="$(cat /run/secrets/ar_token)" && \
     mvn --batch-mode -U -DskipTests dependency:go-offline && \
     mvn --batch-mode -DskipTests clean package && \
+    mvn --batch-mode -Dtest=NoSuchTest -DfailIfNoTests=false test && \
     find /root/.m2 -name "_remote.repositories" -delete && \
     rm /root/.m2/settings.xml
 
