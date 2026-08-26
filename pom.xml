@@ -187,8 +187,7 @@
                     </dependency>
                 </dependencies>
                 <configuration>
-                    <!-- allow verify phase (cucumber reporting) to run even when tests fail -->
-                    <testFailureIgnore>true</testFailureIgnore>
+                    <testFailureIgnore>false</testFailureIgnore>
                     <properties>
                         <configurationParameters>
                             cucumber.junit-platform.naming-strategy=long
