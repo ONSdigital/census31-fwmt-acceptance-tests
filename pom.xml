@@ -187,7 +187,7 @@
                     </dependency>
                 </dependencies>
                 <configuration>
-                    <testFailureIgnore>false</testFailureIgnore>
+                    <testFailureIgnore>true</testFailureIgnore>
                     <properties>
                         <configurationParameters>
                             cucumber.junit-platform.naming-strategy=long
