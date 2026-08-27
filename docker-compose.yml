@@ -125,7 +125,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_CLOUD_GCP_PROJECT_ID: fwmt-local
-      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
     ports:
       - "8060:8060"
 
@@ -137,15 +137,11 @@ services:
         condition: service_healthy
       pubsub-init:
         condition: service_completed_successfully
-      census31-fwmt-job-service:
-        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres?currentSchema=fwmtg
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_CLOUD_GCP_PROJECT_ID: fwmt-local
-      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
     ports:
       - "8070:8070"
 
@@ -160,15 +156,10 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres?currentSchema=fwmtg
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_LIQUIBASE_URL: jdbc:postgresql://postgres:5432/postgres?currentSchema=fwmtg
-      SPRING_LIQUIBASE_USER: postgres
-      SPRING_LIQUIBASE_PASSWORD: postgres
-      SPRING_CLOUD_GCP_PROJECT_ID: fwmt-local
-      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
-      TOTALMOBILE_BASEURL: http://census31-fwmt-tm-mock:8000/
-      RMAPI_BASEURL: http://census31-fwmt-tm-mock:8000/
+      SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      TOTALMOBILE_BASEURL: http://fwmt-tm-mock:8000/
+      RMAPI_BASEURL: http://fwmt-tm-mock:8000/
     volumes:
       - ~/.fwmt/keys/decryption.private:/home/censusjobsvc/.fwmt/keys/decryption.private:ro
     healthcheck:
@@ -193,17 +184,12 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres?currentSchema=fwmtg
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
-      SPRING_CLOUD_GCP_PROJECT_ID: fwmt-local
-      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
     ports:
       - "8030:8030"
 
   census31-fwmt-tm-mock:
-    # TODO: put back
-    #image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-tm-mock:27.0.3-RC
-    image: localhost/tm-mock-local
+    image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-tm-mock:27.0.3-RC
     container_name: fwmt-tm-mock
     depends_on:
       postgres:
@@ -214,8 +200,7 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: local
-      SPRING_CLOUD_GCP_PROJECT_ID: fwmt-local
-      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
     ports:
       - "8000:8000"
 

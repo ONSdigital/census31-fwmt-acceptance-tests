@@ -132,3 +132,105 @@ Runtime artefacts (gitignored): `scripts/logs/`, `scripts/.pids/`, `scripts/.loc
 
 - Performance tests: `census31-fwmt-performance-tests` — `./run-jobservice-perf.sh --local` after `./start-services.sh job-service tm-mock`
 - Harness formerly in `census31-fwmt-docs/acceptance-tests/` — thin wrappers remain there pointing at `scripts/`
+
+
+## Docker-compose
+
+The `docker-compose.yml` file in this repo will spin up all 4 FWMT services as well as fully set up postgres DB and pubsub emulator. This is useful for local development and testing.
+
+There are a few prerequisite steps before the `docker-compose` can be run. These are:
+
+1. Make sure you're authenticated with gcloud and have the correct project set:
+   ```
+    gcloud auth login
+    gcloud auth configure-docker europe-west2-docker.pkg.dev
+   ```
+2. Setup GPG key
+   - Generate a dummy pgp private key, you can use all the default values, but give it a recognisable name and email address:
+     ```
+     gpg --full-generate-key
+     ```
+   - Find your key id:
+     ```
+     gpg --list-secret-keys --keyid-format LONG
+     ```
+   - Look for the key with the matching name and email address and then look for the line that looks like `rsa4096/<YOUR_KEY_ID> 2026-08-11 [SC]`, copy `<YOUR_KEY_ID>` to the clipboard.
+   
+   - Make a directory in your home directory called `.fwmt` with a subdirectory called `keys`:
+     ```
+     mkdir -p ~/.fwmt/keys
+     ```
+   - Export your private key to a file in the keys directory:
+     ```
+     gpg --export-secret-keys <YOUR_KEY_ID> > ~/.fwmt/keys/decryption.private
+     ```
+3. Give your Podman Machine more memory and CPUs, the default is 2GB and 2 CPUs which is not enough to run all the services. You can do this by running:
+   ```
+   podman machine stop
+   podman machine set --cpus 4 --memory 8192
+   podman machine start
+   ```
+   
+There is a script in the `scripts` directory called `publish-test-message.sh` which will allow you to publish messages to the various queues.
+Messages should be unencoded JSON as found in the default acceptance test fixtures, the pubsub message shell and attributes will be added by the script. See examples below.
+It will autogenerate a caseID if none is provided.
+
+Currently, it is designed to work with the HH_CREATE and CE_CREATE messages, but other message types may work if supplied as raw JSON.
+
+Here are some examples:
+
+### Clear database (this can be used in conjunction with other commands to reset the database before publishing messages)
+```
+./publish-test-message.sh -c
+```
+### Use default HH or CE Create fixtures found in the acceptance tests resources directory (with a randomly generated caseId)
+```
+./publish-test-message.sh -t HH_CREATE
+./publish-test-message.sh -t CE_CREATE
+```
+### Use alternate fixture file
+```
+./publish-test-message.sh -t HH_CREATE -f hhCreate.json
+./publish-test-message.sh -t HH_CREATE -f ./fixtures/my-hh.json
+
+./publish-test-message.sh -t CE_CREATE -f ceEstabCreate.json
+./publish-test-message.sh -t CE_CREATE -f /tmp/custom-message.json
+```
+### Raw JSON (script auto-adds attributes)
+```
+./publish-test-message.sh -m '{
+        "actionInstruction": "CREATE",
+        "surveyName": "CENSUS",
+        "addressType": "HH",
+        "caseRef": "12345678",
+        "fieldOfficerId": "SH-TWH1-ZJ-05",
+        "fieldCoordinatorId": "SH-TWH1-ZJ",
+        "organisationName": "",
+        "uprn": "6031151",
+        "estabUprn": "6123456",
+        "addressLine1": "123 Main Street",
+        "addressLine2": "Apartment 4",
+        "addressLine3": "District",
+        "townName": "London",
+        "postcode": "E14 9LB",
+        "oa": "E00167164",
+        "latitude": 51.497421,
+        "longitude": -0.0222139,
+        "ce1Complete": false,
+        "handDeliver": false,
+        "ceExpectedCapacity": null,
+        "ceActualResponses": 0,
+        "undeliveredAsAddress": false,
+        "blankFormReturned": false,
+        "secureEstablishment": false,
+        "addressLevel": "U"
+    }'
+```
+### Show usage
+```
+./publish-test-message.sh -h
+```
+
+### Other topics
+There is a `-T` flag to specify a different pubsub topic (rather than the default `RM.Field`) however this is untested.
+   
