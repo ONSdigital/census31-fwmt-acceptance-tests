@@ -1,4 +1,5 @@
 timeout: 1200s
+
 options:
   automapSubstitutions: true
   defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
@@ -33,29 +34,25 @@ steps:
         echo "$${EFFECTIVE_VERSION}" > /workspace/effective-version.txt
 
   - name: "gcr.io/cloud-builders/docker"
-    id: "build-image"
-    entrypoint: bash
-    env:
-      - DOCKER_BUILDKIT=1
-    args:
-      - -ceu
-      - |
-        EFFECTIVE_VERSION="$$(cat /workspace/effective-version.txt)"
-        docker build --pull \
-          --secret id=ar_token,src=/workspace/ar_token \
-          -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}" \
-          -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${EFFECTIVE_VERSION}" \
-          .
+    id: "setup-buildx"
+    args: ["buildx", "create", "--use", "--driver", "docker-container"]
 
   - name: "gcr.io/cloud-builders/docker"
-    id: "push-image"
+    id: "build-image"
     entrypoint: bash
     args:
       - -ceu
       - |
         EFFECTIVE_VERSION="$$(cat /workspace/effective-version.txt)"
-        docker push "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}"
-        docker push "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${EFFECTIVE_VERSION}"
+        CACHE_REF="${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:buildcache"
+        docker buildx build \
+          --secret id=ar_token,src=/workspace/ar_token \
+          --cache-from=type=registry,ref="$${CACHE_REF}" \
+          --cache-to=type=registry,ref="$${CACHE_REF}",mode=max \
+          -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}" \
+          -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${EFFECTIVE_VERSION}" \
+          --push \
+          .
 
   - name: "gcr.io/cloud-builders/gcloud"
     id: "notify-build-complete"
@@ -68,6 +65,3 @@ steps:
           projects/c31-fwmtg-ci-prod/topics/service-build-events \
           --message="{}" \
           --attribute=REPO_NAME=census31-fwmt-acceptance-tests,SHORT_SHA=$${EFFECTIVE_VERSION},STATUS=SUCCESS,DEPLOY_REQUESTED=false
-
-images:
-  - "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}"

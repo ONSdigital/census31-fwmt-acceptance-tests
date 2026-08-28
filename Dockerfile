@@ -14,19 +14,26 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends google-cloud-cli && \
     rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /root/.m2 /opt/census-fsdr-acceptance-tests
-
-COPY settings.xml /root/.m2/settings.xml
-COPY . /opt/census-fsdr-acceptance-tests
-
 WORKDIR /opt/census-fsdr-acceptance-tests
 
-# Prime Maven dependencies during image build without relying on full offline package resolution.
+# Copy stable files first — pom.xml and settings change rarely, maximizing layer cache hits
+COPY settings.xml /root/.m2/settings.xml
+COPY pom.xml .
+COPY .mvn .mvn
+
+# Download Maven deps into the image layer (cached via buildx --cache-to=registry,mode=max)
 RUN --mount=type=secret,id=ar_token \
     export ARTIFACT_REGISTRY_TOKEN="$(cat /run/secrets/ar_token)" && \
     mvn --batch-mode -U -DskipTests dependency:go-offline && \
+    find /root/.m2 -name "_remote.repositories" -delete
+
+# Copy source code after deps are cached
+COPY . .
+
+# Build with cached Maven dependencies
+RUN --mount=type=secret,id=ar_token \
+    export ARTIFACT_REGISTRY_TOKEN="$(cat /run/secrets/ar_token)" && \
     mvn --batch-mode -DskipTests clean package && \
-    find /root/.m2 -name "_remote.repositories" -delete && \
     rm /root/.m2/settings.xml
 
 # Bucket for uploading Cucumber reports after the run (injected by the Kubernetes Job).
