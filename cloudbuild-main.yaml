@@ -38,6 +38,10 @@ steps:
         echo "$${EFFECTIVE_VERSION}" > /workspace/effective-version.txt
 
   - name: "gcr.io/cloud-builders/docker"
+    id: "setup-buildx"
+    args: ["buildx", "create", "--use", "--driver", "docker-container"]
+
+  - name: "gcr.io/cloud-builders/docker"
     id: "build-image"
     entrypoint: bash
     env:
@@ -46,21 +50,17 @@ steps:
       - -ceu
       - |
         EFFECTIVE_VERSION="$$(cat /workspace/effective-version.txt)"
-        docker build --pull \
+        CACHE_TAG="${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:buildcache"
+        docker buildx build \
           --secret id=ar_token,src=/workspace/ar_token \
+          --cache-from=type=registry,ref="$${CACHE_TAG}" \
+          --cache-to=type=registry,ref="$${CACHE_TAG}",mode=max \
           -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}" \
           -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${EFFECTIVE_VERSION}" \
+          --push \
           .
 
-  - name: "gcr.io/cloud-builders/docker"
-    id: "push-image"
-    entrypoint: bash
-    args:
-      - -ceu
-      - |
-        EFFECTIVE_VERSION="$$(cat /workspace/effective-version.txt)"
-        docker push "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}"
-        docker push "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${EFFECTIVE_VERSION}"
+
 
   - name: "gcr.io/cloud-builders/gcloud"
     id: "notify-build-complete"
