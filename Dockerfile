@@ -16,28 +16,25 @@ RUN apt-get update && \
 
 WORKDIR /opt/census-fsdr-acceptance-tests
 
-# Copy stable files first (minimizes cache invalidation)
-COPY settings.xml /workspace/settings.xml
+# Copy stable files first — pom.xml and settings change rarely, maximizing layer cache hits
+COPY settings.xml /root/.m2/settings.xml
 COPY pom.xml .
 COPY .mvn .mvn
 
-# Warm Maven cache — cache mount persists across builds via buildx registry cache
+# Download Maven deps into the image layer (cached via buildx --cache-to=registry,mode=max)
 RUN --mount=type=secret,id=ar_token \
-    --mount=type=cache,target=/root/.m2 \
-    cp /workspace/settings.xml /root/.m2/settings.xml && \
     export ARTIFACT_REGISTRY_TOKEN="$(cat /run/secrets/ar_token)" && \
     mvn --batch-mode -U -DskipTests dependency:go-offline && \
     find /root/.m2 -name "_remote.repositories" -delete
 
-# Copy source code (only after cache is warmed to maximize cache layer reuse)
+# Copy source code after deps are cached
 COPY . .
 
 # Build with cached Maven dependencies
 RUN --mount=type=secret,id=ar_token \
-    --mount=type=cache,target=/root/.m2 \
-    cp /workspace/settings.xml /root/.m2/settings.xml && \
     export ARTIFACT_REGISTRY_TOKEN="$(cat /run/secrets/ar_token)" && \
-    mvn --batch-mode -DskipTests clean package
+    mvn --batch-mode -DskipTests clean package && \
+    rm /root/.m2/settings.xml
 
 # Bucket for uploading Cucumber reports after the run (injected by the Kubernetes Job).
 ENV REPORTS_BUCKET=""
