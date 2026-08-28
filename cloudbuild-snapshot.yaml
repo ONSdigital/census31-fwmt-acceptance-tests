@@ -2,7 +2,6 @@ timeout: 1200s
 images:
   - 'gcr.io/google.com/cloudsdktool/google-cloud-cli:slim'
   - 'gcr.io/cloud-builders/git'
-  - '${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}'
 
 options:
   automapSubstitutions: true
