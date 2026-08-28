@@ -21,9 +21,9 @@ COPY settings.xml .
 COPY pom.xml .
 COPY .mvn .mvn
 
-# Warm Maven cache during image build — cache mount persists across builds via Artifact Registry
+# Warm Maven cache — cache mount persists across builds via buildx registry cache
 RUN --mount=type=secret,id=ar_token \
-    --mount=type=cache,target=/root/.m2,mode=max \
+    --mount=type=cache,target=/root/.m2 \
     export ARTIFACT_REGISTRY_TOKEN="$(cat /run/secrets/ar_token)" && \
     mvn --batch-mode -U -DskipTests dependency:go-offline && \
     find /root/.m2 -name "_remote.repositories" -delete
@@ -33,7 +33,7 @@ COPY . .
 
 # Build with cached Maven dependencies
 RUN --mount=type=secret,id=ar_token \
-    --mount=type=cache,target=/root/.m2,mode=max \
+    --mount=type=cache,target=/root/.m2 \
     export ARTIFACT_REGISTRY_TOKEN="$(cat /run/secrets/ar_token)" && \
     mvn --batch-mode -DskipTests clean package && \
     rm settings.xml
