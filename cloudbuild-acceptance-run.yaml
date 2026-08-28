@@ -1,4 +1,8 @@
 timeout: 1800s
+images:
+  - 'gcr.io/google.com/cloudsdktool/google-cloud-cli:slim'
+  - 'gcr.io/cloud-builders/git'
+
 options:
   automapSubstitutions: true
   defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
