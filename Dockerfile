@@ -23,7 +23,6 @@ WORKDIR /opt/census-fsdr-acceptance-tests
 
 # Prime Maven dependencies during image build without relying on full offline package resolution.
 RUN --mount=type=secret,id=ar_token \
-    --mount=type=cache,target=/root/.m2,sharing=shared \
     export ARTIFACT_REGISTRY_TOKEN="$(cat /run/secrets/ar_token)" && \
     mvn --batch-mode -U -DskipTests dependency:go-offline && \
     mvn --batch-mode -DskipTests clean package && \
