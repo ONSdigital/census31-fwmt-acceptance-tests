@@ -23,6 +23,10 @@ class PubSubEmulatorHttp {
   private static final Pattern DATA_PATTERN = Pattern.compile("\"data\"\\s*:\\s*\"([^\"]+)\"");
 
   private final String apiBase;
+  // Reused across all requests: java.net.http.HttpClient owns an internal selector-manager
+  // thread per instance, so creating a new client per call (as this used to do) leaks a
+  // native thread every time and eventually exhausts the JVM's ability to spawn threads.
+  private final java.net.http.HttpClient httpClient = java.net.http.HttpClient.newHttpClient();
 
   PubSubEmulatorHttp(String projectId, String emulatorHost) {
     this.apiBase = "http://" + emulatorHost + "/v1/projects/" + projectId;
@@ -132,7 +136,6 @@ class PubSubEmulatorHttp {
   }
 
   private String httpPost(String url, String body) throws IOException {
-    java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
     java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
         .uri(URI.create(url))
         .header("Content-Type", "application/json")
@@ -140,7 +143,7 @@ class PubSubEmulatorHttp {
         .build();
     try {
       java.net.http.HttpResponse<String> response =
-          client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+          httpClient.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
         throw new IOException("HTTP " + response.statusCode() + " from " + url + ": " + response.body());
       }
@@ -152,14 +155,13 @@ class PubSubEmulatorHttp {
   }
 
   private void httpGet(String url) throws IOException {
-    java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
     java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
         .uri(URI.create(url))
         .GET()
         .build();
     try {
       java.net.http.HttpResponse<String> response =
-          client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+          httpClient.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
         throw new IOException("HTTP " + response.statusCode() + " from " + url);
       }
