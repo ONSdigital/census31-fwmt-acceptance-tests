@@ -192,9 +192,11 @@ run_suite() {
     echo "Running ${run_label} with all acceptance tests"
   fi
 
+  local run_timeout_seconds="${RUN_TIMEOUT_SECONDS:-7200}"
+
   mvn_exit_code=0
   set +e
-  mvn --batch-mode verify ${tag_args}
+  timeout --signal=TERM --kill-after=30 "${run_timeout_seconds}" mvn --batch-mode verify ${tag_args}
   mvn_exit_code=$?
   set -e
 
@@ -205,7 +207,13 @@ run_suite() {
   ls -l target/cucumber-reports 2>/dev/null || echo "Warning: cucumber-reports not found"
   ls -l target/cucumber-html-reports 2>/dev/null || true
 
-  if [[ "${mvn_exit_code}" -ne 0 ]]; then
+  if [[ "${mvn_exit_code}" -eq 124 ]]; then
+    overall_mvn_failure=1
+    if [[ "${overall_mvn_exit_code}" -eq 0 ]]; then
+      overall_mvn_exit_code="${mvn_exit_code}"
+    fi
+    echo "Maven verify timed out for ${run_label} after ${run_timeout_seconds}s"
+  elif [[ "${mvn_exit_code}" -ne 0 ]]; then
     overall_mvn_failure=1
     if [[ "${overall_mvn_exit_code}" -eq 0 ]]; then
       overall_mvn_exit_code="${mvn_exit_code}"
