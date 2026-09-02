@@ -19,7 +19,7 @@
 "outcomeCode":"${outcomeCode}",
 "primaryOutcomeDescription":"${primaryOutcomeDescription}",
 "secondaryOutcomeDescription":"${secondaryOutcomeDescription}",
-"transactionId":"b1646499-c5d8-4fbe-bb21-8e057601a3c2",
+"transactionId":"${transactionId}",
 
    <#if surveyType == "CE">
      "ceDetails":{

@@ -11,6 +11,7 @@ RUNS="${1:-3}"
 LABEL="${2:-baseline}"
 ARCHIVE_ROOT="$REPO_DIR/performance-investigation/runs"
 MVN="$(resolve_maven_bin)"
+TIMINGS_FILE="target/performance-investigation/timings.ndjson"
 
 cd "$REPO_DIR"
 
@@ -26,13 +27,17 @@ for i in $(seq 1 "$RUNS"); do
   echo "=== ${LABEL} run ${i}/${RUNS} starting at $(date -Iseconds) ==="
   started_at="$(date -Iseconds)"
   SECONDS=0
-  "$MVN" clean verify > "$run_dir/output.log" 2>&1
+  "$MVN" \
+    -Dfwmt.performance.run-id="${LABEL}-run${i}" \
+    -Dfwmt.performance.timings.file="$TIMINGS_FILE" \
+    clean verify > "$run_dir/output.log" 2>&1
   exit_code=$?
   elapsed=$SECONDS
   echo "=== ${LABEL} run ${i}/${RUNS} finished in ${elapsed}s (mvn exit ${exit_code}) ==="
 
   cp target/jsonReports/cucumber.json "$run_dir/" 2>/dev/null \
     || echo "WARNING: no cucumber.json produced for run ${i}"
+  cp "$TIMINGS_FILE" "$run_dir/" 2>/dev/null || true
   cp "$LOG_DIR/tm-mock.log" "$LOG_DIR/job-service.log" "$LOG_DIR/outcome-service.log" "$run_dir/" 2>/dev/null || true
 
   cat > "$run_dir/run.json" <<EOF

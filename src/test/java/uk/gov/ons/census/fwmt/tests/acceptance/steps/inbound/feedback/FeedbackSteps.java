@@ -9,6 +9,7 @@ import java.io.StringWriter;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
@@ -62,6 +63,8 @@ public class FeedbackSteps {
   @And("tm sends a {string} outcome")
   public void tmSendsAOutcome(String type) {
     Map<String, Object> inputRoot = new HashMap<>();
+    inputRoot.put("caseId", caseId);
+    inputRoot.put("transactionId", UUID.randomUUID().toString());
     if (type.equals("CANCEL_FEEDBACK")) {
       inputRoot.put("primaryOutcomeDescription", "Engagement - Contact made");
       inputRoot.put("secondaryOutcomeDescription", "Visit - Hard refusal");
