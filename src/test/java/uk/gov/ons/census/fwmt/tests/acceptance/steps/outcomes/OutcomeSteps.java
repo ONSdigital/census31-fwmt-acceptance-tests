@@ -27,7 +27,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 
-import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
@@ -112,8 +111,6 @@ public class OutcomeSteps {
     @Autowired
     private QueueClient queueClient;
 
-    @Autowired
-    private CommonUtils commonUtils;
 
     @Autowired
     private AcceptanceGatewayEventMonitor gatewayEventMonitor;
@@ -133,7 +130,6 @@ public class OutcomeSteps {
     @Before
     public void setup() throws Exception {
 
-        commonUtils.setup();
       outcomeServiceRefreshUtils.enableDefaultOutcomeFeatureFlags();
 
         surveyType = null;
@@ -151,11 +147,6 @@ public class OutcomeSteps {
         expectedRmMessageMap.clear();
         addressTypeChangeMsg = null;
         newCaseId = null;
-    }
-
-    @After
-    public void tearDownGatewayEventMonitor() throws Exception {
-      commonUtils.clearDown();
     }
 
     @Given("an {string} {string} outcome message")

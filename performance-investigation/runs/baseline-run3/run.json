@@ -1,0 +1,13 @@
+{
+  "label": "baseline",
+  "run": 3,
+  "order": 3,
+  "startedAt": "2026-09-02T10:14:49+01:00",
+  "finishedAt": "2026-09-02T10:40:18+01:00",
+  "elapsedSeconds": 1529,
+  "mvnExitCode": 1,
+  "command": "mvn clean verify",
+  "gitBranch": "FMT-128_performance-investigation",
+  "gitCommit": "0de8c376a68644e31a56c63677a6e37ec752240e",
+  "gitDirty": true
+}

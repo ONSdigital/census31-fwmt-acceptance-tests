@@ -17,7 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 
-import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
@@ -35,7 +34,6 @@ import java.time.OffsetDateTime;
 @Slf4j
 public class UpdateSteps {
 
-  private CommonUtils commonUtils;
 
   @Autowired
   private QueueClient queueClient;
@@ -99,13 +97,7 @@ public class UpdateSteps {
     
     hhUpdateJson = Resources.toString(Resources.getResource("files/input/hh/hhUpdate.json"), Charsets.UTF_8);
     hhPauseCaseJson = Resources.toString(Resources.getResource("files/input/hh/hhPauseCase.json"), Charsets.UTF_8);
-    //    commonUtils.setup();
  }
-
-  @After
-  public void clearDown() throws Exception {
-//    commonUtils.clearDown();
-  }
 
   @And("RM sends an update case request for the case")
   public void rmSendsUpdate() throws URISyntaxException {

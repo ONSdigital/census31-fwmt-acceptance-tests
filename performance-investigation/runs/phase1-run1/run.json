@@ -1,0 +1,13 @@
+{
+  "label": "phase1",
+  "run": 1,
+  "order": 1,
+  "startedAt": "2026-09-02T11:23:51+01:00",
+  "finishedAt": "2026-09-02T11:39:17+01:00",
+  "elapsedSeconds": 926,
+  "mvnExitCode": 1,
+  "command": "mvn clean verify",
+  "gitBranch": "FMT-128_performance-investigation",
+  "gitCommit": "0de8c376a68644e31a56c63677a6e37ec752240e",
+  "gitDirty": true
+}

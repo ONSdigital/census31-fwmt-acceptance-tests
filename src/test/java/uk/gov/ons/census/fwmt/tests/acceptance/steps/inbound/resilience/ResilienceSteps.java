@@ -6,7 +6,6 @@ import static uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.Commo
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
-import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
@@ -32,8 +31,6 @@ public class ResilienceSteps {
   @Autowired
   private QueueClient queueClient;
 
-  @Autowired
-  private CommonUtils commonUtils;
 
   ObjectMapper mapper = new ObjectMapper();
 
@@ -58,12 +55,6 @@ public class ResilienceSteps {
     ceEstabCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabCreate.json"), Charsets.UTF_8);
     ceSwitch = Resources.toString(Resources.getResource("files/input/ce/ceSwitch.json"), Charsets.UTF_8);
     updateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabUpdate.json"), Charsets.UTF_8);
-    commonUtils.setup();
-  }
-
-  @After
-  public void clearDown() throws Exception {
-    commonUtils.clearDown();
   }
 
   @Given("that gateway has a message stored of type {string} with case ID {string}")

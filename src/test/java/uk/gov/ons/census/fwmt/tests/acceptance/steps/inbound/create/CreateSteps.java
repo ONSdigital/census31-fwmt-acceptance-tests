@@ -16,7 +16,6 @@ import org.springframework.web.client.HttpClientErrorException;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 
-import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
@@ -66,9 +65,6 @@ public class CreateSteps {
   @Autowired
   private QueueClient queueClient;
 
-  @Autowired
-  private CommonUtils commonUtils;
-
   @Before
   public void setup() throws Exception {
     ceSpgEstabCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgEstabCreate.json"), Charsets.UTF_8);
@@ -76,12 +72,6 @@ public class CreateSteps {
     ceEstabCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabCreate.json"), Charsets.UTF_8);
     ceUnitCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceUnitCreate.json"), Charsets.UTF_8);
     hhCreateJson = Resources.toString(Resources.getResource("files/input/hh/hhCreate.json"), Charsets.UTF_8);
-    commonUtils.setup();
-  }
-
-  @After
-  public void clearDown() throws Exception {
-    commonUtils.clearDown();
   }
 
   @Given("a TM doesnt have a job with case ID {string} in TM")
