@@ -226,6 +226,8 @@ Here are some examples:
         "addressLevel": "U"
     }'
 ```
+You can use `-n` with this mode to stop the script from adding `caseId` and `addressLevel` if they're missing
+
 ### Show usage
 ```
 ./publish-test-message.sh -h
