@@ -58,3 +58,81 @@ The report includes step and hook totals, scenario percentiles, feature totals, 
 ```
 
 For a fair comparison, keep the service versions, test selection, timeout settings, machine state, and run order consistent. Establish variance with three unchanged baseline runs before treating a small improvement as real. Do not commit generated archives, service logs, credentials, or local environment files.
+
+## Investigate A Cloud Run
+
+The cloud runner is `scripts/docker-run.sh`. Set `REPORTS_BUCKET` to a writable `gs://` location before starting the acceptance-test container. Each configured run is uploaded below its own prefix, for example:
+
+```text
+gs://my-bucket/run1-all/
+	maven.log
+	jsonReports/cucumber.json
+	performance-investigation/timings.ndjson
+	surefire-reports/
+	cucumber-reports/
+	cucumber-html-reports/
+	logs/
+```
+
+The runner stores the following evidence automatically:
+
+- `maven.log`: Maven stdout and stderr captured with `tee` while preserving Maven's exit code.
+- `jsonReports/`: Cucumber JSON reports used by `analyse-cucumber-timings.py`.
+- `performance-investigation/timings.ndjson`: structured scenario and RM-message wait timings. Each record includes the cloud run ID, scenario details, duration, polling counts, message counts, event type, and correlation IDs.
+- `logs/`: logs produced locally by the acceptance-test wrapper, such as port-forward logs. These are not a substitute for application logs from the cloud services.
+
+Example container configuration:
+
+```bash
+REPORTS_BUCKET=gs://my-bucket/acceptance/ \
+CUCUMBER_TAGS_1='@Outcomes' \
+CUCUMBER_TAGS_2='@Resilience' \
+docker run --rm \
+	-e REPORTS_BUCKET \
+	-e CUCUMBER_TAGS_1 \
+	-e CUCUMBER_TAGS_2 \
+	acceptance-test-image:tag
+```
+
+For Cloud Build, pass `REPORTS_BUCKET` through the build substitutions or environment used by the acceptance-test container. Ensure the build service account can write to the bucket. Do not put credentials or service-account keys in the bucket artifacts.
+
+### Download And Analyse
+
+Download one run after the container finishes:
+
+```bash
+mkdir -p performance-investigation/cloud-runs
+gcloud storage cp -r \
+	gs://my-bucket/run1-all \
+	performance-investigation/cloud-runs/run1-all
+```
+
+Analyse the Cucumber report locally:
+
+```bash
+./scripts/analyse-cucumber-timings.py \
+	performance-investigation/cloud-runs/run1-all/jsonReports/cucumber.json
+```
+
+Inspect the structured RM wait timings with `jq`:
+
+```bash
+jq -s '
+	map(select(.type == "rm-message-wait")) |
+	{
+		waits: length,
+		total_wait_ms: (map(.durationMs) | add // 0),
+		slow_waits: (map(select(.durationMs >= 9000)) | length),
+		republishes: (map(.messagesRepublished) | add // 0),
+		max_wait_ms: (map(.durationMs) | max // 0)
+	}
+' performance-investigation/cloud-runs/run1-all/performance-investigation/timings.ndjson
+```
+
+### Correlate With Service Logs
+
+Use the `messageTransactionId`, `generatedCaseId`, and the UTC timestamps in `timings.ndjson` to investigate a slow scenario in Cloud Logging. The acceptance-test artifact does not contain the full outcome-service, job-service, gateway, or Pub/Sub service logs unless those logs are explicitly collected by the deployment.
+
+Record the Cloud Build ID, commit SHA, test start and end times, project, region, namespace, pod names, and service image versions. Use those values to narrow the Cloud Logging query to the test window and service instances. Match service publish/process timestamps against the acceptance-test `waitStartedAtUtc`, `waitFinishedAtUtc`, and correlation IDs.
+
+For a local Kubernetes port-forward setup, `scripts/logs/` may contain useful forwarding output. For services running in the cluster, retrieve application logs through the platform's log store or with the deployment's approved `kubectl logs` workflow, then keep those logs alongside the downloaded run directory for the investigation. The Cucumber report and NDJSON are sufficient for aggregate timing analysis; service logs are needed to attribute a delay to a downstream service rather than the test harness.
