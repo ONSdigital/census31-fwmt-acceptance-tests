@@ -3,8 +3,8 @@
 
 Reports the step-vs-hook split, the slowest step definitions and features,
 scenario duration percentiles, and the steps sitting near CommonUtils.TIMEOUT.
-Every performance change in performance-investigation/local-investigation-plan.md
-is judged by re-running this against the run's cucumber.json.
+Every performance change documented in the Census 2027 acceptance-test investigation
+plan is judged by re-running this against the run's cucumber.json.
 """
 
 from __future__ import annotations
