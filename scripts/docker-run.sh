@@ -269,6 +269,22 @@ upload_reports() {
       gcloud storage cp "${run_dir}/"artifacts*.xml "${dest}/"
     fi
 
+    if [[ -d "${run_dir}/jsonReports" ]]; then
+      gcloud storage cp -r "${run_dir}/jsonReports" "${dest}/"
+    fi
+
+    if [[ -d "${run_dir}/performance-investigation" ]]; then
+      gcloud storage cp -r "${run_dir}/performance-investigation" "${dest}/"
+    fi
+
+    if [[ -d "${run_dir}/logs" ]]; then
+      gcloud storage cp -r "${run_dir}/logs" "${dest}/"
+    fi
+
+    if [[ -f "${run_dir}/maven.log" ]]; then
+      gcloud storage cp "${run_dir}/maven.log" "${dest}/"
+    fi
+
     if [[ -d "${run_dir}/surefire-reports" ]]; then
       gcloud storage cp -r "${run_dir}/surefire-reports" "${dest}/"
     fi
