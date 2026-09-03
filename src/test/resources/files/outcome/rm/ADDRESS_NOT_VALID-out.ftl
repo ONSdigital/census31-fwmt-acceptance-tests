@@ -3,7 +3,7 @@
 "type":"ADDRESS_NOT_VALID",
 "source":"FIELDWORK_GATEWAY",
 "channel":"FIELD",
-"dateTime":"2020-04-17T12:53:11.000+01",
+"dateTime":"2020-04-17T11:53:11.000Z",
 "transactionId":"${transactionId}"
 },
 "payload":{

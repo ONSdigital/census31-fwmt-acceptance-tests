@@ -250,13 +250,13 @@ public class CreateSteps {
   @Then("a new case is created of the right {string}")
   public void a_new_case_is_created_of_the_right_type(String expectedSurveyType) {
     String actualSurveyType = event_COMET_CREATE_PRE_SENDING.getMetadata().get("Survey Type");
-    assertEquals("Survey Types created for TM", expectedSurveyType, actualSurveyType);
+    assertEquals(expectedSurveyType, actualSurveyType, "Survey Types created for TM");
   }
 
   @And("the right caseRef {string}")
   public void and_the_right_caseref(String expectedCaseRef) {
     String actualCaseRef = event_COMET_CREATE_PRE_SENDING.getMetadata().get("Case Ref");
-    assertEquals("Case Ref created for TM", expectedCaseRef, actualCaseRef);
+    assertEquals(expectedCaseRef, actualCaseRef, "Case Ref created for TM");
   }
 
   @Then("a new case with id of {string} is created in TM")
