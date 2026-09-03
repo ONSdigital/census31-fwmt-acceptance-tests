@@ -133,8 +133,10 @@ public class OutcomeSteps {
 
     @Before
     public void setup() throws Exception {
-
-      outcomeServiceRefreshUtils.enableDefaultOutcomeFeatureFlags();
+      performanceTimingRecorder.recordHookOperation(
+          "OutcomeSteps.setup",
+          "outcome-service-feature-flags",
+          outcomeServiceRefreshUtils::enableDefaultOutcomeFeatureFlags);
 
         surveyType = null;
         businessFunction = null;

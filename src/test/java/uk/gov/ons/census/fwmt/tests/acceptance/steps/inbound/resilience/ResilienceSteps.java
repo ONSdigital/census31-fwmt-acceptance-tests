@@ -18,6 +18,7 @@ import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventM
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.TMMockUtils;
+import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 
 @Slf4j
 public class ResilienceSteps {
@@ -30,6 +31,9 @@ public class ResilienceSteps {
 
   @Autowired
   private QueueClient queueClient;
+
+  @Autowired
+  private PerformanceTimingRecorder performanceTimingRecorder;
 
 
   ObjectMapper mapper = new ObjectMapper();
@@ -51,10 +55,12 @@ public class ResilienceSteps {
 
   @Before
   public void setup() throws Exception {
-    cancelJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabCancel.json"), Charsets.UTF_8);
-    ceEstabCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabCreate.json"), Charsets.UTF_8);
-    ceSwitch = Resources.toString(Resources.getResource("files/input/ce/ceSwitch.json"), Charsets.UTF_8);
-    updateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabUpdate.json"), Charsets.UTF_8);
+    performanceTimingRecorder.recordHookOperation("ResilienceSteps.setup", "load-resilience-templates", () -> {
+      cancelJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabCancel.json"), Charsets.UTF_8);
+      ceEstabCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabCreate.json"), Charsets.UTF_8);
+      ceSwitch = Resources.toString(Resources.getResource("files/input/ce/ceSwitch.json"), Charsets.UTF_8);
+      updateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabUpdate.json"), Charsets.UTF_8);
+    });
   }
 
   @Given("that gateway has a message stored of type {string} with case ID {string}")

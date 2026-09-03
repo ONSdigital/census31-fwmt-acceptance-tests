@@ -27,6 +27,7 @@ import uk.gov.ons.census.fwmt.common.events.data.GatewayEventDTO;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
+import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.TMMockUtils;
 
 @Slf4j
@@ -65,13 +66,18 @@ public class CreateSteps {
   @Autowired
   private QueueClient queueClient;
 
+  @Autowired
+  private PerformanceTimingRecorder performanceTimingRecorder;
+
   @Before
   public void setup() throws Exception {
-    ceSpgEstabCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgEstabCreate.json"), Charsets.UTF_8);
-    ceSpgUnitCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgUnitCreate.json"), Charsets.UTF_8);
-    ceEstabCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabCreate.json"), Charsets.UTF_8);
-    ceUnitCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceUnitCreate.json"), Charsets.UTF_8);
-    hhCreateJson = Resources.toString(Resources.getResource("files/input/hh/hhCreate.json"), Charsets.UTF_8);
+    performanceTimingRecorder.recordHookOperation("CreateSteps.setup", "load-create-templates", () -> {
+      ceSpgEstabCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgEstabCreate.json"), Charsets.UTF_8);
+      ceSpgUnitCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgUnitCreate.json"), Charsets.UTF_8);
+      ceEstabCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabCreate.json"), Charsets.UTF_8);
+      ceUnitCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceUnitCreate.json"), Charsets.UTF_8);
+      hhCreateJson = Resources.toString(Resources.getResource("files/input/hh/hhCreate.json"), Charsets.UTF_8);
+    });
   }
 
   @Given("a TM doesnt have a job with case ID {string} in TM")

@@ -51,6 +51,42 @@ public class PerformanceTimingRecorder {
     currentScenario.remove();
   }
 
+  public void recordHookOperation(
+      String hookName, String operationName, HookOperation operation) throws Exception {
+    long startedAtMs = System.currentTimeMillis();
+    Exception failure = null;
+    try {
+      operation.run();
+    } catch (Exception e) {
+      failure = e;
+      throw e;
+    } finally {
+      ScenarioContext scenario = currentScenario.get();
+      StringBuilder record = new StringBuilder(baseRecord("hook-operation"));
+      if (scenario != null) {
+        record.append(",\"scenarioId\":").append(quote(scenario.id))
+            .append(",\"scenarioName\":").append(quote(scenario.name))
+            .append(",\"feature\":").append(quote(scenario.feature))
+            .append(",\"line\":").append(scenario.line);
+      }
+      record.append(",\"hookName\":").append(quote(hookName))
+          .append(",\"operationName\":").append(quote(operationName))
+          .append(",\"durationMs\":").append(System.currentTimeMillis() - startedAtMs)
+          .append(",\"outcome\":").append(quote(failure == null ? "success" : "error"));
+      if (failure != null) {
+        record.append(",\"errorType\":").append(quote(failure.getClass().getName()))
+            .append(",\"errorMessage\":").append(quote(failure.getMessage()));
+      }
+      record.append('}');
+      append(record.toString());
+    }
+  }
+
+  @FunctionalInterface
+  public interface HookOperation {
+    void run() throws Exception;
+  }
+
   public void startRmMessageWait(
       String phase,
       String logicalQueue,
