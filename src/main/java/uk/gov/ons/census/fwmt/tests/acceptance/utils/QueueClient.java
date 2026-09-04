@@ -28,7 +28,6 @@ import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 public final class QueueClient {
 
   private static final String RESET_HOOK_NAME = "ScenarioHooks.setup";
-  private static final String PUBSUB_MODE_GCP = "gcp";
 
   @Value("${service.outcome.url}")
   private String outcomeServiceUrl;
@@ -47,9 +46,6 @@ public final class QueueClient {
 
   @Value("${service.jobservice.password}")
   private String jobServicePassword;
-
-  @Value("${fwmt.pubsub.mode:emulator}")
-  private String pubSubMode;
 
   private static final String RM_FIELD_QUEUE = "RM.Field";
 
@@ -128,7 +124,7 @@ public final class QueueClient {
       for (String queueName : RESET_QUEUES) {
         Future<?> future = executor.submit(() -> {
           try {
-            recordResetOperation(resetOperationName(queueName), () -> clearQueue(queueName));
+            recordResetOperation("queue-reset-drain-" + queueName, () -> clearQueue(queueName));
           } catch (Exception e) {
             throw new RuntimeException(e);
           }
@@ -182,11 +178,6 @@ public final class QueueClient {
 
   public NodeCheck doPreFlightCheck() {
     return messagingTestClient.doMessagingPreFlightCheck();
-  }
-
-  private String resetOperationName(String queueName) {
-    String operationType = PUBSUB_MODE_GCP.equalsIgnoreCase(pubSubMode) ? "recreate" : "drain";
-    return "queue-reset-" + operationType + "-" + queueName;
   }
 
   private void recordResetOperation(String operationName, PerformanceTimingRecorder.HookOperation operation)

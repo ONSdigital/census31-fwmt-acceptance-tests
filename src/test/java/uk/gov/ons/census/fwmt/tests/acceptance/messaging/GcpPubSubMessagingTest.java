@@ -15,18 +15,17 @@ import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 class GcpPubSubMessagingTest {
 
   @Test
-  void shouldRecreateOnlyAcceptanceSubscriptionsWhenServiceDrainDisabled() {
+  void shouldDrainOnlyAcceptanceSubscriptionsWhenServiceDrainDisabled() {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
     GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
 
     client.purge("RM.Field", "Outcome.Preprocessing", "Field.refusals");
 
-    assertThat(operations.recreatedSubscriptions)
+    assertThat(operations.drainedSubscriptions)
         .containsExactly(
             "acceptance-tests-RM-Field",
             "acceptance-tests-Outcome-Preprocessing",
             "acceptance-tests-Field-refusals");
-    assertThat(operations.drainedSubscriptions).isEmpty();
   }
 
   @Test
@@ -36,13 +35,11 @@ class GcpPubSubMessagingTest {
 
     client.purge("RM.Field", "Outcome.PreprocessingDLQ");
 
-    assertThat(operations.recreatedSubscriptions)
-        .containsExactly(
-            "acceptance-tests-RM-Field",
-            "acceptance-tests-Outcome-PreprocessingDLQ");
     assertThat(operations.drainedSubscriptions)
         .containsExactly(
+            "acceptance-tests-RM-Field",
             "job-service-RM-Field",
+            "acceptance-tests-Outcome-PreprocessingDLQ",
             "outcome-service-Outcome-PreprocessingDLQ");
   }
 
@@ -96,13 +93,11 @@ class GcpPubSubMessagingTest {
 
     assertThat(nodeCheck.isSuccesful()).isTrue();
     assertThat(nodeCheck.getName()).isEqualTo("Google Pub/Sub");
-    assertThat(operations.recreatedSubscriptions).containsExactly("acceptance-tests-Field-refusals");
-    assertThat(operations.drainedSubscriptions).isEmpty();
+    assertThat(operations.drainedSubscriptions).containsExactly("acceptance-tests-Field-refusals");
   }
 
   private static class RecordingPubSubOperations implements GcpPubSubMessaging.PubSubOperations {
     private final List<String> drainedSubscriptions = new ArrayList<>();
-    private final List<String> recreatedSubscriptions = new ArrayList<>();
     private final Map<String, Deque<List<GcpPubSubMessaging.TestMessage>>> pullBatches =
         new HashMap<>();
     private final Map<String, List<String>> acknowledgedAckIdsBySubscription = new HashMap<>();
@@ -143,11 +138,6 @@ class GcpPubSubMessagingTest {
     @Override
     public void drainSubscription(String subscriptionId) {
       drainedSubscriptions.add(subscriptionId);
-    }
-
-    @Override
-    public void recreateTestSubscription(PubSubTestLane lane) {
-      recreatedSubscriptions.add(lane.testSubscription());
     }
 
     private void enqueuePull(String subscriptionId, List<GcpPubSubMessaging.TestMessage> batch) {

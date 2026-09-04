@@ -37,7 +37,6 @@ class QueueClientTest {
     QueueClient queueClient = new QueueClient();
     ReflectionTestUtils.setField(queueClient, "messagingTestClient", messagingTestClient);
     ReflectionTestUtils.setField(queueClient, "performanceTimingRecorder", recorder);
-    ReflectionTestUtils.setField(queueClient, "pubSubMode", "gcp");
     String baseUrl = "http://localhost:" + server.getAddress().getPort();
     ReflectionTestUtils.setField(queueClient, "jobserviceServiceUrl", baseUrl);
     ReflectionTestUtils.setField(queueClient, "outcomeServiceUrl", baseUrl);
@@ -58,12 +57,12 @@ class QueueClientTest {
     String output = Files.readString(timingsFile);
     assertThat(output)
         .contains("\"operationName\":\"queue-reset-pause-inbound-adapters\"")
-        .contains("\"operationName\":\"queue-reset-recreate-Field.refusals\"")
-        .contains("\"operationName\":\"queue-reset-recreate-Field.other\"")
-        .contains("\"operationName\":\"queue-reset-recreate-RM.Field\"")
-        .contains("\"operationName\":\"queue-reset-recreate-RM.FieldDLQ\"")
-        .contains("\"operationName\":\"queue-reset-recreate-Outcome.Preprocessing\"")
-        .contains("\"operationName\":\"queue-reset-recreate-Outcome.PreprocessingDLQ\"")
+        .contains("\"operationName\":\"queue-reset-drain-Field.refusals\"")
+        .contains("\"operationName\":\"queue-reset-drain-Field.other\"")
+        .contains("\"operationName\":\"queue-reset-drain-RM.Field\"")
+        .contains("\"operationName\":\"queue-reset-drain-RM.FieldDLQ\"")
+        .contains("\"operationName\":\"queue-reset-drain-Outcome.Preprocessing\"")
+        .contains("\"operationName\":\"queue-reset-drain-Outcome.PreprocessingDLQ\"")
         .contains("\"operationName\":\"queue-reset-resume-inbound-adapters\"");
   }
 }

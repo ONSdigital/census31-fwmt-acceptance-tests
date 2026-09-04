@@ -1,7 +1,6 @@
 package uk.gov.ons.census.fwmt.tests.acceptance.messaging;
 
 import com.google.api.core.ApiFuture;
-import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.cloud.pubsub.v1.stub.GrpcSubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStub;
@@ -15,7 +14,6 @@ import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
 import com.google.pubsub.v1.ReceivedMessage;
-import com.google.pubsub.v1.Subscription;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -155,7 +153,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   }
 
   private void drainTestSubscription(PubSubTestLane lane) {
-    operations().recreateTestSubscription(lane);
+    operations().drainSubscription(lane.testSubscription());
   }
 
   private long countAvailableMessages(PubSubTestLane lane) {
@@ -168,7 +166,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
       count += batch.size();
       operations()
           .acknowledge(
-            lane.testSubscription(), batch.stream().map(message -> message.ackId()).toList());
+              lane.testSubscription(), batch.stream().map(TestMessage::ackId).toList());
     }
   }
 
@@ -206,8 +204,6 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     void release(String subscriptionId, List<String> ackIds);
 
     void drainSubscription(String subscriptionId);
-
-    void recreateTestSubscription(PubSubTestLane lane);
   }
 
   record TestMessage(String ackId, String data, Map<String, String> attributes) {}
@@ -330,58 +326,10 @@ public class GcpPubSubMessaging implements MessagingTestClient {
           if (batch.isEmpty()) {
             return;
           }
-          acknowledgeWithStub(
-              subscriber, subscriptionId, batch.stream().map(message -> message.ackId()).toList());
+          acknowledgeWithStub(subscriber, subscriptionId, batch.stream().map(TestMessage::ackId).toList());
         }
       } catch (IOException e) {
         throw new IllegalStateException("Failed to drain subscription " + subscriptionId, e);
-      }
-    }
-
-    @Override
-    public void recreateTestSubscription(PubSubTestLane lane) {
-      String subscriptionId = lane.testSubscription();
-      String topicId = lane.topic();
-      long overallStartNanos = System.nanoTime();
-      log.info("Resetting acceptance subscription {} for topic {} via delete-and-recreate", subscriptionId, topicId);
-      try (SubscriptionAdminClient subscriptionAdminClient = SubscriptionAdminClient.create()) {
-        ProjectSubscriptionName subscriptionName = ProjectSubscriptionName.of(projectId, subscriptionId);
-        String topicName = ProjectTopicName.format(projectId, topicId);
-        long deleteDurationMs = 0;
-        try {
-          long deleteStartNanos = System.nanoTime();
-          subscriptionAdminClient.deleteSubscription(subscriptionName.toString());
-          deleteDurationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - deleteStartNanos);
-          log.info("Deleted acceptance subscription {} in {}ms", subscriptionId, deleteDurationMs);
-        } catch (Exception e) {
-          deleteDurationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - overallStartNanos);
-          log.info(
-              "Delete step for acceptance subscription {} did not complete cleanly after {}ms: {}",
-              subscriptionId,
-              deleteDurationMs,
-              e.getMessage());
-        }
-        long createStartNanos = System.nanoTime();
-        Subscription subscription =
-            Subscription.newBuilder().setTopic(topicName).setName(subscriptionName.toString()).build();
-        subscriptionAdminClient.createSubscription(subscription);
-        long createDurationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - createStartNanos);
-        long totalDurationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - overallStartNanos);
-        log.info(
-            "Recreated acceptance subscription {} in {}ms (delete {}ms, create {}ms, total {}ms)",
-            subscriptionId,
-            totalDurationMs,
-            deleteDurationMs,
-            createDurationMs,
-            totalDurationMs);
-      } catch (IOException e) {
-        throw new IllegalStateException(
-            "Failed to access subscription admin client for subscription " + subscriptionId,
-            e);
-      } catch (Exception e) {
-        throw new IllegalStateException(
-            "Failed to recreate acceptance subscription " + subscriptionId,
-            e);
       }
     }
 
