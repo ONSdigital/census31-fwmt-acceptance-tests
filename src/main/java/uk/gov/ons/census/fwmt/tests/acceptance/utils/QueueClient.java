@@ -5,7 +5,12 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -108,10 +113,31 @@ public final class QueueClient {
 
   public void reset() throws Exception {
     recordResetOperation("queue-reset-pause-inbound-adapters", this::pauseInboundAdapters);
-    for (String queueName : RESET_QUEUES) {
-      recordResetOperation("queue-reset-drain-" + queueName, () -> clearQueue(queueName));
-    }
+    drainQueuesInParallel();
     recordResetOperation("queue-reset-resume-inbound-adapters", this::resumeInboundAdapters);
+  }
+
+  private void drainQueuesInParallel() throws Exception {
+    ExecutorService executor = Executors.newFixedThreadPool(3);
+    try {
+      List<Future<?>> futures = new ArrayList<>();
+      for (String queueName : RESET_QUEUES) {
+        Future<?> future = executor.submit(() -> {
+          try {
+            recordResetOperation("queue-reset-drain-" + queueName, () -> clearQueue(queueName));
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        });
+        futures.add(future);
+      }
+      // Wait for all drain operations to complete
+      for (Future<?> future : futures) {
+        future.get();
+      }
+    } finally {
+      executor.shutdown();
+    }
   }
 
   private void pauseInboundAdapters() {

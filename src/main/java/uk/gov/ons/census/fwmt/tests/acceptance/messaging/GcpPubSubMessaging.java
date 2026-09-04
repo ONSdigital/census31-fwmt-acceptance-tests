@@ -322,7 +322,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     public void drainSubscription(String subscriptionId) {
       try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
         while (true) {
-          List<TestMessage> batch = pullWithStub(subscriber, subscriptionId, 500);
+          List<TestMessage> batch = pullWithStub(subscriber, subscriptionId, 1000);
           if (batch.isEmpty()) {
             return;
           }
