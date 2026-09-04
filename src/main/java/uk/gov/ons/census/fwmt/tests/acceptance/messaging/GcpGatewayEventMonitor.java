@@ -79,10 +79,10 @@ public class GcpGatewayEventMonitor {
     eventToWatch.addAll(eventsToListen);
     log.info("Enabling GCP gateway event monitor subscription={} watchList={}", TEST_SUBSCRIPTION,
         eventToWatch.isEmpty() ? "ALL" : eventToWatch);
+    // Create long-lived subscriber stub FIRST (Phase 3 optimization: reuse across all operations)
+    subscriberStub = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build());
     drainSubscription();
     log.info("Drained GCP gateway event monitor backlog for subscription={}", TEST_SUBSCRIPTION);
-    // Create long-lived subscriber stub (Phase 3 optimization: reuse across all operations)
-    subscriberStub = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build());
     running.set(true);
     poller = Executors.newSingleThreadExecutor(r -> {
       Thread thread = new Thread(r, "gcp-gateway-event-monitor");
