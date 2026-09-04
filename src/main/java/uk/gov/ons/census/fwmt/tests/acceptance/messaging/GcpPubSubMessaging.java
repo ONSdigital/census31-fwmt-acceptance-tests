@@ -6,6 +6,7 @@ import com.google.cloud.pubsub.v1.stub.GrpcSubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStubSettings;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.Timestamp;
 import com.google.pubsub.v1.AcknowledgeRequest;
 import com.google.pubsub.v1.ModifyAckDeadlineRequest;
 import com.google.pubsub.v1.ProjectSubscriptionName;
@@ -14,6 +15,7 @@ import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
 import com.google.pubsub.v1.ReceivedMessage;
+import com.google.pubsub.v1.SeekRequest;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -209,6 +211,9 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   record TestMessage(String ackId, String data, Map<String, String> attributes) {}
 
   private static final class GooglePubSubOperations implements PubSubOperations {
+    private static final long SEEK_PURGE_FUTURE_MILLIS = 60_000L;
+    private static final int MAX_RESIDUAL_DRAIN_BATCHES = 50;
+
     private final String projectId;
 
     private GooglePubSubOperations(String projectId) {
@@ -321,15 +326,65 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     @Override
     public void drainSubscription(String subscriptionId) {
       try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
-        while (true) {
-          List<TestMessage> batch = pullWithStub(subscriber, subscriptionId, 1000);
-          if (batch.isEmpty()) {
-            return;
-          }
-          acknowledgeWithStub(subscriber, subscriptionId, batch.stream().map(TestMessage::ackId).toList());
+        if (seekPurge(subscriber, subscriptionId)) {
+          drainResidualMessages(subscriber, subscriptionId);
+        } else {
+          drainByPullLoop(subscriber, subscriptionId);
         }
       } catch (IOException e) {
         throw new IllegalStateException("Failed to drain subscription " + subscriptionId, e);
+      }
+    }
+
+    /**
+     * Bulk-purges the subscription backlog with a single seek RPC to a future timestamp. This is
+     * O(1) regardless of backlog size, versus the old pull/ack loop which scaled with message
+     * count. Falls back to the pull/ack loop if seek is unavailable (e.g. missing IAM permission).
+     */
+    private boolean seekPurge(SubscriberStub subscriber, String subscriptionId) {
+      long targetMillis = System.currentTimeMillis() + SEEK_PURGE_FUTURE_MILLIS;
+      SeekRequest request =
+          SeekRequest.newBuilder()
+              .setSubscription(ProjectSubscriptionName.of(projectId, subscriptionId).toString())
+              .setTime(
+                  Timestamp.newBuilder()
+                      .setSeconds(targetMillis / 1000)
+                      .setNanos((int) (targetMillis % 1000) * 1_000_000)
+                      .build())
+              .build();
+      try {
+        subscriber.seekCallable().call(request);
+        return true;
+      } catch (Exception e) {
+        log.warn(
+            "Seek purge failed for subscription {}, falling back to pull/ack drain: {}",
+            subscriptionId,
+            e.getMessage());
+        return false;
+      }
+    }
+
+    /**
+     * Seek is eventually consistent; a bounded pull/ack pass clears stragglers that are still
+     * deliverable after the seek. Bounded so worst case stays small even in pathological cases.
+     */
+    private void drainResidualMessages(SubscriberStub subscriber, String subscriptionId) {
+      for (int i = 0; i < MAX_RESIDUAL_DRAIN_BATCHES; i++) {
+        List<TestMessage> batch = pullWithStub(subscriber, subscriptionId, 1000);
+        if (batch.isEmpty()) {
+          return;
+        }
+        acknowledgeWithStub(subscriber, subscriptionId, batch.stream().map(TestMessage::ackId).toList());
+      }
+    }
+
+    private void drainByPullLoop(SubscriberStub subscriber, String subscriptionId) {
+      while (true) {
+        List<TestMessage> batch = pullWithStub(subscriber, subscriptionId, 1000);
+        if (batch.isEmpty()) {
+          return;
+        }
+        acknowledgeWithStub(subscriber, subscriptionId, batch.stream().map(TestMessage::ackId).toList());
       }
     }
 
