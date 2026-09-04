@@ -118,7 +118,7 @@ public final class QueueClient {
   }
 
   private void drainQueuesInParallel() throws Exception {
-    ExecutorService executor = Executors.newFixedThreadPool(3);
+    ExecutorService executor = Executors.newFixedThreadPool(RESET_QUEUES.length);
     try {
       List<Future<?>> futures = new ArrayList<>();
       for (String queueName : RESET_QUEUES) {
