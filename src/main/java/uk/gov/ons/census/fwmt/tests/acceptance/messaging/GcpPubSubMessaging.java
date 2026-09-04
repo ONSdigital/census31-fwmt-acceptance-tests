@@ -1,12 +1,10 @@
 package uk.gov.ons.census.fwmt.tests.acceptance.messaging;
 
 import com.google.api.core.ApiFuture;
-import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.cloud.pubsub.v1.stub.GrpcSubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStubSettings;
-import com.google.pubsub.v1.Subscription;
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.AcknowledgeRequest;
 import com.google.pubsub.v1.ModifyAckDeadlineRequest;
@@ -155,7 +153,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   }
 
   private void drainTestSubscription(PubSubTestLane lane) {
-    operations().recreateTestSubscription(lane);
+    operations().drainSubscription(lane.testSubscription());
   }
 
   private long countAvailableMessages(PubSubTestLane lane) {
@@ -206,8 +204,6 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     void release(String subscriptionId, List<String> ackIds);
 
     void drainSubscription(String subscriptionId);
-
-    void recreateTestSubscription(PubSubTestLane lane);
   }
 
   record TestMessage(String ackId, String data, Map<String, String> attributes) {}
@@ -322,40 +318,6 @@ public class GcpPubSubMessaging implements MessagingTestClient {
           return;
         }
         acknowledge(subscriptionId, batch.stream().map(TestMessage::ackId).toList());
-      }
-    }
-
-    @Override
-    public void recreateTestSubscription(PubSubTestLane lane) {
-      String subscriptionId = lane.testSubscription();
-      String topicId = lane.topic();
-      try (SubscriptionAdminClient subscriptionAdminClient = SubscriptionAdminClient.create()) {
-        ProjectSubscriptionName subscriptionName =
-            ProjectSubscriptionName.of(projectId, subscriptionId);
-        String topicName = ProjectTopicName.format(projectId, topicId);
-        try {
-          subscriptionAdminClient.deleteSubscription(subscriptionName);
-          log.debug("Deleted acceptance subscription: {}", subscriptionId);
-        } catch (Exception e) {
-          log.debug(
-              "Failed to delete acceptance subscription {} (may not exist): {}",
-              subscriptionId,
-              e.getMessage());
-        }
-        try {
-          Subscription subscription =
-              Subscription.newBuilder().setTopic(topicName).setName(subscriptionName.toString()).build();
-          subscriptionAdminClient.createSubscription(subscription);
-          log.debug("Recreated acceptance subscription: {}", subscriptionId);
-        } catch (Exception e) {
-          throw new IllegalStateException(
-              "Failed to recreate acceptance subscription " + subscriptionId, e);
-        }
-      } catch (IOException e) {
-        throw new IllegalStateException(
-            "Failed to access subscription admin client for subscription "
-                + subscriptionId,
-            e);
       }
     }
 

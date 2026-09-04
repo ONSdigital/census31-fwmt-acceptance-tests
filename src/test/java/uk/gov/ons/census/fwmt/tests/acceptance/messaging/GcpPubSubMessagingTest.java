@@ -140,12 +140,6 @@ class GcpPubSubMessagingTest {
       drainedSubscriptions.add(subscriptionId);
     }
 
-    @Override
-    public void recreateTestSubscription(PubSubTestLane lane) {
-      // Mock implementation: track that it was called via the lane's test subscription ID
-      drainedSubscriptions.add(lane.testSubscription());
-    }
-
     private void enqueuePull(String subscriptionId, List<GcpPubSubMessaging.TestMessage> batch) {
       pullBatches.computeIfAbsent(subscriptionId, ignored -> new ArrayDeque<>()).addLast(batch);
       pullBatches.get(subscriptionId).addLast(List.of());
