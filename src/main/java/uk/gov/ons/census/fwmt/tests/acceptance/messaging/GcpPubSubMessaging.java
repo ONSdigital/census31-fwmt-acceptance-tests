@@ -1,6 +1,7 @@
 package uk.gov.ons.census.fwmt.tests.acceptance.messaging;
 
 import com.google.api.core.ApiFuture;
+import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.cloud.pubsub.v1.stub.GrpcSubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStub;
@@ -14,6 +15,7 @@ import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
 import com.google.pubsub.v1.ReceivedMessage;
+import com.google.pubsub.v1.Subscription;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -153,7 +155,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   }
 
   private void drainTestSubscription(PubSubTestLane lane) {
-    operations().drainSubscription(lane.testSubscription());
+    operations().recreateTestSubscription(lane);
   }
 
   private long countAvailableMessages(PubSubTestLane lane) {
@@ -166,7 +168,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
       count += batch.size();
       operations()
           .acknowledge(
-              lane.testSubscription(), batch.stream().map(TestMessage::ackId).toList());
+            lane.testSubscription(), batch.stream().map(message -> message.ackId()).toList());
     }
   }
 
@@ -204,6 +206,8 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     void release(String subscriptionId, List<String> ackIds);
 
     void drainSubscription(String subscriptionId);
+
+    void recreateTestSubscription(PubSubTestLane lane);
   }
 
   record TestMessage(String ackId, String data, Map<String, String> attributes) {}
@@ -326,10 +330,42 @@ public class GcpPubSubMessaging implements MessagingTestClient {
           if (batch.isEmpty()) {
             return;
           }
-          acknowledgeWithStub(subscriber, subscriptionId, batch.stream().map(TestMessage::ackId).toList());
+          acknowledgeWithStub(
+              subscriber, subscriptionId, batch.stream().map(message -> message.ackId()).toList());
         }
       } catch (IOException e) {
         throw new IllegalStateException("Failed to drain subscription " + subscriptionId, e);
+      }
+    }
+
+    @Override
+    public void recreateTestSubscription(PubSubTestLane lane) {
+      String subscriptionId = lane.testSubscription();
+      String topicId = lane.topic();
+      try (SubscriptionAdminClient subscriptionAdminClient = SubscriptionAdminClient.create()) {
+        ProjectSubscriptionName subscriptionName = ProjectSubscriptionName.of(projectId, subscriptionId);
+        String topicName = ProjectTopicName.format(projectId, topicId);
+        try {
+          subscriptionAdminClient.deleteSubscription(subscriptionName.toString());
+          log.debug("Deleted acceptance subscription: {}", subscriptionId);
+        } catch (Exception e) {
+          log.debug(
+              "Failed to delete acceptance subscription {} (may not exist): {}",
+              subscriptionId,
+              e.getMessage());
+        }
+        Subscription subscription =
+            Subscription.newBuilder().setTopic(topicName).setName(subscriptionName.toString()).build();
+        subscriptionAdminClient.createSubscription(subscription);
+        log.debug("Recreated acceptance subscription: {}", subscriptionId);
+      } catch (IOException e) {
+        throw new IllegalStateException(
+            "Failed to access subscription admin client for subscription " + subscriptionId,
+            e);
+      } catch (Exception e) {
+        throw new IllegalStateException(
+            "Failed to recreate acceptance subscription " + subscriptionId,
+            e);
       }
     }
 
