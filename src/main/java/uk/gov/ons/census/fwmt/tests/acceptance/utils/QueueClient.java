@@ -2,6 +2,7 @@ package uk.gov.ons.census.fwmt.tests.acceptance.utils;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -15,10 +16,13 @@ import com.google.common.base.Strings;
 
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.MessagingTestClient;
+import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 
 @Slf4j
 @Component
 public final class QueueClient {
+
+  private static final String RESET_HOOK_NAME = "ScenarioHooks.setup";
 
   @Value("${service.outcome.url}")
   private String outcomeServiceUrl;
@@ -50,8 +54,20 @@ public final class QueueClient {
 
   private static final String TEMP_FIELD_OTHERS_QUEUE = "Field.other";
 
+  private static final String[] RESET_QUEUES = {
+      FIELD_REFUSALS_QUEUE,
+      TEMP_FIELD_OTHERS_QUEUE,
+      RM_FIELD_QUEUE,
+      RM_FIELD_QUEUE_DLQ,
+      OUTCOME_PRE_PROCESSING,
+      OUTCOME_PRE_PROCESSING_DLQ
+  };
+
   @Autowired
   private MessagingTestClient messagingTestClient;
+
+  @Autowired
+  private PerformanceTimingRecorder performanceTimingRecorder;
 
   public long getMessageCount(String queueName) {
     return messagingTestClient.getMessageCount(queueName);
@@ -91,10 +107,11 @@ public final class QueueClient {
   }
 
   public void reset() throws Exception {
-    pauseInboundAdapters();
-    clearQueues(FIELD_REFUSALS_QUEUE, TEMP_FIELD_OTHERS_QUEUE, RM_FIELD_QUEUE, RM_FIELD_QUEUE_DLQ, OUTCOME_PRE_PROCESSING,
-        OUTCOME_PRE_PROCESSING_DLQ);
-    resumeInboundAdapters();
+    recordResetOperation("queue-reset-pause-inbound-adapters", this::pauseInboundAdapters);
+    for (String queueName : RESET_QUEUES) {
+      recordResetOperation("queue-reset-drain-" + queueName, () -> clearQueue(queueName));
+    }
+    recordResetOperation("queue-reset-resume-inbound-adapters", this::resumeInboundAdapters);
   }
 
   private void pauseInboundAdapters() {
@@ -117,10 +134,10 @@ public final class QueueClient {
 
   public void resetListeners(String listenerUrl, String user, String password) throws Exception {
 
-    URL url = new URL(listenerUrl);
+    URL url = URI.create(listenerUrl).toURL();
     HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
 
-    if (!Strings.isNullOrEmpty(user)) {
+    if (user != null && !Strings.isNullOrEmpty(user)) {
       String auth = user + ":" + password;
       byte[] encodedAuth = Base64.getEncoder().encode(auth.getBytes(StandardCharsets.UTF_8));
       String authHeaderValue = "Basic " + new String(encodedAuth);
@@ -135,6 +152,15 @@ public final class QueueClient {
 
   public NodeCheck doPreFlightCheck() {
     return messagingTestClient.doMessagingPreFlightCheck();
+  }
+
+  private void recordResetOperation(String operationName, PerformanceTimingRecorder.HookOperation operation)
+      throws Exception {
+    if (performanceTimingRecorder == null) {
+      operation.run();
+      return;
+    }
+    performanceTimingRecorder.recordHookOperation(RESET_HOOK_NAME, operationName, operation);
   }
 
 }

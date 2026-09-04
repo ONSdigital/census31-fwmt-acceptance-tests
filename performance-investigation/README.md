@@ -78,7 +78,7 @@ The runner stores the following evidence automatically:
 
 - `maven.log`: Maven stdout and stderr captured with `tee` while preserving Maven's exit code.
 - `jsonReports/`: Cucumber JSON reports used by `analyse-cucumber-timings.py`.
-- `performance-investigation/timings.ndjson`: structured scenario and RM-message wait timings. Each record includes the cloud run ID, scenario details, duration, polling counts, message counts, event type, and correlation IDs.
+- `performance-investigation/timings.ndjson`: structured timing records for hook operations and RM-message waits. Records include the cloud run ID, scenario details, duration, operation names, polling counts, message counts, event type, and correlation IDs.
 - `logs/`: logs produced locally by the acceptance-test wrapper, such as port-forward logs. These are not a substitute for application logs from the cloud services.
 
 Example container configuration:
@@ -127,6 +127,22 @@ jq -s '
 		max_wait_ms: (map(.durationMs) | max // 0)
 	}
 ' performance-investigation/cloud-runs/run1-all/performance-investigation/timings.ndjson
+
+Inspect queue reset sub-steps with `jq`:
+
+```bash
+jq -s '
+	map(select(.type == "hook-operation" and .hookName == "ScenarioHooks.setup" and (.operationName | startswith("queue-reset-")))) |
+	group_by(.operationName) |
+	map({
+		operation: .[0].operationName,
+		count: length,
+		avg_ms: ((map(.durationMs) | add) / length),
+		max_ms: (map(.durationMs) | max)
+	}) |
+	sort_by(.avg_ms) | reverse
+' performance-investigation/cloud-runs/run1-all/performance-investigation/timings.ndjson
+```
 ```
 
 ### Correlate With Service Logs
