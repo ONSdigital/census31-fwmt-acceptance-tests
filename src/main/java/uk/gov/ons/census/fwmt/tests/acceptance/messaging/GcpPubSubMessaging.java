@@ -260,18 +260,22 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
     @Override
     public List<TestMessage> pull(String subscriptionId, int maxMessages) {
+      try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
+        return pullWithStub(subscriber, subscriptionId, maxMessages);
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to create subscriber stub for subscription " + subscriptionId, e);
+      }
+    }
+
+    private List<TestMessage> pullWithStub(SubscriberStub subscriber, String subscriptionId, int maxMessages) {
       PullRequest request =
           PullRequest.newBuilder()
               .setSubscription(ProjectSubscriptionName.of(projectId, subscriptionId).toString())
               .setMaxMessages(maxMessages)
               .setReturnImmediately(true)
               .build();
-      try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
-        PullResponse response = subscriber.pullCallable().call(request);
-        return response.getReceivedMessagesList().stream().map(this::toEnvelope).toList();
-      } catch (IOException e) {
-        throw new IllegalStateException("Failed to pull from subscription " + subscriptionId, e);
-      }
+      PullResponse response = subscriber.pullCallable().call(request);
+      return response.getReceivedMessagesList().stream().map(this::toEnvelope).toList();
     }
 
     @Override
@@ -279,16 +283,20 @@ public class GcpPubSubMessaging implements MessagingTestClient {
       if (ackIds.isEmpty()) {
         return;
       }
+      try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
+        acknowledgeWithStub(subscriber, subscriptionId, ackIds);
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to create subscriber stub for subscription " + subscriptionId, e);
+      }
+    }
+
+    private void acknowledgeWithStub(SubscriberStub subscriber, String subscriptionId, List<String> ackIds) {
       AcknowledgeRequest request =
           AcknowledgeRequest.newBuilder()
               .setSubscription(ProjectSubscriptionName.of(projectId, subscriptionId).toString())
               .addAllAckIds(ackIds)
               .build();
-      try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
-        subscriber.acknowledgeCallable().call(request);
-      } catch (IOException e) {
-        throw new IllegalStateException("Failed to acknowledge subscription " + subscriptionId, e);
-      }
+      subscriber.acknowledgeCallable().call(request);
     }
 
     @Override
@@ -312,12 +320,16 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
     @Override
     public void drainSubscription(String subscriptionId) {
-      while (true) {
-        List<TestMessage> batch = pull(subscriptionId, 500);
-        if (batch.isEmpty()) {
-          return;
+      try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
+        while (true) {
+          List<TestMessage> batch = pullWithStub(subscriber, subscriptionId, 500);
+          if (batch.isEmpty()) {
+            return;
+          }
+          acknowledgeWithStub(subscriber, subscriptionId, batch.stream().map(TestMessage::ackId).toList());
         }
-        acknowledge(subscriptionId, batch.stream().map(TestMessage::ackId).toList());
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to drain subscription " + subscriptionId, e);
       }
     }
 
