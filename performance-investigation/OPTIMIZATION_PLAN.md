@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The acceptance test suite's queue-reset hook is a critical performance bottleneck, dominating per-scenario runtime. Current implementation (subscription delete-recreate) runs at 16.5s per scenario. Previous optimization attempt (eb67ce0) achieved 6.74s via drain-based strategy, then 6-thread parallelism (cf0a161) targeted 3-4s. Investigation revealed a better, O(1) approach: the **Pub/Sub Seek API** bulk-purges the entire retained backlog in a single RPC per queue, independent of message volume. This replaces the linear pull/ack drain loop and is expected to take queue-reset well below 3s, comfortably beating the success criterion.
+The acceptance test suite's queue-reset hook is a critical performance bottleneck, dominating per-scenario runtime. Current implementation (subscription delete-recreate) runs at 16.5s per scenario. Previous optimization attempt (eb67ce0) achieved 6.74s via drain-based strategy, then 6-thread parallelism (cf0a161) achieved 4.25s. The **Pub/Sub Seek API** experiment (5648cc8 → da874b87) proved seek works but is **performance-neutral** here: seek is eventually consistent, so the residual drain re-pulls the same backlog (4.24s median — parity, worse tail). Seek was reverted. The current approach pipelines pull/ack within each drain loop to halve per-batch round trips, targeting <3.5s.
 
 ---
 
@@ -46,21 +46,21 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
   ```
 - **Queues affected**: RM.Field, RM.FieldDLQ, Field.refusals, Field.other, Outcome.Preprocessing, Outcome.PreprocessingDLQ
 
-### ✅ Uncommitted: Pub/Sub Seek-Based Purge (Primary Solution)
-- **What**: Replaced the linear pull/ack drain loop with the Pub/Sub **Seek API**, which marks the entire retained backlog as acknowledged in a single RPC per queue (O(1), independent of message count).
-- **Why**: Drain time previously scaled linearly with backlog size (N pull+ack RTTs). Seek collapses this to 1 RTT per queue, eliminating message volume from the critical path.
-- **Impact**: Expected queue-reset to drop well below 3s (dominated by residual drain + listener HTTP calls + channel setup, not volume).
-- **Details** (GcpPubSubMessaging.java):
-  - `drainSubscription()` calls `seekPurge()` → issues a single `subscriber.seekCallable().call()` seeking to `now + 60s` (constant `SEEK_PURGE_FUTURE_MILLIS`).
-  - Followed by `drainResidualMessages()` — a bounded pull/ack pass (max `MAX_RESIDUAL_DRAIN_BATCHES=50` × 1000 messages) to clear stragglers, since seek is **eventually consistent** (docs warn of up to ~1 minute for full effect).
-  - Fail-safe: if `seekCallable()` throws (e.g. missing `pubsub.subscriptions.seek` IAM permission), falls back to the original `drainByPullLoop()` — no behaviour or coverage regression.
-  - Verified in the pinned client (google-cloud-pubsub 1.150.2) via `SubscriberStub.seekCallable()` (returns `UnaryCallable<SeekRequest, SeekResponse>`).
-- **References**: https://cloud.google.com/pubsub/docs/replay-overview ("Replay and purge messages with seek") and https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.subscriptions/seek.
-- **Caveats**:
-  - Timestamp seek requires subscription message retention (default **on**, 7 days) — confirm once on the `acceptance-tests-*` subscriptions.
-  - IAM needs `pubsub.subscriptions.seek` (included in `pubsub.editor`); fallback keeps tests safe if absent.
-  - Works on DLQ subscriptions; seek on the test subscription does not touch service subscriptions.
-- **Tests**: All 6 affected unit tests pass (GcpPubSubMessagingTest 5, QueueClientTest 1). Full suite: 19 run, 1 pre-existing `RunCucumberTest` error (requires live services — unrelated).
+### ✅ Commits 5648cc8 → 28d6d4a: Pub/Sub Seek-Based Purge (Experiment — Reverted)
+- **What**: Replaced the linear pull/ack drain loop with the Pub/Sub **Seek API** (single `seekCallable()` RPC per queue to a future timestamp, plus bounded residual drain).
+- **Why (hypothesis)**: Drain time scaled linearly with backlog size (N pull+ack RTTs); seek promised O(1) purge per queue.
+- **Cloud result (build da874b87, see `PHASE3_SEEK_ANALYSIS_BUILD_da874b87.md`)**:
+  - Seek **worked** (all seeks succeeded, no fallbacks) but **performance-neutral**: median 4.24s vs Phase 2 4.25s; **worse tail** (max 10.4s vs ~6.4s).
+  - Root cause: seek is **eventually consistent** — acked messages remain deliverable for up to ~1 minute, so the immediate residual drain re-pulls the same backlog it just purged. Seek + residual drain ≡ linear drain (parity is expected, not a tuning bug).
+  - Verdict: **reverted** in favour of attacking the RTT-per-batch cost directly.
+- **Details preserved for reference**: `drainSubscription()` → `seekPurge()` (+60s, `SEEK_PURGE_FUTURE_MILLIS`), `drainResidualMessages()` (max `MAX_RESIDUAL_DRAIN_BATCHES=50`), `drainByPullLoop()` fallback on IAM-denied seek.
+
+### ✅ Uncommitted: Pipelined Pull/Ack Drain (Current Strategy)
+- **What**: Each queue's drain loop now overlaps the ack of batch *k* with the pull of batch *k+1* (ack on a single background thread; gRPC stubs are thread-safe). Sequential pull-then-ack = 2 RTTs/batch → pipelined = ~1 RTT/batch.
+- **Why**: The seek experiment proved there is no O(1) purge for this workload (continuous publishing + eventual consistency); the real cost is per-batch RTT count in the drain loop (RM.Field ≈ 3.6s ≈ dozens of batch cycles).
+- **Impact**: Expected queue-reset 4.25s → ~2.5s (RM.Field 3.6s → ~1.8-2s); no API/IAM/retention dependencies.
+- **Details** (GcpPubSubMessaging.java): `drainSubscription()` → `drainByPipelinedPull()` with `DRAIN_PULL_BATCH_SIZE=1000` (API max), daemon `drain-ack-<queue>` thread, `awaitAck()` surfaces ack failures. Pull batch size cannot exceed 1000 (API cap) — the "increase to 5000" idea from the seek analysis is invalid.
+- **Tests**: All 6 affected unit tests pass (GcpPubSubMessagingTest 5, QueueClientTest 1).
 
 ---
 
@@ -77,7 +77,7 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 **Status**: Recommended Follow-Up  
 **Objective**: Reuse a single gRPC channel/stub across all Pub/Sub operations  
 **Change**: Introduce a singleton `SubscriberStub` cache in `GcpPubSubMessaging.GooglePubSubOperations`; gRPC stubs/channels are thread-safe and built for concurrent use, so one shared stub can serve all 6 drain threads plus pull()/acknowledge()/release() and eliminate the per-queue + per-call channel construction  
-**Expected benefit**: Removes the remaining per-queue channel setup during reset and per-call channel churn across every getMessage in the suite; this is now the primary remaining variable cost after seek  
+**Expected benefit**: Removes the remaining per-queue channel setup during reset and per-call channel churn across every getMessage in the suite; likely the next measurable win after pipelined drain  
 **Measurable**: Medium - requires NDJSON parsing (not yet automated)  
 **Risk**: Medium - connection lifecycle management  
 **Blocker**: No automated NDJSON analyzer exists yet  
@@ -105,7 +105,8 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 **Expected visibility**:
 - Commit fdebef1: Should show queue-reset at ~6-7 seconds
 - Commit cf0a161: Should show queue-reset at ~3-4 seconds (if parallelism fully effective)
-- Seek-based purge (uncommitted): Should show queue-reset at **<3 seconds**, independent of backlog size
+- Seek experiment (5648cc8+, reverted): parity with Phase 2 (median 4.24s) — expected given seek eventual consistency
+- Pipelined drain (current): Should show queue-reset at **~2.5 seconds** (halved per-batch RTTs)
 
 ### Secondary Metric: Operation-Level Timings
 **File**: `target/performance-investigation/timings.ndjson`  
@@ -125,7 +126,7 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 - QueueClientTest.java (1 test)
 - GcpPubSubMessagingTest.java (5 tests)
 
-**Current status**: ✅ All pass after fdebef1 + cf0a161 + seek-based purge
+**Current status**: ✅ All pass after fdebef1 + cf0a161; seek experiment reverted; pipelined drain implemented (6 affected tests green)
 
 ---
 
@@ -137,18 +138,14 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 - [x] Update tests for drain operations
 - [x] Commit: fdebef1
 
-### Phase 2: ✅ In Progress - Full Parallelism with 6-Thread Pool
+### Phase 2: ✅ Complete - Full Parallelism with 6-Thread Pool
 - [x] Increase thread pool to RESET_QUEUES.length (6)
 - [x] Commit: cf0a161
-- [x] Push to cloud build: Triggered, awaiting results
-- [ ] **Cloud run in progress** - Analyzing cucumber.json + timings.ndjson
-- [ ] Confirm queue-reset timing: expect 3-4 seconds average
+- [x] Cloud run confirmed: median 4.25s (Phase 2 baseline)
 
-### Phase 3: Planned - Gateway Event Monitor Optimization
-- [ ] Modify GcpGatewayEventMonitor to create long-lived SubscriberStub
-- [ ] Reduce pullMessages() stub creation overhead
-- [ ] Measure gateway-event-monitor-enable hook time
-- [ ] Commit and cloud test
+### Phase 3: ✅ Complete - Gateway Event Monitor Optimization
+- [x] Long-lived SubscriberStub in GcpGatewayEventMonitor (commits d4797db, 25c0ea9)
+- [x] Cloud run: parity with Phase 2 (median 4.45s; stub reuse was not the bottleneck)
 
 ### Phase 4: Future - Shared Stub Cache (If Phase 3 gains insufficient improvement)
 - [ ] Build NDJSON analyzer to identify remaining hot spots
@@ -159,15 +156,17 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 - [x] Investigation complete - long-polling is counter-productive for the empty-tail drain check
 - [x] Decision: drop from scope (kept returnImmediately=true)
 
-### Phase 6: 🔄 In Progress - Seek-Based Purge (Primary Solution)
-- [x] Add `seekPurge()` using `SubscriberStub.seekCallable()` to a future timestamp
-- [x] Add bounded `drainResidualMessages()` for seek eventual-consistency stragglers
-- [x] Add pull/ack `drainByPullLoop()` fallback if seek is unavailable
-- [x] Constants: `SEEK_PURGE_FUTURE_MILLIS=60_000`, `MAX_RESIDUAL_DRAIN_BATCHES=50`
-- [x] Compile + unit tests pass (6 affected tests; full suite only pre-existing RunCucumberTest env error)
-- [ ] **Cloud run** - verify `pubsub.subscriptions.seek` IAM and message-retention on test subscriptions
-- [ ] Confirm queue-reset timing: expect <3 seconds on the `analyse-cucumber-timings.py` report
-- [ ] Commit and push to cloud build
+### Phase 6: ❌ Reverted - Seek-Based Purge (Experiment)
+- [x] Implemented (commit 5648cc8) + diagnostic logging (6c899af) + analysis (28d6d4a)
+- [x] Cloud run da874b87: seek works but performance-neutral (median 4.24s, max 10.4s) — eventual consistency forces residual drain to re-pull the purged backlog
+- [x] Decision: revert (code removed) — parity is mathematically expected for seek + immediate residual drain
+
+### Phase 7: 🔄 In Progress - Pipelined Pull/Ack Drain
+- [x] Overlap ack(batch k) with pull(batch k+1) on a single background thread per queue
+- [x] Remove seek code paths and constants; `DRAIN_PULL_BATCH_SIZE=1000` (API max)
+- [x] Compile + unit tests pass (6 affected tests)
+- [ ] Cloud run: confirm queue-reset median ~2.5s on `analyse-cucumber-timings.py`
+- [ ] If insufficient: apply Phase 4 (shared stub) and/or 2 pullers per queue (12-thread pool)
 
 ---
 
@@ -197,8 +196,8 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 |------|------------|--------|-----------|
 | Cloud build fails | Low | High | Revert commits, debug locally first |
 | Thread pool over-parallelism | Low | Medium | Start with 6, fall back to 4-5 if contention observed |
-| Seek not permitted (IAM) | Low | Medium | Fallback to pull/ack drain (automatic on exception) |
-| Seek eventual consistency (stragglers) | Medium | Low | Bounded residual drain (50×1000) after seek; adapters paused meanwhile |
+| Pipelined ack reordering (out-of-order acks) | Low | Low | Acks are idempotent per ack-id; messages re-delivered only if deadline (10s) exceeded |
+| Ack thread failure masked until next batch | Low | Medium | `awaitAck()` rethrows into drain thread; drain fails fast |
 | Drain hangs on queue | Low | High | Timeout added in pull loop; fallback to delete-recreate if deadlock |
 | Measurement noise (variability) | Medium | Low | Run 3+ iterations, report median + percentiles |
 | Regression in test stability | Low | High | Comprehensive unit test suite in place |
@@ -214,7 +213,8 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 | Phase 3 (Gateway monitor) | ✅ Complete | 2026-09-04 | Already implemented |
 | Phase 4 (Shared stub) | 📅 Planned | 2026-09-06 | NDJSON analyzer |
 | Phase 5 (returnImmediately) | ❌ Cancelled | 2026-09-04 | Counter-productive |
-| Phase 6 (Seek purge) | 🔄 In Progress | 2026-09-04 (cloud results) | Cloud build / IAM + retention check |
+| Phase 6 (Seek purge) | ❌ Reverted | 2026-09-04 | Performance-neutral (eventual consistency) |
+| Phase 7 (Pipelined drain) | 🔄 In Progress | 2026-09-04 (cloud results) | Cloud build |
 
 ---
 
@@ -225,7 +225,10 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 - Commits:
   - fdebef1: Revert to optimized drain strategy with stub reuse (58.2% faster)
   - cf0a161: Optimize queue reset parallelism: use all 6 queues concurrently
-- Uncommitted: Seek-based purge (Primary Solution) in GcpPubSubMessaging.java
+  - 5648cc8: Seek-based purge experiment (REVERTED in working tree)
+  - 6c899af: Diagnostic logging for seek analysis (REVERTED in working tree)
+  - 28d6d4a: Phase 3 Seek API analysis doc (kept for reference)
+- Uncommitted: Pipelined pull/ack drain (Phase 7) in GcpPubSubMessaging.java
 
 ### Test Results
 - Location: `gs://c31-fwmtg-ci-prod-acceptance-test-details/` (Cloud Build artifacts)
@@ -244,17 +247,17 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 QueueClient.reset() [Hooks: queue-reset orchestration]
   ├─ pauseInboundAdapters() [Hooks: pause adapters]
   ├─ drainQueuesInParallel() [Hooks: queue-reset-drain-* for each queue]
-  │  ├─ Thread 1: drain(RM.Field)            → seek(+60s) → residual pull/ack (bounded)
-  │  ├─ Thread 2: drain(RM.FieldDLQ)         → seek(+60s) → residual pull/ack (bounded)
-  │  ├─ Thread 3: drain(Field.refusals)      → seek(+60s) → residual pull/ack (bounded)
-  │  ├─ Thread 4: drain(Field.other)         → seek(+60s) → residual pull/ack (bounded)
-  │  ├─ Thread 5: drain(Outcome.Preprocessing) → seek(+60s) → residual pull/ack (bounded)
-  │  └─ Thread 6: drain(Outcome.PreprocessingDLQ) → seek(+60s) → residual pull/ack (bounded)
-  │  [All 6 threads run concurrently; fallback to full pull/ack drain if seek fails]
+  │  ├─ Thread 1: drain(RM.Field)             → pipelined pull/ack (ack k ∥ pull k+1)
+  │  ├─ Thread 2: drain(RM.FieldDLQ)          → pipelined pull/ack (ack k ∥ pull k+1)
+  │  ├─ Thread 3: drain(Field.refusals)       → pipelined pull/ack (ack k ∥ pull k+1)
+  │  ├─ Thread 4: drain(Field.other)          → pipelined pull/ack (ack k ∥ pull k+1)
+  │  ├─ Thread 5: drain(Outcome.Preprocessing) → pipelined pull/ack (ack k ∥ pull k+1)
+  │  └─ Thread 6: drain(Outcome.PreprocessingDLQ) → pipelined pull/ack (ack k ∥ pull k+1)
+  │  [All 6 queues concurrent; each uses 1 background ack thread → ~1 RTT/batch instead of 2]
   └─ resumeInboundAdapters() [Hooks: resume adapters]
 ```
 
-**Key optimization**: Phases 1 & 2 move from sequential recreation (one subscription at a time) to parallel drain (all 6 subscriptions at once). Phase 6 replaces the per-message pull/ack loop with a single bulk **seek** RPC per queue (O(1)), so drain time no longer scales with backlog size.
+**Key optimization**: Phases 1 & 2 move from sequential recreation (one subscription at a time) to parallel drain (all 6 subscriptions at once). Phase 7 overlaps each queue's acks with its next pull, halving per-batch round trips. (Phase 6 seek experiment — single O(1) purge RPC — was reverted: eventual consistency made the residual drain re-pull the same backlog, so it was exactly as fast as a linear drain with a worse tail.)
 
 ---
 

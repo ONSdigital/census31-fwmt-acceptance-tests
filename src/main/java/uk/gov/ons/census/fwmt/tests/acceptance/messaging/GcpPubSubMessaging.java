@@ -6,7 +6,6 @@ import com.google.cloud.pubsub.v1.stub.GrpcSubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStubSettings;
 import com.google.protobuf.ByteString;
-import com.google.protobuf.Timestamp;
 import com.google.pubsub.v1.AcknowledgeRequest;
 import com.google.pubsub.v1.ModifyAckDeadlineRequest;
 import com.google.pubsub.v1.ProjectSubscriptionName;
@@ -15,13 +14,15 @@ import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
 import com.google.pubsub.v1.ReceivedMessage;
-import com.google.pubsub.v1.SeekRequest;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
@@ -211,8 +212,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   record TestMessage(String ackId, String data, Map<String, String> attributes) {}
 
   private static final class GooglePubSubOperations implements PubSubOperations {
-    private static final long SEEK_PURGE_FUTURE_MILLIS = 60_000L;
-    private static final int MAX_RESIDUAL_DRAIN_BATCHES = 50;
+    private static final int DRAIN_PULL_BATCH_SIZE = 1000;
 
     private final String projectId;
 
@@ -326,84 +326,61 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     @Override
     public void drainSubscription(String subscriptionId) {
       try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
-        if (seekPurge(subscriber, subscriptionId)) {
-          drainResidualMessages(subscriber, subscriptionId);
-        } else {
-          drainByPullLoop(subscriber, subscriptionId);
-        }
+        drainByPipelinedPull(subscriber, subscriptionId);
       } catch (IOException e) {
         throw new IllegalStateException("Failed to drain subscription " + subscriptionId, e);
       }
     }
 
     /**
-     * Bulk-purges the subscription backlog with a single seek RPC to a future timestamp. This is
-     * O(1) regardless of backlog size, versus the old pull/ack loop which scaled with message
-     * count. Falls back to the pull/ack loop if seek is unavailable (e.g. missing IAM permission).
+     * Drains a subscription by pipelining pulls and acknowledgements: batch k+1 is pulled while
+     * batch k is being acknowledged on a background thread. This halves the number of round trips
+     * per batch compared to a sequential pull-then-ack loop (the gRPC stub is thread-safe, so the
+     * concurrent pull/ack calls share one channel). The Pub/Sub seek bulk-purge experiment
+     * (commits 5648cc8-28d6d4a) showed seek + immediate residual drain was equivalent to a linear
+     * drain (seek is eventually consistent, so acked messages are still re-delivered), and this
+     * pipelined drain attacks the same RTT-per-batch bottleneck directly.
      */
-    private boolean seekPurge(SubscriberStub subscriber, String subscriptionId) {
-      long targetMillis = System.currentTimeMillis() + SEEK_PURGE_FUTURE_MILLIS;
-      SeekRequest request =
-          SeekRequest.newBuilder()
-              .setSubscription(ProjectSubscriptionName.of(projectId, subscriptionId).toString())
-              .setTime(
-                  Timestamp.newBuilder()
-                      .setSeconds(targetMillis / 1000)
-                      .setNanos((int) (targetMillis % 1000) * 1_000_000)
-                      .build())
-              .build();
+    private void drainByPipelinedPull(SubscriberStub subscriber, String subscriptionId) {
+      ExecutorService ackExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "drain-ack-" + subscriptionId);
+        thread.setDaemon(true);
+        return thread;
+      });
       try {
-        log.debug("Attempting seek purge for subscription {} to timestamp {}", subscriptionId, targetMillis);
-        subscriber.seekCallable().call(request);
-        log.info("Seek purge succeeded for subscription {}", subscriptionId);
-        return true;
-      } catch (Exception e) {
-        log.warn(
-            "Seek purge failed for subscription {}, falling back to pull/ack drain: {} ({})",
-            subscriptionId,
-            e.getMessage(),
-            e.getClass().getSimpleName());
-        return false;
+        Future<?> ackFuture = null;
+        while (true) {
+          List<TestMessage> batch = pullWithStub(subscriber, subscriptionId, DRAIN_PULL_BATCH_SIZE);
+          if (ackFuture != null) {
+            awaitAck(ackFuture, subscriptionId);
+          }
+          if (batch.isEmpty()) {
+            return;
+          }
+          List<TestMessage> batchToAck = batch;
+          ackFuture =
+              ackExecutor.submit(
+                  () ->
+                      acknowledgeWithStub(
+                          subscriber,
+                          subscriptionId,
+                          batchToAck.stream().map(TestMessage::ackId).toList()));
+        }
+      } finally {
+        ackExecutor.shutdownNow();
       }
     }
 
-    /**
-     * Seek is eventually consistent; a bounded pull/ack pass clears stragglers that are still
-     * deliverable after the seek. Bounded so worst case stays small even in pathological cases.
-     */
-    private void drainResidualMessages(SubscriberStub subscriber, String subscriptionId) {
-      log.debug("Starting residual drain for subscription {} (max {} batches)", subscriptionId, MAX_RESIDUAL_DRAIN_BATCHES);
-      int batchesProcessed = 0;
-      int messagesProcessed = 0;
-      for (int i = 0; i < MAX_RESIDUAL_DRAIN_BATCHES; i++) {
-        List<TestMessage> batch = pullWithStub(subscriber, subscriptionId, 1000);
-        if (batch.isEmpty()) {
-          log.debug("Residual drain complete for subscription {} after {} batches, {} messages", 
-              subscriptionId, batchesProcessed, messagesProcessed);
-          return;
-        }
-        batchesProcessed++;
-        messagesProcessed += batch.size();
-        acknowledgeWithStub(subscriber, subscriptionId, batch.stream().map(TestMessage::ackId).toList());
-      }
-      log.debug("Residual drain hit batch limit for subscription {} - processed {} batches, {} messages", 
-          subscriptionId, batchesProcessed, messagesProcessed);
-    }
-
-    private void drainByPullLoop(SubscriberStub subscriber, String subscriptionId) {
-      log.info("Draining subscription {} using fallback pull/ack loop (seek failed or unavailable)", subscriptionId);
-      int batchCount = 0;
-      int messageCount = 0;
-      while (true) {
-        List<TestMessage> batch = pullWithStub(subscriber, subscriptionId, 1000);
-        if (batch.isEmpty()) {
-          log.debug("Pull loop drain complete for subscription {} - {} batches, {} messages", 
-              subscriptionId, batchCount, messageCount);
-          return;
-        }
-        batchCount++;
-        messageCount += batch.size();
-        acknowledgeWithStub(subscriber, subscriptionId, batch.stream().map(TestMessage::ackId).toList());
+    private static void awaitAck(Future<?> ackFuture, String subscriptionId) {
+      try {
+        ackFuture.get();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(
+            "Interrupted while awaiting acknowledgement for subscription " + subscriptionId, e);
+      } catch (ExecutionException e) {
+        throw new IllegalStateException(
+            "Failed to acknowledge messages on subscription " + subscriptionId, e.getCause());
       }
     }
 
