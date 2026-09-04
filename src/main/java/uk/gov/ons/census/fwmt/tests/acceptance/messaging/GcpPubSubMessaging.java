@@ -14,6 +14,7 @@ import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
 import com.google.pubsub.v1.ReceivedMessage;
+import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -169,7 +170,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
       count += batch.size();
       operations()
           .acknowledge(
-              lane.testSubscription(), batch.stream().map(TestMessage::ackId).toList());
+            lane.testSubscription(), batch.stream().map(message -> message.ackId()).toList());
     }
   }
 
@@ -178,6 +179,13 @@ public class GcpPubSubMessaging implements MessagingTestClient {
       operations = new GooglePubSubOperations(pubsubProject);
     }
     return operations;
+  }
+
+  @PreDestroy
+  void closeOperations() {
+    if (operations != null) {
+      operations.close();
+    }
   }
 
   private static String parseEventType(String json) {
@@ -207,17 +215,31 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     void release(String subscriptionId, List<String> ackIds);
 
     void drainSubscription(String subscriptionId);
+
+    default void close() {}
   }
 
   record TestMessage(String ackId, String data, Map<String, String> attributes) {}
 
-  private static final class GooglePubSubOperations implements PubSubOperations {
+  @FunctionalInterface
+  interface SubscriberStubFactory {
+    SubscriberStub create() throws IOException;
+  }
+
+  static final class GooglePubSubOperations implements PubSubOperations {
     private static final int DRAIN_PULL_BATCH_SIZE = 1000;
 
     private final String projectId;
+    private final SubscriberStubFactory subscriberStubFactory;
+    private SubscriberStub subscriberStub;
 
     private GooglePubSubOperations(String projectId) {
+      this(projectId, () -> GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build()));
+    }
+
+    GooglePubSubOperations(String projectId, SubscriberStubFactory subscriberStubFactory) {
       this.projectId = projectId;
+      this.subscriberStubFactory = subscriberStubFactory;
     }
 
     @Override
@@ -265,11 +287,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
     @Override
     public List<TestMessage> pull(String subscriptionId, int maxMessages) {
-      try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
-        return pullWithStub(subscriber, subscriptionId, maxMessages);
-      } catch (IOException e) {
-        throw new IllegalStateException("Failed to create subscriber stub for subscription " + subscriptionId, e);
-      }
+      return pullWithStub(subscriber(), subscriptionId, maxMessages);
     }
 
     private List<TestMessage> pullWithStub(SubscriberStub subscriber, String subscriptionId, int maxMessages) {
@@ -288,11 +306,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
       if (ackIds.isEmpty()) {
         return;
       }
-      try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
-        acknowledgeWithStub(subscriber, subscriptionId, ackIds);
-      } catch (IOException e) {
-        throw new IllegalStateException("Failed to create subscriber stub for subscription " + subscriptionId, e);
-      }
+      acknowledgeWithStub(subscriber(), subscriptionId, ackIds);
     }
 
     private void acknowledgeWithStub(SubscriberStub subscriber, String subscriptionId, List<String> ackIds) {
@@ -315,20 +329,32 @@ public class GcpPubSubMessaging implements MessagingTestClient {
               .addAllAckIds(ackIds)
               .setAckDeadlineSeconds(0)
               .build();
-      try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
-        subscriber.modifyAckDeadlineCallable().call(request);
-      } catch (IOException e) {
-        throw new IllegalStateException(
-            "Failed to release messages for subscription " + subscriptionId, e);
-      }
+      subscriber().modifyAckDeadlineCallable().call(request);
     }
 
     @Override
     public void drainSubscription(String subscriptionId) {
-      try (SubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
-        drainByPipelinedPull(subscriber, subscriptionId);
+      drainByPipelinedPull(subscriber(), subscriptionId);
+    }
+
+    @Override
+    public synchronized void close() {
+      if (subscriberStub == null) {
+        return;
+      }
+      subscriberStub.close();
+      subscriberStub = null;
+    }
+
+    private synchronized SubscriberStub subscriber() {
+      if (subscriberStub != null) {
+        return subscriberStub;
+      }
+      try {
+        subscriberStub = subscriberStubFactory.create();
+        return subscriberStub;
       } catch (IOException e) {
-        throw new IllegalStateException("Failed to drain subscription " + subscriptionId, e);
+        throw new IllegalStateException("Failed to create shared subscriber stub for project " + projectId, e);
       }
     }
 
@@ -364,7 +390,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
                       acknowledgeWithStub(
                           subscriber,
                           subscriptionId,
-                          batchToAck.stream().map(TestMessage::ackId).toList()));
+                          batchToAck.stream().map(message -> message.ackId()).toList()));
         }
       } finally {
         ackExecutor.shutdownNow();

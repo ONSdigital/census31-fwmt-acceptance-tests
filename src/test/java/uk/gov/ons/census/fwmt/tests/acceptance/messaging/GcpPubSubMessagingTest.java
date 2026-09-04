@@ -1,13 +1,23 @@
 package uk.gov.ons.census.fwmt.tests.acceptance.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.google.api.gax.rpc.UnaryCallable;
+import com.google.cloud.pubsub.v1.stub.SubscriberStub;
+import com.google.pubsub.v1.AcknowledgeRequest;
+import com.google.pubsub.v1.ModifyAckDeadlineRequest;
+import com.google.pubsub.v1.PullResponse;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import uk.gov.ons.census.fwmt.common.messaging.FieldWorkerInstructionJsonCodec;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
@@ -94,6 +104,44 @@ class GcpPubSubMessagingTest {
     assertThat(nodeCheck.isSuccesful()).isTrue();
     assertThat(nodeCheck.getName()).isEqualTo("Google Pub/Sub");
     assertThat(operations.drainedSubscriptions).containsExactly("acceptance-tests-Field-refusals");
+  }
+
+  @Test
+  void shouldReuseSingleSubscriberStubAcrossOperationsUntilClosed() throws Exception {
+    AtomicInteger stubCreations = new AtomicInteger();
+    SubscriberStub subscriberStub = mock(SubscriberStub.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<com.google.pubsub.v1.PullRequest, PullResponse> pullCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<AcknowledgeRequest, com.google.protobuf.Empty> acknowledgeCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<ModifyAckDeadlineRequest, com.google.protobuf.Empty> modifyAckCallable = mock(UnaryCallable.class);
+
+    when(subscriberStub.pullCallable()).thenReturn(pullCallable);
+    when(subscriberStub.acknowledgeCallable()).thenReturn(acknowledgeCallable);
+    when(subscriberStub.modifyAckDeadlineCallable()).thenReturn(modifyAckCallable);
+    when(pullCallable.call(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(PullResponse.getDefaultInstance())
+        .thenReturn(PullResponse.getDefaultInstance());
+
+    GcpPubSubMessaging.GooglePubSubOperations operations =
+        new GcpPubSubMessaging.GooglePubSubOperations(
+            "project-id",
+            () -> {
+              stubCreations.incrementAndGet();
+              return subscriberStub;
+            });
+
+    operations.pull("acceptance-tests-RM-Field", 1);
+    operations.acknowledge("acceptance-tests-RM-Field", List.of("ack-1"));
+    operations.release("acceptance-tests-RM-Field", List.of("ack-2"));
+    operations.drainSubscription("acceptance-tests-RM-Field");
+
+    assertThat(stubCreations).hasValue(1);
+
+    operations.close();
+
+    verify(subscriberStub, times(1)).close();
   }
 
   private static class RecordingPubSubOperations implements GcpPubSubMessaging.PubSubOperations {
