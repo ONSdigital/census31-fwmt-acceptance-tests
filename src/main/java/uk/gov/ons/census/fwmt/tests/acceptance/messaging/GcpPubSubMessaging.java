@@ -342,22 +342,38 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     public void recreateTestSubscription(PubSubTestLane lane) {
       String subscriptionId = lane.testSubscription();
       String topicId = lane.topic();
+      long overallStartNanos = System.nanoTime();
+      log.info("Resetting acceptance subscription {} for topic {} via delete-and-recreate", subscriptionId, topicId);
       try (SubscriptionAdminClient subscriptionAdminClient = SubscriptionAdminClient.create()) {
         ProjectSubscriptionName subscriptionName = ProjectSubscriptionName.of(projectId, subscriptionId);
         String topicName = ProjectTopicName.format(projectId, topicId);
+        long deleteDurationMs = 0;
         try {
+          long deleteStartNanos = System.nanoTime();
           subscriptionAdminClient.deleteSubscription(subscriptionName.toString());
-          log.debug("Deleted acceptance subscription: {}", subscriptionId);
+          deleteDurationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - deleteStartNanos);
+          log.info("Deleted acceptance subscription {} in {}ms", subscriptionId, deleteDurationMs);
         } catch (Exception e) {
-          log.debug(
-              "Failed to delete acceptance subscription {} (may not exist): {}",
+          deleteDurationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - overallStartNanos);
+          log.info(
+              "Delete step for acceptance subscription {} did not complete cleanly after {}ms: {}",
               subscriptionId,
+              deleteDurationMs,
               e.getMessage());
         }
+        long createStartNanos = System.nanoTime();
         Subscription subscription =
             Subscription.newBuilder().setTopic(topicName).setName(subscriptionName.toString()).build();
         subscriptionAdminClient.createSubscription(subscription);
-        log.debug("Recreated acceptance subscription: {}", subscriptionId);
+        long createDurationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - createStartNanos);
+        long totalDurationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - overallStartNanos);
+        log.info(
+            "Recreated acceptance subscription {} in {}ms (delete {}ms, create {}ms, total {}ms)",
+            subscriptionId,
+            totalDurationMs,
+            deleteDurationMs,
+            createDurationMs,
+            totalDurationMs);
       } catch (IOException e) {
         throw new IllegalStateException(
             "Failed to access subscription admin client for subscription " + subscriptionId,
