@@ -167,7 +167,9 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 - [x] Compile + unit tests pass (8 affected tests: GcpPubSubMessagingTest 7, QueueClientTest 1)
 - [x] **Phase 7b**: parallel pause/resume (2 concurrent listener HTTP calls, was sequential)
 - [x] **Phase 7c**: RM.Field gets 3 pullers (default 1; configurable via `pullerParallelismFor` on subscription prefix); each puller pipelines its acks on shared ack threads — projected RM.Field 3.6s → ~1.2-1.8s
+- [x] **Phase 7d**: StreamingPull prototype behind `fwmt.pubsub.streaming-pull.enabled` (default false). `drainSubscription()` switches to a persistent streaming-pull drain (single bidirectional stream, acks on the same stream) when enabled; any stream failure falls back to the pipelined-pull path. Unit-tested on/off + fallback.
 - [ ] Cloud run: confirm queue-reset median ~2.5s on `analyse-cucumber-timings.py` + `analyse-ndjson-timings.py`
+- [ ] A/B test: run with flag off (baseline) then flag on (StreamingPull prototype) and compare with the NDJSON analyzer
 - [ ] If insufficient: apply Phase 4 (shared stub) and/or 2 pullers per queue (12-thread pool)
 
 ---

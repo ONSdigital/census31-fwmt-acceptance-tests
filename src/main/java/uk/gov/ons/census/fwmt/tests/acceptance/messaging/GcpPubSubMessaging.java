@@ -1,6 +1,10 @@
 package uk.gov.ons.census.fwmt.tests.acceptance.messaging;
 
 import com.google.api.core.ApiFuture;
+import com.google.api.gax.rpc.BidiStreamingCallable;
+import com.google.api.gax.rpc.ClientStream;
+import com.google.api.gax.rpc.ResponseObserver;
+import com.google.api.gax.rpc.StreamController;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.cloud.pubsub.v1.stub.GrpcSubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStub;
@@ -14,6 +18,8 @@ import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
 import com.google.pubsub.v1.ReceivedMessage;
+import com.google.pubsub.v1.StreamingPullRequest;
+import com.google.pubsub.v1.StreamingPullResponse;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,8 +30,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +59,9 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   @Value("${fwmt.pubsub.allowServiceSubscriptionDrain:false}")
   private boolean allowServiceSubscriptionDrain;
 
+  @Value("${fwmt.pubsub.streaming-pull.enabled:false}")
+  private boolean streamingPullEnabled;
+
   private PubSubOperations operations;
 
   public GcpPubSubMessaging() {}
@@ -58,6 +69,12 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   GcpPubSubMessaging(PubSubOperations operations, boolean allowServiceSubscriptionDrain) {
     this.operations = operations;
     this.allowServiceSubscriptionDrain = allowServiceSubscriptionDrain;
+  }
+
+  GcpPubSubMessaging(PubSubOperations operations, boolean allowServiceSubscriptionDrain, boolean streamingPullEnabled) {
+    this.operations = operations;
+    this.allowServiceSubscriptionDrain = allowServiceSubscriptionDrain;
+    this.streamingPullEnabled = streamingPullEnabled;
   }
 
   @Override
@@ -176,7 +193,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
   private PubSubOperations operations() {
     if (operations == null) {
-      operations = new GooglePubSubOperations(pubsubProject);
+      operations = new GooglePubSubOperations(pubsubProject, streamingPullEnabled);
     }
     return operations;
   }
@@ -238,15 +255,26 @@ public class GcpPubSubMessaging implements MessagingTestClient {
         Map.of("acceptance-tests-RM-Field", RM_FIELD_PULLER_PARALLELISM);
 
     private final String projectId;
+    private final boolean streamingPullEnabled;
     private final SubscriberStubFactory subscriberStubFactory;
     private SubscriberStub subscriberStub;
 
     private GooglePubSubOperations(String projectId) {
-      this(projectId, () -> GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build()));
+      this(projectId, false, () -> GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build()));
+    }
+
+    GooglePubSubOperations(String projectId, boolean streamingPullEnabled) {
+      this(projectId, streamingPullEnabled, () -> GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build()));
     }
 
     GooglePubSubOperations(String projectId, SubscriberStubFactory subscriberStubFactory) {
+      this(projectId, false, subscriberStubFactory);
+    }
+
+    GooglePubSubOperations(
+        String projectId, boolean streamingPullEnabled, SubscriberStubFactory subscriberStubFactory) {
       this.projectId = projectId;
+      this.streamingPullEnabled = streamingPullEnabled;
       this.subscriberStubFactory = subscriberStubFactory;
     }
 
@@ -342,6 +370,17 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
     @Override
     public void drainSubscription(String subscriptionId) {
+      if (streamingPullEnabled) {
+        try {
+          drainByStreamingPull(subscriber(), subscriptionId);
+          return;
+        } catch (Exception e) {
+          log.warn(
+              "Streaming pull drain failed for subscription {}, falling back to pipelined pull drain: {}",
+              subscriptionId,
+              e.getMessage());
+        }
+      }
       drainByPipelinedPull(subscriber(), subscriptionId, pullerParallelismFor(subscriptionId));
     }
 
@@ -438,6 +477,109 @@ public class GcpPubSubMessaging implements MessagingTestClient {
       } catch (ExecutionException e) {
         throw new IllegalStateException(
             "Failed to acknowledge messages on subscription " + subscriptionId, e.getCause());
+      }
+    }
+
+    /**
+     * Prototype drain using the Pub/Sub StreamingPull bidirectional stream instead of repeated
+     * pull-RPCs. A persistent stream receives messages with zero per-batch RPC RTT and acks are
+     * sent back on the same stream. Enabled behind the property
+     * {@code fwmt.pubsub.streaming-pull.enabled} (default false); any failure falls back to the
+     * multi-puller pipelined drain in {@link #drainByPipelinedPull}.
+     */
+    private void drainByStreamingPull(SubscriberStub subscriber, String subscriptionId) {
+      String subscriptionPath = ProjectSubscriptionName.of(projectId, subscriptionId).toString();
+      AtomicBoolean streamClosed = new AtomicBoolean(false);
+      LinkedBlockingQueue<StreamingPullResponse> responses = new LinkedBlockingQueue<>();
+
+      ResponseObserver<StreamingPullResponse> responseObserver =
+          new ResponseObserver<>() {
+            @Override
+            public void onStart(StreamController controller) {}
+
+            @Override
+            public void onResponse(StreamingPullResponse response) {
+              try {
+                responses.put(response);
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+              }
+            }
+
+            @Override
+            public void onError(Throwable t) {
+              streamClosed.set(true);
+              responses.add(StreamingPullResponse.getDefaultInstance());
+            }
+
+            @Override
+            public void onComplete() {
+              streamClosed.set(true);
+              responses.add(StreamingPullResponse.getDefaultInstance());
+            }
+          };
+
+      BidiStreamingCallable<StreamingPullRequest, StreamingPullResponse> callable =
+          subscriber.streamingPullCallable();
+      ClientStream<StreamingPullRequest> requestStream = callable.splitCall(responseObserver);
+
+      // Initial request: subscribe to the stream. Subsequent requests carry acks.
+      requestStream.send(
+          StreamingPullRequest.newBuilder()
+              .setSubscription(subscriptionPath)
+              .setStreamAckDeadlineSeconds(60)
+              .build());
+
+      ExecutorService drainExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "drain-stream-" + subscriptionId);
+        thread.setDaemon(true);
+        return thread;
+      });
+      try {
+        Future<?> drainResult =
+            drainExecutor.submit(
+                () -> {
+                  int consecutiveEmpty = 0;
+                  while (true) {
+                    StreamingPullResponse response;
+                    try {
+                      response = responses.take();
+                    } catch (InterruptedException e) {
+                      Thread.currentThread().interrupt();
+                      return;
+                    }
+                    List<ReceivedMessage> messages = response.getReceivedMessagesList();
+                    for (ReceivedMessage received : messages) {
+                      requestStream.send(
+                          StreamingPullRequest.newBuilder()
+                              .setSubscription(subscriptionPath)
+                              .addAllAckIds(List.of(received.getAckId()))
+                              .build());
+                    }
+                    if (messages.isEmpty()) {
+                      if (streamClosed.get()) {
+                        return;
+                      }
+                      consecutiveEmpty++;
+                      if (consecutiveEmpty >= 2) {
+                        return;
+                      }
+                    } else {
+                      consecutiveEmpty = 0;
+                    }
+                  }
+                });
+        drainResult.get();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(
+            "Interrupted while streaming-draining subscription " + subscriptionId, e);
+      } catch (ExecutionException e) {
+        throw new IllegalStateException(
+            "Failed to streaming-drain subscription " + subscriptionId, e.getCause());
+      } finally {
+        requestStream.closeSend();
+        drainExecutor.shutdownNow();
       }
     }
 
