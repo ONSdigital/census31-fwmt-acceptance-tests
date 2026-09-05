@@ -43,6 +43,7 @@ public class GcpGatewayEventMonitor {
   private final String projectId;
   private ExecutorService poller;
   private final AtomicBoolean running = new AtomicBoolean(false);
+  private GrpcSubscriberStub subscriberStub;
 
   public GcpGatewayEventMonitor(String projectId) {
     this.projectId = projectId;
@@ -59,6 +60,10 @@ public class GcpGatewayEventMonitor {
       }
       poller = null;
     }
+    if (subscriberStub != null) {
+      subscriberStub.close();
+      subscriberStub = null;
+    }
     gatewayEventMap = null;
     gatewayErrorEventMap = null;
   }
@@ -74,6 +79,8 @@ public class GcpGatewayEventMonitor {
     eventToWatch.addAll(eventsToListen);
     log.info("Enabling GCP gateway event monitor subscription={} watchList={}", TEST_SUBSCRIPTION,
         eventToWatch.isEmpty() ? "ALL" : eventToWatch);
+    // Create long-lived subscriber stub FIRST (Phase 3 optimization: reuse across all operations)
+    subscriberStub = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build());
     drainSubscription();
     log.info("Drained GCP gateway event monitor backlog for subscription={}", TEST_SUBSCRIPTION);
     running.set(true);
@@ -123,12 +130,12 @@ public class GcpGatewayEventMonitor {
         .setMaxMessages(maxMessages)
         .setReturnImmediately(true)
         .build();
-    try (GrpcSubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
-      PullResponse response = subscriber.pullCallable().call(request);
+    try {
+      PullResponse response = subscriberStub.pullCallable().call(request);
       return response.getReceivedMessagesList().stream()
           .map(m -> new GcpMessage(m.getAckId(), m.getMessage().getData().toStringUtf8()))
           .toList();
-    } catch (IOException e) {
+    } catch (Exception e) {
       throw new IllegalStateException("Failed to pull from GCP subscription " + TEST_SUBSCRIPTION, e);
     }
   }
@@ -141,9 +148,9 @@ public class GcpGatewayEventMonitor {
         .setSubscription(ProjectSubscriptionName.of(projectId, TEST_SUBSCRIPTION).toString())
         .addAllAckIds(ackIds)
         .build();
-    try (GrpcSubscriberStub subscriber = GrpcSubscriberStub.create(SubscriberStubSettings.newBuilder().build())) {
-      subscriber.acknowledgeCallable().call(request);
-    } catch (IOException e) {
+    try {
+      subscriberStub.acknowledgeCallable().call(request);
+    } catch (Exception e) {
       log.warn("Failed to acknowledge GCP messages: {}", e.getMessage());
     }
   }

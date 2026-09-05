@@ -14,7 +14,6 @@ import com.google.common.io.Resources;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
@@ -25,12 +24,11 @@ import uk.gov.ons.census.fwmt.common.events.data.GatewayEventDTO;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
+import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 
 @Slf4j
 public class CancelSteps {
 
-  @Autowired
-  private CommonUtils commonUtils;
 
   @Autowired
   private AcceptanceGatewayEventMonitor gatewayEventMonitor;
@@ -57,17 +55,16 @@ public class CancelSteps {
   @Autowired
   private QueueClient queueClient;
 
+  @Autowired
+  private PerformanceTimingRecorder performanceTimingRecorder;
+
   @Before
   public void setup() throws Exception {
-    spgCancel = Resources.toString(Resources.getResource("files/input/spg/spgCancel.json"), Charsets.UTF_8);
-    ceEstabCancel = Resources.toString(Resources.getResource("files/input/ce/ceEstabCancel.json"), Charsets.UTF_8);
-    ceUnitCancel = Resources.toString(Resources.getResource("files/input/ce/ceUnitCancel.json"), Charsets.UTF_8);
-//    commonUtils.setup();
-  }
-
-  @After
-  public void clearDown() throws Exception {
-//    commonUtils.clearDown();
+    performanceTimingRecorder.recordHookOperation("CancelSteps.setup", "load-cancel-templates", () -> {
+      spgCancel = Resources.toString(Resources.getResource("files/input/spg/spgCancel.json"), Charsets.UTF_8);
+      ceEstabCancel = Resources.toString(Resources.getResource("files/input/ce/ceEstabCancel.json"), Charsets.UTF_8);
+      ceUnitCancel = Resources.toString(Resources.getResource("files/input/ce/ceUnitCancel.json"), Charsets.UTF_8);
+    });
   }
 
   @And("RM sends a cancel case request for the case")

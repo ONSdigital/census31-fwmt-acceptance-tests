@@ -1,0 +1,13 @@
+{
+  "label": "hook-instrumentation-full",
+  "run": 1,
+  "order": 1,
+  "startedAt": "2026-09-03T08:33:07+01:00",
+  "finishedAt": "2026-09-03T08:40:59+01:00",
+  "elapsedSeconds": 472,
+  "mvnExitCode": 1,
+  "command": "mvn clean verify",
+  "gitBranch": "FMT-128_performance-investigation",
+  "gitCommit": "e7bc027b38ce6b914acf21492a180aba5a80204c",
+  "gitDirty": true
+}

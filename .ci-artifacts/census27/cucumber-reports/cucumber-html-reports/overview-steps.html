@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+<script src="js/jquery.min.js"></script>
+<script src="js/jquery.tablesorter.min.js"></script>
+<script src="js/Chart.min.js"></script>
+<script src="js/moment.min.js"></script>
+<script src="js/bootstrap.min.js"></script>
+
+<link rel="stylesheet" href="css/bootstrap.min.css" type="text/css"/>
+<link rel="stylesheet" href="css/cucumber.css" type="text/css"/>
+<link rel="stylesheet" href="css/font-awesome.min.css"/>
+<link rel="shortcut icon" href="images/favicon.png"/>
+
+<script>
+$(document).ready(function() {
+    // this will tell tablesorter to try looking for the data-value attribute
+    // if present, it'll sort by that instead
+    // otherwise, it'll sort by the text content of the table cell
+    $("#tablesorter").tablesorter({
+        textAttribute: 'data-value',
+        // ignores the first row of the header, the 'scenario', 'steps', since
+        // sorting those doesn't make sense
+        selectorHeaders: '> thead tr:not(.dont-sort) th',
+        // use a stable sort
+        sortStable: true
+    });
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<title>Cucumber Reports (no 1) - Steps Overview</title>
+
+</head>
+<body>
+
+<nav class="navbar navbar-default navbar-fixed-top" id="navigation">
+  <div class="container-fluid">
+    <div class="collapse navbar-collapse">
+      <p class="navbar-text navbar-left">Cucumber Report</p>
+      <ul class="nav navbar-nav navbar-right">
+        <li role="presentation" ><a href="overview-features.html">Features</a></li>
+        <li role="presentation" ><a href="overview-tags.html">Tags</a></li>
+        <li role="presentation"     class="active" ><a href="overview-steps.html">Steps</a></li>
+        <li role="presentation" ><a href="overview-failures.html">Failures</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+
+<div class="container-fluid">
+  <div class="col-md-5 col-md-offset-1">
+
+<table class="table table-bordered" id="build-info">
+  <thead>
+    <tr>
+      <th>Project</th>
+        <th>Number</th>
+      <th>Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="info">
+      <td>census31-fwmt-acceptance-tests</td>
+        <td>1</td>
+      <td>04 Aug 2026, 13:39</td>
+    </tr>
+  </tbody>
+</table>
+
+  </div>
+  <div class="col-md-3 col-md-offset-2">
+  </div>
+</div>
+
+
+<div id="report-lead" class="container-fluid">
+  <div class="col-md-10 col-md-offset-1">
+    <h2>Steps Statistics</h2>
+      <p>The following graph shows step statistics for this build. Below list is based on results.
+ step does not provide information about result then is not listed below.
+ Additionally @Before and @After are not counted because they are part of the scenarios, not steps.</p>
+  </div>
+</div>
+
+<div class="container-fluid" id="report">
+  <div class="row">
+    <div class="col-md-10 col-md-offset-1">
+      <table id="tablesorter" class="stats-table table-hover">
+
+        <thead>
+          <tr class="header">
+            <th>Implementation</th>
+            <th>Occurrences</th>
+            <th>Average duration</th>
+            <th>Max duration</th>
+            <th>Total durations</th>
+            <th>Ratio</th>
+          </tr>
+        </thead>
+
+        <tbody>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.featureflag.FeatureFlagSteps.noTmCaseIsCreatedForCaseId(java.lang.String)</td>
+              <td>2</td>
+              <td class="duration" data-value="7289000">0.007</td>
+              <td class="duration" data-value="7289000">0.008</td>
+              <td class="duration" data-value="14578000">0.014</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.featureflag.FeatureFlagSteps.setJobFeatureFlag(java.lang.String,java.lang.String,java.lang.String)</td>
+              <td>2</td>
+              <td class="duration" data-value="55953000">0.055</td>
+              <td class="duration" data-value="55953000">0.057</td>
+              <td class="duration" data-value="111906000">0.111</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.featureflag.FeatureFlagSteps.setOutcomeFeatureFlag(java.lang.String,java.lang.String)</td>
+              <td>1</td>
+              <td class="duration" data-value="58552000">0.058</td>
+              <td class="duration" data-value="58552000">0.058</td>
+              <td class="duration" data-value="58552000">0.058</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.featureflag.FeatureFlagSteps.theOutcomeIsIgnoredDueToFeatureFlagForCaseId(java.lang.String)</td>
+              <td>1</td>
+              <td class="duration" data-value="24000">0.000</td>
+              <td class="duration" data-value="24000">0.000</td>
+              <td class="duration" data-value="24000">0.000</td>
+              <td class="failed">0.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.featureflag.FeatureFlagSteps.theRequestIsIgnoredDueToFeatureFlagForCaseId(java.lang.String)</td>
+              <td>2</td>
+              <td class="duration" data-value="10018905500">10.018</td>
+              <td class="duration" data-value="10018905500">10.036</td>
+              <td class="duration" data-value="20037811000">20.037</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create.CreateSteps.aNewCaseIsCreatedInTm(java.lang.String)</td>
+              <td>2</td>
+              <td class="duration" data-value="195173500">0.195</td>
+              <td class="duration" data-value="195173500">0.386</td>
+              <td class="duration" data-value="390347000">0.390</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create.CreateSteps.aTMDoesntHaveAJobWithCaseIDInTM(java.lang.String)</td>
+              <td>4</td>
+              <td class="duration" data-value="4719750">0.004</td>
+              <td class="duration" data-value="4719750">0.012</td>
+              <td class="duration" data-value="18879000">0.018</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create.CreateSteps.a_new_case_is_created_of_the_right_type(java.lang.String)</td>
+              <td>2</td>
+              <td class="duration" data-value="66000">0.000</td>
+              <td class="duration" data-value="66000">0.000</td>
+              <td class="duration" data-value="132000">0.000</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create.CreateSteps.and_the_right_caseref(java.lang.String)</td>
+              <td>2</td>
+              <td class="duration" data-value="36000">0.000</td>
+              <td class="duration" data-value="36000">0.000</td>
+              <td class="duration" data-value="72000">0.000</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create.CreateSteps.clearDown()</td>
+              <td>4</td>
+              <td class="duration" data-value="1906000">0.001</td>
+              <td class="duration" data-value="1906000">0.002</td>
+              <td class="duration" data-value="7624000">0.007</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create.CreateSteps.rmSendsACECreateJobRequest(java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String)</td>
+              <td>3</td>
+              <td class="duration" data-value="184755333">0.184</td>
+              <td class="duration" data-value="184755333">0.231</td>
+              <td class="duration" data-value="554266000">0.554</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create.CreateSteps.rm_sends_a_HH_create_job_request()</td>
+              <td>1</td>
+              <td class="duration" data-value="109116000">0.109</td>
+              <td class="duration" data-value="109116000">0.109</td>
+              <td class="duration" data-value="109116000">0.109</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create.CreateSteps.setup()</td>
+              <td>4</td>
+              <td class="duration" data-value="618385000">0.618</td>
+              <td class="duration" data-value="618385000">0.755</td>
+              <td class="duration" data-value="2473540000">2.473</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create.CreateSteps.theGatewaySendsACreateJobMessageToTM()</td>
+              <td>2</td>
+              <td class="duration" data-value="173000">0.000</td>
+              <td class="duration" data-value="173000">0.000</td>
+              <td class="duration" data-value="346000">0.000</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes.OutcomeSteps.gateway_processes_the_hidden_outcome()</td>
+              <td>1</td>
+              <td class="duration" data-value="10127808000">10.127</td>
+              <td class="duration" data-value="10127808000">10.127</td>
+              <td class="duration" data-value="10127808000">10.127</td>
+              <td class="failed">0.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes.OutcomeSteps.its_Outcome_code_is(java.lang.String)</td>
+              <td>1</td>
+              <td class="duration" data-value="21000">0.000</td>
+              <td class="duration" data-value="21000">0.000</td>
+              <td class="duration" data-value="21000">0.000</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes.OutcomeSteps.its_Primary_Outcome_is(java.lang.String)</td>
+              <td>1</td>
+              <td class="duration" data-value="33000">0.000</td>
+              <td class="duration" data-value="33000">0.000</td>
+              <td class="duration" data-value="33000">0.000</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes.OutcomeSteps.its_secondary_Outcome(java.lang.String)</td>
+              <td>1</td>
+              <td class="duration" data-value="26000">0.000</td>
+              <td class="duration" data-value="26000">0.000</td>
+              <td class="duration" data-value="26000">0.000</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes.OutcomeSteps.outcomeservice_receives_a_outcome_message(java.lang.String,java.lang.String)</td>
+              <td>1</td>
+              <td class="duration" data-value="110000">0.000</td>
+              <td class="duration" data-value="110000">0.000</td>
+              <td class="duration" data-value="110000">0.000</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes.OutcomeSteps.setup()</td>
+              <td>1</td>
+              <td class="duration" data-value="665880000">0.665</td>
+              <td class="duration" data-value="665880000">0.665</td>
+              <td class="duration" data-value="665880000">0.665</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes.OutcomeSteps.tearDownGatewayEventMonitor()</td>
+              <td>1</td>
+              <td class="duration" data-value="3304000">0.003</td>
+              <td class="duration" data-value="3304000">0.003</td>
+              <td class="duration" data-value="3304000">0.003</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes.OutcomeSteps.the_message_includes_a_Fulfillment_Request(java.lang.String)</td>
+              <td>1</td>
+              <td class="duration" data-value="23000">0.000</td>
+              <td class="duration" data-value="23000">0.000</td>
+              <td class="duration" data-value="23000">0.000</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes.OutcomeSteps.the_message_includes_a_Linked_QID(java.lang.String)</td>
+              <td>1</td>
+              <td class="duration" data-value="29000">0.000</td>
+              <td class="duration" data-value="29000">0.000</td>
+              <td class="duration" data-value="29000">0.000</td>
+              <td class="passed">100.00%</td>
+            </tr>
+        </tbody>
+
+        <tfoot class="total">
+          <tr>
+            <td>23</td>
+            <td>41</td>
+            <td class="duration">0.843</td>
+            <td class="duration">20.037</td>
+            <td class="duration">34.574</td>
+            <td>Totals</td>
+          </tr>
+        </tfoot>
+
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<nav class="navbar navbar-default" id="footer">
+  <div class="container-fluid">
+    <p class="navbar-text navbar-right">
+        <small>generate Cucumber HTML reports via:&nbsp;</small>
+        <a class="navbar-link" href="https://github.com/jenkinsci/cucumber-reports-plugin">Jenkins Plugin</a> |
+        <a class="navbar-link" href="https://github.com/damianszczepanik/cucumber-reporting">Standalone</a> |
+        <a class="navbar-link" href="https://github.com/damianszczepanik/cucumber-sandwich">Sandwich</a> |
+        <a class="navbar-link" href="https://github.com/damianszczepanik/maven-cucumber-reporting">Maven</a>
+        &nbsp;&nbsp;
+    </p>
+  </div>
+</nav>
+
+</body>
+</html>

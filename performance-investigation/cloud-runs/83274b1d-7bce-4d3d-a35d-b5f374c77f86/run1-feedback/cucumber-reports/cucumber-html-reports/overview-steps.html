@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+<script src="js/jquery.min.js"></script>
+<script src="js/jquery.tablesorter.min.js"></script>
+<script src="js/Chart.min.js"></script>
+<script src="js/moment.min.js"></script>
+<script src="js/bootstrap.min.js"></script>
+
+<link rel="stylesheet" href="css/bootstrap.min.css" type="text/css"/>
+<link rel="stylesheet" href="css/cucumber.css" type="text/css"/>
+<link rel="stylesheet" href="css/font-awesome.min.css"/>
+<link rel="shortcut icon" href="images/favicon.png"/>
+
+<script>
+$(document).ready(function() {
+    // this will tell tablesorter to try looking for the data-value attribute
+    // if present, it'll sort by that instead
+    // otherwise, it'll sort by the text content of the table cell
+    $("#tablesorter").tablesorter({
+        textAttribute: 'data-value',
+        // ignores the first row of the header, the 'scenario', 'steps', since
+        // sorting those doesn't make sense
+        selectorHeaders: '> thead tr:not(.dont-sort) th',
+        // use a stable sort
+        sortStable: true
+    });
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<title>Cucumber Reports (no 1) - Steps Overview</title>
+
+</head>
+<body>
+
+<nav class="navbar navbar-default navbar-fixed-top" id="navigation">
+  <div class="container-fluid">
+    <div class="collapse navbar-collapse">
+      <p class="navbar-text navbar-left">Cucumber Report</p>
+      <ul class="nav navbar-nav navbar-right">
+        <li role="presentation" ><a href="overview-features.html">Features</a></li>
+        <li role="presentation" ><a href="overview-tags.html">Tags</a></li>
+        <li role="presentation"     class="active" ><a href="overview-steps.html">Steps</a></li>
+        <li role="presentation" ><a href="overview-failures.html">Failures</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+
+<div class="container-fluid">
+  <div class="col-md-5 col-md-offset-1">
+
+<table class="table table-bordered" id="build-info">
+  <thead>
+    <tr>
+      <th>Project</th>
+        <th>Number</th>
+      <th>Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="info">
+      <td>census31-fwmt-acceptance-tests</td>
+        <td>1</td>
+      <td>03 Sep 2026, 06:59</td>
+    </tr>
+  </tbody>
+</table>
+
+  </div>
+  <div class="col-md-3 col-md-offset-2">
+  </div>
+</div>
+
+
+<div id="report-lead" class="container-fluid">
+  <div class="col-md-10 col-md-offset-1">
+    <h2>Steps Statistics</h2>
+      <p>The following graph shows step statistics for this build. Below list is based on results.
+ step does not provide information about result then is not listed below.
+ Additionally @Before and @After are not counted because they are part of the scenarios, not steps.</p>
+  </div>
+</div>
+
+<div class="container-fluid" id="report">
+  <div class="row">
+    <div class="col-md-10 col-md-offset-1">
+      <table id="tablesorter" class="stats-table table-hover">
+
+        <thead>
+          <tr class="header">
+            <th>Implementation</th>
+            <th>Occurrences</th>
+            <th>Average duration</th>
+            <th>Max duration</th>
+            <th>Total durations</th>
+            <th>Ratio</th>
+          </tr>
+        </thead>
+
+        <tbody>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.ScenarioHooks.clearDown(io.cucumber.java.Scenario)</td>
+              <td>2</td>
+              <td class="duration" data-value="805613565">0.805</td>
+              <td class="duration" data-value="805613565">1.592</td>
+              <td class="duration" data-value="1611227130">1.611</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.ScenarioHooks.setup(io.cucumber.java.Scenario)</td>
+              <td>2</td>
+              <td class="duration" data-value="27444425050">27.444</td>
+              <td class="duration" data-value="27444425050">30.311</td>
+              <td class="duration" data-value="54888850100">54.888</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.cancel.CancelSteps.setup()</td>
+              <td>2</td>
+              <td class="duration" data-value="5888400">0.005</td>
+              <td class="duration" data-value="5888400">0.009</td>
+              <td class="duration" data-value="11776801">0.011</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.create.CreateSteps.setup()</td>
+              <td>2</td>
+              <td class="duration" data-value="4123314">0.004</td>
+              <td class="duration" data-value="4123314">0.006</td>
+              <td class="duration" data-value="8246629">0.008</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.feedback.FeedbackSteps.aFeedbackMessageIsSentToTm(java.lang.String)</td>
+              <td>2</td>
+              <td class="duration" data-value="2353753401">2.353</td>
+              <td class="duration" data-value="2353753401">2.604</td>
+              <td class="duration" data-value="4707506803">4.707</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.feedback.FeedbackSteps.aJobHasBeenCreatedInTMWithCaseId(java.lang.String)</td>
+              <td>2</td>
+              <td class="duration" data-value="3240230549">3.240</td>
+              <td class="duration" data-value="3240230549">5.317</td>
+              <td class="duration" data-value="6480461099">6.480</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.feedback.FeedbackSteps.isAcknowledgedByTm(java.lang.String)</td>
+              <td>2</td>
+              <td class="duration" data-value="454985">0.000</td>
+              <td class="duration" data-value="454985">0.000</td>
+              <td class="duration" data-value="909971">0.000</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.feedback.FeedbackSteps.tmSendsAOutcome(java.lang.String)</td>
+              <td>2</td>
+              <td class="duration" data-value="163523046">0.163</td>
+              <td class="duration" data-value="163523046">0.233</td>
+              <td class="duration" data-value="327046092">0.327</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.resilience.ResilienceSteps.setup()</td>
+              <td>2</td>
+              <td class="duration" data-value="53941148">0.053</td>
+              <td class="duration" data-value="53941148">0.106</td>
+              <td class="duration" data-value="107882297">0.107</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.update.UpdateSteps.setup()</td>
+              <td>2</td>
+              <td class="duration" data-value="1791295">0.001</td>
+              <td class="duration" data-value="1791295">0.001</td>
+              <td class="duration" data-value="3582590">0.003</td>
+              <td class="passed">100.00%</td>
+            </tr>
+            <tr>
+              <td class="location">uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes.OutcomeSteps.setup()</td>
+              <td>2</td>
+              <td class="duration" data-value="83453123">0.083</td>
+              <td class="duration" data-value="83453123">0.085</td>
+              <td class="duration" data-value="166906246">0.166</td>
+              <td class="passed">100.00%</td>
+            </tr>
+        </tbody>
+
+        <tfoot class="total">
+          <tr>
+            <td>11</td>
+            <td>22</td>
+            <td class="duration">3.105</td>
+            <td class="duration">54.888</td>
+            <td class="duration">1:8.314</td>
+            <td>Totals</td>
+          </tr>
+        </tfoot>
+
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<nav class="navbar navbar-default" id="footer">
+  <div class="container-fluid">
+    <p class="navbar-text navbar-right">
+        <small>generate Cucumber HTML reports via:&nbsp;</small>
+        <a class="navbar-link" href="https://github.com/jenkinsci/cucumber-reports-plugin">Jenkins Plugin</a> |
+        <a class="navbar-link" href="https://github.com/damianszczepanik/cucumber-reporting">Standalone</a> |
+        <a class="navbar-link" href="https://github.com/damianszczepanik/cucumber-sandwich">Sandwich</a> |
+        <a class="navbar-link" href="https://github.com/damianszczepanik/maven-cucumber-reporting">Maven</a>
+        &nbsp;&nbsp;
+    </p>
+  </div>
+</nav>
+
+</body>
+</html>
