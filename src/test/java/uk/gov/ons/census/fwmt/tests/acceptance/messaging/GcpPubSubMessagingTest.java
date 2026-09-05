@@ -182,7 +182,7 @@ class GcpPubSubMessagingTest {
   }
 
   @Test
-  void shouldUseStreamingPullDrainWhenFlagEnabledAndFallbackToPipelinedWhenDisabled()
+  void shouldUseStreamingPullDrainByDefault()
       throws Exception {
     AtomicInteger stubCreations = new AtomicInteger();
     SubscriberStub subscriberStub = mock(SubscriberStub.class);
@@ -242,27 +242,59 @@ class GcpPubSubMessagingTest {
               return fakeStream;
             });
 
-    GcpPubSubMessaging.GooglePubSubOperations withStreaming =
+    // StreamingPull is used by default
+    GcpPubSubMessaging.GooglePubSubOperations pubsubOps =
         new GcpPubSubMessaging.GooglePubSubOperations(
             "project-id", true, () -> {
               stubCreations.incrementAndGet();
               return subscriberStub;
             });
 
-    withStreaming.drainSubscription("acceptance-tests-RM-Field");
+    pubsubOps.drainSubscription("acceptance-tests-RM-Field");
 
     assertThat(streamingCalls).hasValue(1);
     assertThat(sentRequests).hasSize(2);
     assertThat(sentRequests.get(0).getSubscription())
         .isEqualTo("projects/project-id/subscriptions/acceptance-tests-RM-Field");
     assertThat(sentRequests.get(1).getAckIdsList()).containsExactly("ack-stream-1");
+  }
 
-    // Flag off -> pipelined path (no streaming call)
-    GcpPubSubMessaging.GooglePubSubOperations withoutStreaming =
+  @Test
+  void shouldFallbackToPipelinedWhenStreamingPullFails()
+      throws Exception {
+    SubscriberStub subscriberStub = mock(SubscriberStub.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<com.google.pubsub.v1.PullRequest, PullResponse> pullCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<AcknowledgeRequest, com.google.protobuf.Empty> acknowledgeCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    BidiStreamingCallable<StreamingPullRequest, StreamingPullResponse> streamingCallable = mock(BidiStreamingCallable.class);
+
+    when(subscriberStub.pullCallable()).thenReturn(pullCallable);
+    when(subscriberStub.acknowledgeCallable()).thenReturn(acknowledgeCallable);
+    when(subscriberStub.streamingPullCallable()).thenReturn(streamingCallable);
+
+    // StreamingPull fails
+    when(streamingCallable.splitCall(org.mockito.ArgumentMatchers.any()))
+        .thenThrow(new RuntimeException("Streaming pull not available"));
+
+    // Fallback to pipelined pull
+    AtomicInteger pullCalls = new AtomicInteger();
+    when(pullCallable.call(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(
+            invocation -> {
+              pullCalls.incrementAndGet();
+              return PullResponse.getDefaultInstance();
+            });
+
+    GcpPubSubMessaging.GooglePubSubOperations pubsubOps =
         new GcpPubSubMessaging.GooglePubSubOperations(
-            "project-id", false, () -> subscriberStub);
-    withoutStreaming.drainSubscription("acceptance-tests-RM-Field");
-    assertThat(streamingCalls).hasValue(1);
+            "project-id", true, () -> subscriberStub);
+    
+    pubsubOps.drainSubscription("acceptance-tests-RM-Field");
+    
+    // Should have fallen back to pipelined pull (pullCallable invoked at least once)
+    assertThat(pullCalls.get()).isGreaterThan(0);
   }
 
   private static class RecordingPubSubOperations implements GcpPubSubMessaging.PubSubOperations {

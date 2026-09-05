@@ -370,16 +370,14 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
     @Override
     public void drainSubscription(String subscriptionId) {
-      if (streamingPullEnabled) {
-        try {
-          drainByStreamingPull(subscriber(), subscriptionId);
-          return;
-        } catch (Exception e) {
-          log.warn(
-              "Streaming pull drain failed for subscription {}, falling back to pipelined pull drain: {}",
-              subscriptionId,
-              e.getMessage());
-        }
+      try {
+        drainByStreamingPull(subscriber(), subscriptionId);
+        return;
+      } catch (Exception e) {
+        log.warn(
+            "Streaming pull drain failed for subscription {}, falling back to pipelined pull drain: {}",
+            subscriptionId,
+            e.getMessage());
       }
       drainByPipelinedPull(subscriber(), subscriptionId, pullerParallelismFor(subscriptionId));
     }
