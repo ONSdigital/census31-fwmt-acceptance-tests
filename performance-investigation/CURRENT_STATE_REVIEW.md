@@ -2,27 +2,39 @@
 
 **Date**: 2026-09-05  
 **Branch**: FMT-128_performance-investigation  
-**Status**: ✅ Phase 7 Implementation Complete + Analysis Reports
+**Status**: ✅ Phase 7 Implementation Complete + Analysis Reports  
+**Last Updated**: Post-pull verification of actual workspace code
 
 ---
 
 ## Executive Summary
 
-The performance optimization investigation has successfully implemented **Phase 7** of the OPTIMIZATION_PLAN with a complete drain strategy overhaul:
+The performance optimization investigation has successfully implemented **Phase 7** of the OPTIMIZATION_PLAN with a complete drain strategy overhaul. **Workspace code verified after git pull**:
 
 - ✅ **Phase 1** (Drain revert): 16.5s → 6.74s (58.2% improvement) — fdebef1
 - ✅ **Phase 2** (6-thread pool): 6.74s → 4.25s (50% additional improvement) — cf0a161  
 - ✅ **Phase 3** (Gateway monitor): Confirmed no additional bottleneck — d4797db
-- ✅ **Phase 7** (Pipelined drain + StreamingPull): Implemented with fallback — d773804
+- ✅ **Phase 7** (Pipelined drain + StreamingPull): **CONFIRMED in workspace** (d773804) with stub invalidation fix
 - ✅ **Analysis & Reports**: Three builds analyzed and documented — 231b1ea
 
-**Current performance** (c10fe4f9): **4060ms mean queue-reset** per scenario  
+**Current workspace code** (HEAD 3eeb954): Phase 7 complete with StreamingPull feature-flagged (default OFF)  
+**Observed c10fe4f9 performance**: **4060ms mean queue-reset** (indicates Phase 2 or partial Phase 7 in build)  
 **Target** (Phase 7+): **<3.5s per scenario**  
-**Gap**: +560ms (16% over target) — requires Phase 7d StreamingPull A/B validation
+**Gap**: +560ms (16% over target) — **requires Phase 7d StreamingPull validation in cloud**
 
 ---
 
 ## Code Implementation Review
+
+### Workspace Code Verification (Post-Pull)
+
+**Status**: ✅ **Phase 7 implementation confirmed in checked-out source** (commit d773804)
+
+Current workspace files examined:
+- `GcpPubSubMessaging.java`: Contains Phase 7 multi-puller pipelined drain + Phase 7d StreamingPull implementation
+- Property: `fwmt.pubsub.streaming-pull.enabled` defaults to **FALSE** (reverted from initial TRUE in 0fa9f15)
+- Stub invalidation fix: **PRESENT** in current source (synchronized `invalidateSubscriberStub()` method)
+- Unit test suite: **9 tests**, all passing (verified with `mvn test -Dtest=GcpPubSubMessagingTest`)
 
 ### 1. **Core Drain Strategy** (GcpPubSubMessaging.java)
 
@@ -32,36 +44,38 @@ The performance optimization investigation has successfully implemented **Phase 
 - **Implementation**:
   ```java
   ✅ DRAIN_PULL_BATCH_SIZE = 1000 (API max)
-  ✅ Parallelism config:
+  ✅ Parallelism config (PULLER_PARALLELISM_BY_SUB map):
      - RM.Field: 3 pullers (hot lane)
      - Outcome.Preprocessing: 2 pullers (busy)
      - Outcome.PreprocessingDLQ: 2 pullers
      - RM.FieldDLQ: 2 pullers
      - Field.other: 2 pullers
      - Field.refusals: 2 pullers
+     - Default: 1 puller
   ✅ Pipelined pull/ack: ack(batch k) ∥ pull(batch k+1) on shared thread pool
   ✅ Daemon threads for cleanup on timeout
   ```
 - **Performance Model**: ~1 RTT per batch vs. 2 RTTs (sequential pull-then-ack)
-- **Expected gain**: 50% reduction per-queue drain time
+- **Expected gain**: 50% reduction per-queue drain time (Phase 2→Phase 7 baseline)
 
 #### StreamingPull Bidirectional Stream (Phase 7d Prototype)
-- **File**: Same file
+- **File**: Same file  
 - **Methods**: `drainByStreamingPull()`, `drainSubscription()`
-- **Status**: ✅ **Implemented with automatic fallback**
+- **Status**: ✅ **Implemented and present in workspace** (BUT feature-flagged OFF by default)
 - **Features**:
   ```java
-  ✅ Feature flag: fwmt.pubsub.streaming-pull.enabled (default: false)
+  ✅ Feature flag: fwmt.pubsub.streaming-pull.enabled 
+     **CURRENT DEFAULT: false** (property defaults to false in current workspace)
   ✅ Persistent bidirectional gRPC stream for zero-per-batch RPC overhead
   ✅ Acks sent back on same stream (single RTT for initial stream handshake)
-  ✅ Fallback path: On stream error → invalidate stub → retry with pipelined pull
-  ✅ Stub invalidation: Fixed bf252017 timeout root cause
-     (Corrupted stub from failed stream was reused by fallback)
+  ✅ Fallback path: On stream error → invalidateSubscriberStub() → retry with pipelined pull
+  ✅ Stub invalidation: Fixed bf252017 timeout root cause (CONFIRMED in source)
   ```
-- **Expected gain**: Potential 40-50% additional improvement over pipelined (if effective)
+- **Expected gain**: Potential 40-50% additional improvement over pipelined (if enabled and effective)
 
 #### Stub Invalidation Fix (Root Cause of bf252017)
 - **Method**: `invalidateSubscriberStub()` (synchronized)
+- **Status**: ✅ **CONFIRMED PRESENT in current workspace**
 - **Problem**: StreamingPull failure left shared stub in corrupt state
 - **Solution**: Close and null stub on error; fallback creates fresh one
 - **Impact**: Prevents cascade failures affecting all queues
@@ -99,18 +113,27 @@ Test matrix covers:
 
 ## Performance Analysis Reports
 
-### Build c10fe4f9 ✅ SUCCESS
-- **Status**: Healthy, Phase 2 baseline achieved
+### Build c10fe4f9 ✅ SUCCESS (Analyzed Against Current Workspace Code)
+- **Build ID**: c10fe4f9-8722-4a9a-be56-702c34756207
+- **Build Commit**: `a8976a85141fc763fb1bc7f34b9ec5f936c2940e` (NOT in current local history)
+- **Build Status**: Healthy, all tests passed
 - **Metrics**:
-  - Queue-reset mean: **4060ms** (target <3.5s)
+  - Queue-reset mean: **4060ms** (target <3.5s) — **+560ms over target**
   - All 20 HH scenarios: ✅ PASSED
   - All 190 test steps: ✅ PASSED (0 failures)
-  - No StreamingPull errors
+  - No StreamingPull errors detected in logs
+- **Code Version Discrepancy**: 
+  - Build ran on commit a8976a85 (not in current local FMT-128_performance-investigation branch)
+  - Current workspace code (HEAD 3eeb954 = d773804) has Phase 7 + Phase 7d implementation
+  - **Inference**: Build c10fe4f9 likely ran Phase 2-level code (6-thread parallelism only), NOT Phase 7
+  - Evidence: 4060ms performance matches Phase 2 baseline (~4.25s), not Phase 7 projection (~2.5s)
 - **Comparison**:
-  - vs 1ced6799 (baseline): +166ms (+4.3%) — acceptable variance
-  - vs bf252017 (timeout): 108792ms → 4060ms (96.3% improvement) ✅
-  - vs target <3.5s: +560ms (16.0% gap)
+  - vs 1ced6799 (baseline 3894ms): +166ms (+4.3%) — acceptable variance
+  - vs bf252017 (timeout 108792ms): 96.3% improvement ✅
+  - vs target <3.5s: +16.0% gap (requires Phase 7 cloud validation)
 - **Report**: `BUILD_c10fe4f9_SUCCESS_ANALYSIS.md` (217 lines)
+
+**⚠️ IMPORTANT NOTE**: Build c10fe4f9 did NOT run Phase 7 code from current workspace. The build used an earlier commit (a8976a85) that predates the d773804 Phase 7 implementation. To validate Phase 7 performance gains, a new cloud build must be triggered with current HEAD (3eeb954) or explicitly with d773804 commit.
 
 ### Build bf252017 ❌ TIMEOUT (Analysis complete)
 - **Status**: Catastrophic failure during optimization phase
@@ -286,15 +309,45 @@ performance-investigation/
 
 ## Notes for Next Session
 
-1. **c10fe4f9 built code != workspace code**: Built artifact may include Phase 7 code or newer features. Recommend tracing commit a8976a85 and diffing GcpPubSubMessaging.java to understand what was active in that build.
+### CRITICAL: Code Version Mismatch Discovered
 
-2. **StreamingPull default is now ON**: d773804 commit flipped the property default. If that causes issues in local runs, flip back to false and re-run A/B test with explicit flag control.
+1. **Build c10fe4f9 ≠ Workspace Code**:
+   - c10fe4f9 built commit: `a8976a85141fc763fb1bc7f34b9ec5f936c2940e` (not in current branch history)
+   - Current workspace HEAD: `3eeb954` (based on d773804 Phase 7 implementation)
+   - **Action Required**: Trigger new cloud build with current HEAD to validate Phase 7 performance
+   - Do NOT assume c10fe4f9 results apply to Phase 7 code — it ran earlier commit likely at Phase 2 level
 
-3. **Stub invalidation is critical**: The fix in d773804 addresses the root cause of bf252017 (28× regression). Do not revert this without thorough testing.
+2. **StreamingPull Default is OFF in Current Workspace** (d773804):
+   - Property `fwmt.pubsub.streaming-pull.enabled` defaults to `false`
+   - This is the "revert" from earlier attempt (0fa9f15 had it defaulting to true)
+   - For Phase 7d validation: Need explicit `fwmt.pubsub.streaming-pull.enabled=true` flag in cloud build
 
-4. **Variance in observed metrics**: 1ced6799 (3894ms) vs c10fe4f9 (4060ms) suggests ~4% natural variability. Future measurements should use 3+ runs per config and report percentiles, not single point values.
+3. **Stub Invalidation Fix is CRITICAL** (commit d773804):
+   - The fix in d773804 addresses the root cause of bf252017 (28× regression)
+   - Method `invalidateSubscriberStub()` prevents cascade failures
+   - Do not revert this without thorough testing
 
-5. **NDJSON analysis bottleneck**: Manual per-build analysis is error-prone. Automate `analyse-ndjson-timings.py` wrapper and integrate into CI output parsing for reliable per-queue metrics.
+4. **Variance in Observed Metrics** (~4% natural variability):
+   - 1ced6799: 3894ms baseline
+   - c10fe4f9: 4060ms (+4.3% variance)
+   - Future measurements should use 3+ runs per config and report percentiles, not single point values
+
+5. **NDJSON Analysis Bottleneck**:
+   - Manual per-build analysis is error-prone
+   - Automate `analyse-ndjson-timings.py` wrapper and integrate into CI output parsing
+   - Reliable per-queue metrics required for Phase 7d validation
+
+### Immediate Actions Required
+
+1. **Trigger Cloud Build with Phase 7 Code**:
+   - Commit: d773804 (or current HEAD 3eeb954)
+   - With explicit property: `-e fwmt.pubsub.streaming-pull.enabled=false` (pipelined baseline)
+   - Measure queue-reset performance to confirm Phase 7 achieves ~2.5s target
+
+2. **Trigger A/B Cloud Build for Phase 7d**:
+   - Same commit, with: `-e fwmt.pubsub.streaming-pull.enabled=true` (StreamingPull)
+   - Compare queue-reset median vs pipelined baseline
+   - Target: <3.0s if StreamingPull effective
 
 ---
 

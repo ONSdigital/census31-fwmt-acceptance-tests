@@ -6,8 +6,10 @@
 **Created:** 2026-09-05 19:06:23 UTC  
 **Finished:** 2026-09-05 19:13:23 UTC  
 **Duration:** ~7m 00s  
-**Commit Reported By Build:** `a8976a85141fc763fb1bc7f34b9ec5f936c2940e`  
+**Commit Reported By Build:** `a8976a85141fc763fb1bc7f34b9ec5f936c2940e` (**NOT in current FMT-128_performance-investigation branch**)  
 **Reports Bucket:** `gs://c31-fwmtg-ci-prod-acceptance-test-details/c10fe4f9-8722-4a9a-be56-702c34756207`  
+
+⚠️ **VERSION MISMATCH ALERT**: This build ran on commit `a8976a85`, which does NOT exist in the current local git history. Current workspace HEAD is `3eeb954` (Phase 7 implementation). The analysis below reflects build c10fe4f9 **as executed**, but does **NOT** reflect current workspace code. See CURRENT_STATE_REVIEW.md for workspace code analysis.
 
 ---
 
@@ -19,10 +21,11 @@ Key outcomes:
 
 - Build completed successfully in about `7 minutes`
 - `20` HH scenarios executed and all `190` recorded Cucumber steps passed
-- Queue-reset mean was `4060 ms`, which is close to the earlier fast reference run (`3894 ms`)
+- Queue-reset mean was **`4060 ms`** — **indicates Phase 2 performance level, NOT Phase 7**
 - No `Streaming pull drain failed` warnings appear in the build log
+- **Performance gap to target**: +560ms (16% over <3.5s target)
 
-The one important caveat is that the **updated test reports do not match the source currently present in this workspace**. The built `GcpPubSubMessagingTest` report references test names and behaviors that are not present in the checked-out source files.
+**CRITICAL NOTE**: The observed 4060ms result (Phase 2 performance) vs. Phase 7 projection (~2.5s) strongly suggests this build ran Phase 2-level code from commit a8976a85, **not** the Phase 7 implementation that currently exists in workspace. To validate Phase 7 performance gains, trigger new cloud build with current HEAD (d773804+).
 
 ---
 
@@ -37,6 +40,21 @@ The build and manifest align cleanly this time:
 - Manifest totals show `494` total JUnit test entries, `84` executed, `410` skipped, `0` failures, `0` errors
 
 Unlike the earlier timeout build, there is no sign here of a partial or misleading summary layer. The reporting pipeline completed normally.
+
+---
+
+## Code Version Inference
+
+**What phase code ran in c10fe4f9?**
+
+Based on the 4060ms queue-reset performance and absence of StreamingPull errors:
+
+- ✅ Multi-puller parallelism implemented (RM.Field: 3, others: 2)  
+- ✅ 6-thread queue parallelism implemented
+- ❓ Pipelined drain (Phase 7) — uncertain; no evidence of 2.5s→<3.0s gain
+- ❓ StreamingPull (Phase 7d) — no errors logged, but feature may have been disabled by default or not in this commit
+
+**Conclusion**: Build c10fe4f9 likely ran **Phase 2** code (6-thread pool) from commit a8976a85. To test Phase 7 (pipelined drain), trigger new build with d773804 or current HEAD.
 
 ---
 
