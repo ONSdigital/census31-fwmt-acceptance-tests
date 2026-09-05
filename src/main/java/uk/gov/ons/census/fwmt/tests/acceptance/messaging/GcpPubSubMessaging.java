@@ -216,6 +216,10 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
     void drainSubscription(String subscriptionId);
 
+    default int pullerParallelismFor(String subscriptionId) {
+      return 1;
+    }
+
     default void close() {}
   }
 
@@ -228,6 +232,10 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
   static final class GooglePubSubOperations implements PubSubOperations {
     private static final int DRAIN_PULL_BATCH_SIZE = 1000;
+    private static final int DEFAULT_PULLER_PARALLELISM = 1;
+    private static final int RM_FIELD_PULLER_PARALLELISM = 3;
+    private static final Map<String, Integer> PULLER_PARALLELISM_BY_SUB_PREFIX =
+        Map.of("acceptance-tests-RM-Field", RM_FIELD_PULLER_PARALLELISM);
 
     private final String projectId;
     private final SubscriberStubFactory subscriberStubFactory;
@@ -334,7 +342,103 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
     @Override
     public void drainSubscription(String subscriptionId) {
-      drainByPipelinedPull(subscriber(), subscriptionId);
+      drainByPipelinedPull(subscriber(), subscriptionId, pullerParallelismFor(subscriptionId));
+    }
+
+    @Override
+    public int pullerParallelismFor(String subscriptionId) {
+      return PULLER_PARALLELISM_BY_SUB_PREFIX.entrySet().stream()
+          .filter(entry -> subscriptionId.startsWith(entry.getKey()))
+          .map(Map.Entry::getValue)
+          .findFirst()
+          .orElse(DEFAULT_PULLER_PARALLELISM);
+    }
+
+    /**
+     * Drains a subscription using multiple concurrent pullers, each pipelining its pulls with the
+     * acknowledgements of its previous batch on shared background ack threads. Multiple pullers on
+     * one subscription are safe (Pub/Sub distributes pulls; the shared gRPC stub is thread-safe)
+     * and are used to raise throughput on the hot RM.Field lane, which dominates the queue-reset
+     * critical path. Pipelining overlaps batch k+1's pull with batch k's ack, ~1 RTT per batch.
+     */
+    private void drainByPipelinedPull(
+        SubscriberStub subscriber, String subscriptionId, int pullerParallelism) {
+      ExecutorService pullerExecutor =
+          Executors.newFixedThreadPool(
+              pullerParallelism,
+              r -> {
+                Thread thread = new Thread(r, "drain-pull-" + subscriptionId);
+                thread.setDaemon(true);
+                return thread;
+              });
+      ExecutorService ackExecutor =
+          Executors.newFixedThreadPool(
+              pullerParallelism,
+              r -> {
+                Thread thread = new Thread(r, "drain-ack-" + subscriptionId);
+                thread.setDaemon(true);
+                return thread;
+              });
+      try {
+        List<Future<?>> pullerFutures = new ArrayList<>();
+        for (int i = 0; i < pullerParallelism; i++) {
+          pullerFutures.add(pullerExecutor.submit(() -> pipelinedPullLoop(subscriber, subscriptionId, ackExecutor)));
+        }
+        for (Future<?> future : pullerFutures) {
+          awaitPuller(future, subscriptionId);
+        }
+      } finally {
+        ackExecutor.shutdownNow();
+        pullerExecutor.shutdownNow();
+      }
+    }
+
+    private void pipelinedPullLoop(
+        SubscriberStub subscriber, String subscriptionId, ExecutorService ackExecutor) {
+      Future<?> ackFuture = null;
+      while (true) {
+        List<TestMessage> batch = pullWithStub(subscriber, subscriptionId, DRAIN_PULL_BATCH_SIZE);
+        if (ackFuture != null) {
+          awaitAck(ackFuture, subscriptionId);
+        }
+        if (batch.isEmpty()) {
+          return;
+        }
+        List<TestMessage> batchToAck = batch;
+        ackFuture =
+            ackExecutor.submit(
+                () ->
+                    acknowledgeWithStub(
+                        subscriber,
+                        subscriptionId,
+                        batchToAck.stream().map(message -> message.ackId()).toList()));
+      }
+    }
+
+    private static void awaitPuller(Future<?> pullerFuture, String subscriptionId) {
+      try {
+        pullerFuture.get();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(
+            "Interrupted while draining subscription " + subscriptionId, e);
+      } catch (ExecutionException e) {
+        throw new IllegalStateException(
+            "Failed to drain subscription " + subscriptionId, e.getCause());
+      }
+    }
+
+    private static void awaitAck(Future<?> ackFuture, String subscriptionId) {
+      try {
+        ackFuture.get();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(
+            "Interrupted while awaiting acknowledgement for subscription " + subscriptionId, e);
+      } catch (ExecutionException e) {
+        throw new IllegalStateException(
+            "Failed to acknowledge messages on subscription " + subscriptionId, e.getCause());
+      }
     }
 
     @Override
@@ -355,58 +459,6 @@ public class GcpPubSubMessaging implements MessagingTestClient {
         return subscriberStub;
       } catch (IOException e) {
         throw new IllegalStateException("Failed to create shared subscriber stub for project " + projectId, e);
-      }
-    }
-
-    /**
-     * Drains a subscription by pipelining pulls and acknowledgements: batch k+1 is pulled while
-     * batch k is being acknowledged on a background thread. This halves the number of round trips
-     * per batch compared to a sequential pull-then-ack loop (the gRPC stub is thread-safe, so the
-     * concurrent pull/ack calls share one channel). The Pub/Sub seek bulk-purge experiment
-     * (commits 5648cc8-28d6d4a) showed seek + immediate residual drain was equivalent to a linear
-     * drain (seek is eventually consistent, so acked messages are still re-delivered), and this
-     * pipelined drain attacks the same RTT-per-batch bottleneck directly.
-     */
-    private void drainByPipelinedPull(SubscriberStub subscriber, String subscriptionId) {
-      ExecutorService ackExecutor = Executors.newSingleThreadExecutor(r -> {
-        Thread thread = new Thread(r, "drain-ack-" + subscriptionId);
-        thread.setDaemon(true);
-        return thread;
-      });
-      try {
-        Future<?> ackFuture = null;
-        while (true) {
-          List<TestMessage> batch = pullWithStub(subscriber, subscriptionId, DRAIN_PULL_BATCH_SIZE);
-          if (ackFuture != null) {
-            awaitAck(ackFuture, subscriptionId);
-          }
-          if (batch.isEmpty()) {
-            return;
-          }
-          List<TestMessage> batchToAck = batch;
-          ackFuture =
-              ackExecutor.submit(
-                  () ->
-                      acknowledgeWithStub(
-                          subscriber,
-                          subscriptionId,
-                          batchToAck.stream().map(message -> message.ackId()).toList()));
-        }
-      } finally {
-        ackExecutor.shutdownNow();
-      }
-    }
-
-    private static void awaitAck(Future<?> ackFuture, String subscriptionId) {
-      try {
-        ackFuture.get();
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new IllegalStateException(
-            "Interrupted while awaiting acknowledgement for subscription " + subscriptionId, e);
-      } catch (ExecutionException e) {
-        throw new IllegalStateException(
-            "Failed to acknowledge messages on subscription " + subscriptionId, e.getCause());
       }
     }
 

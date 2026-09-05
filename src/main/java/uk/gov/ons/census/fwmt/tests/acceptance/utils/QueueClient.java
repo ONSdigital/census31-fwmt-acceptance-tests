@@ -141,22 +141,42 @@ public final class QueueClient {
   }
 
   private void pauseInboundAdapters() {
-    try {
-      resetListeners(jobserviceServiceUrl + "/RM/stopListener", jobServiceUsername, jobServicePassword);
-      resetListeners(outcomeServiceUrl + "/StopPreprocessorListener", outcomeServiceUsername, outcomeServicePassword);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    resetListenersInParallel(
+        new ListenerCall("job-service", jobserviceServiceUrl + "/RM/stopListener", jobServiceUsername, jobServicePassword),
+        new ListenerCall("outcome-service", outcomeServiceUrl + "/StopPreprocessorListener", outcomeServiceUsername, outcomeServicePassword));
   }
 
   private void resumeInboundAdapters() {
+    resetListenersInParallel(
+        new ListenerCall("job-service", jobserviceServiceUrl + "/RM/startListener", jobServiceUsername, jobServicePassword),
+        new ListenerCall("outcome-service", outcomeServiceUrl + "/StartPreprocessorListener", outcomeServiceUsername, outcomeServicePassword));
+  }
+
+  private void resetListenersInParallel(ListenerCall first, ListenerCall second) {
+    ExecutorService executor = Executors.newFixedThreadPool(2);
     try {
-      resetListeners(jobserviceServiceUrl + "/RM/startListener", jobServiceUsername, jobServicePassword);
-      resetListeners(outcomeServiceUrl + "/StartPreprocessorListener", outcomeServiceUsername, outcomeServicePassword);
+      List<Future<?>> futures = new ArrayList<>();
+      futures.add(executor.submit(() -> callListener(first)));
+      futures.add(executor.submit(() -> callListener(second)));
+      for (Future<?> future : futures) {
+        future.get();
+      }
     } catch (Exception e) {
-      throw new RuntimeException(e);
+      throw new RuntimeException("Failed to reset inbound adapters in parallel", e);
+    } finally {
+      executor.shutdown();
     }
   }
+
+  private void callListener(ListenerCall listenerCall) {
+    try {
+      resetListeners(listenerCall.url(), listenerCall.user(), listenerCall.password());
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to call listener: " + listenerCall.name(), e);
+    }
+  }
+
+  private record ListenerCall(String name, String url, String user, String password) {}
 
   public void resetListeners(String listenerUrl, String user, String password) throws Exception {
 

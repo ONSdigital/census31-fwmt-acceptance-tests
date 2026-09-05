@@ -164,8 +164,10 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 ### Phase 7: 🔄 In Progress - Pipelined Pull/Ack Drain
 - [x] Overlap ack(batch k) with pull(batch k+1) on a single background thread per queue
 - [x] Remove seek code paths and constants; `DRAIN_PULL_BATCH_SIZE=1000` (API max)
-- [x] Compile + unit tests pass (6 affected tests)
-- [ ] Cloud run: confirm queue-reset median ~2.5s on `analyse-cucumber-timings.py`
+- [x] Compile + unit tests pass (8 affected tests: GcpPubSubMessagingTest 7, QueueClientTest 1)
+- [x] **Phase 7b**: parallel pause/resume (2 concurrent listener HTTP calls, was sequential)
+- [x] **Phase 7c**: RM.Field gets 3 pullers (default 1; configurable via `pullerParallelismFor` on subscription prefix); each puller pipelines its acks on shared ack threads — projected RM.Field 3.6s → ~1.2-1.8s
+- [ ] Cloud run: confirm queue-reset median ~2.5s on `analyse-cucumber-timings.py` + `analyse-ndjson-timings.py`
 - [ ] If insufficient: apply Phase 4 (shared stub) and/or 2 pullers per queue (12-thread pool)
 
 ---

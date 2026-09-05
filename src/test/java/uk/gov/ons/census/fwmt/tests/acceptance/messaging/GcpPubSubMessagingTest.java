@@ -144,6 +144,38 @@ class GcpPubSubMessagingTest {
     verify(subscriberStub, times(1)).close();
   }
 
+  @Test
+  void shouldUseMultiplePullersForRmFieldSubscription() throws Exception {
+    AtomicInteger stubCreations = new AtomicInteger();
+    SubscriberStub subscriberStub = mock(SubscriberStub.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<com.google.pubsub.v1.PullRequest, PullResponse> pullCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<AcknowledgeRequest, com.google.protobuf.Empty> acknowledgeCallable = mock(UnaryCallable.class);
+
+    PullResponse empty = PullResponse.getDefaultInstance();
+    when(subscriberStub.pullCallable()).thenReturn(pullCallable);
+    when(subscriberStub.acknowledgeCallable()).thenReturn(acknowledgeCallable);
+    when(pullCallable.call(org.mockito.ArgumentMatchers.any())).thenReturn(empty);
+
+    GcpPubSubMessaging.GooglePubSubOperations operations =
+        new GcpPubSubMessaging.GooglePubSubOperations(
+            "project-id",
+            () -> {
+              stubCreations.incrementAndGet();
+              return subscriberStub;
+            });
+
+    assertThat(operations.pullerParallelismFor("acceptance-tests-RM-Field")).isEqualTo(3);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-Field-other")).isEqualTo(1);
+
+    operations.drainSubscription("acceptance-tests-RM-Field");
+
+    assertThat(stubCreations).hasValue(1);
+    operations.close();
+    verify(subscriberStub, times(1)).close();
+  }
+
   private static class RecordingPubSubOperations implements GcpPubSubMessaging.PubSubOperations {
     private final List<String> drainedSubscriptions = new ArrayList<>();
     private final Map<String, Deque<List<GcpPubSubMessaging.TestMessage>>> pullBatches =

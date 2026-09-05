@@ -48,7 +48,7 @@ class QueueClientTest {
     }
 
     assertThat(listenerUrls)
-        .containsExactly(
+        .containsExactlyInAnyOrder(
             "/RM/stopListener",
             "/StopPreprocessorListener",
             "/RM/startListener",
