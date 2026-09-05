@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: uk.gov.ons.census.fwmt.tests.acceptance.messaging.DelegatingMessagingTestClientTest
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.407 s -- in uk.gov.ons.census.fwmt.tests.acceptance.messaging.DelegatingMessagingTestClientTest

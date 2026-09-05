@@ -29,7 +29,7 @@ sanitize_tag_fragment() {
 }
 
 prepare_report_dirs() {
-  rm -rf target/jsonReports target/surefire-reports target/cucumber-reports target/cucumber-html-reports
+  rm -rf target/jsonReports target/surefire-reports target/cucumber-reports target/cucumber-html-reports target/performance-investigation
 }
 
 summarize_current_reports() {
@@ -156,6 +156,18 @@ stage_run_artifacts() {
   local run_dir="target/runs/${run_key}"
   mkdir -p "${run_dir}"
 
+  if [[ -d target/jsonReports ]]; then
+    cp -R target/jsonReports "${run_dir}/"
+  fi
+
+  if [[ -d target/performance-investigation ]]; then
+    cp -R target/performance-investigation "${run_dir}/"
+  fi
+
+  if [[ -d scripts/logs ]]; then
+    cp -R scripts/logs "${run_dir}/"
+  fi
+
   if compgen -G "target/surefire-reports/TEST-*.xml" >/dev/null; then
     cp target/surefire-reports/TEST-*.xml "${run_dir}/"
   fi
@@ -193,11 +205,17 @@ run_suite() {
   fi
 
   local run_timeout_seconds="${RUN_TIMEOUT_SECONDS:-7200}"
+  local maven_log="target/runs/${run_key}/maven.log"
+  mkdir -p "target/runs/${run_key}"
 
   mvn_exit_code=0
   set +e
-  timeout --signal=TERM --kill-after=30 "${run_timeout_seconds}" mvn --batch-mode verify ${tag_args}
-  mvn_exit_code=$?
+  timeout --signal=TERM --kill-after=30 "${run_timeout_seconds}" \
+    mvn --batch-mode \
+      -Dfwmt.performance.run-id="${run_key}" \
+      -Dfwmt.performance.timings.file="target/performance-investigation/timings.ndjson" \
+      verify ${tag_args} 2>&1 | tee "${maven_log}"
+  mvn_exit_code=${PIPESTATUS[0]}
   set -e
 
   summarize_current_reports
@@ -249,6 +267,22 @@ upload_reports() {
 
     if compgen -G "${run_dir}/artifacts*.xml" >/dev/null; then
       gcloud storage cp "${run_dir}/"artifacts*.xml "${dest}/"
+    fi
+
+    if [[ -d "${run_dir}/jsonReports" ]]; then
+      gcloud storage cp -r "${run_dir}/jsonReports" "${dest}/"
+    fi
+
+    if [[ -d "${run_dir}/performance-investigation" ]]; then
+      gcloud storage cp -r "${run_dir}/performance-investigation" "${dest}/"
+    fi
+
+    if [[ -d "${run_dir}/logs" ]]; then
+      gcloud storage cp -r "${run_dir}/logs" "${dest}/"
+    fi
+
+    if [[ -f "${run_dir}/maven.log" ]]; then
+      gcloud storage cp "${run_dir}/maven.log" "${dest}/"
     fi
 
     if [[ -d "${run_dir}/surefire-reports" ]]; then

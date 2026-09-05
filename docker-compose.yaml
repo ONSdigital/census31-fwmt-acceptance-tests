@@ -1,0 +1,224 @@
+name: census31-fwmt-acceptance-tests
+
+services:
+  postgres:
+    image: postgres:9.6
+    command: ["-c", "shared_buffers=256MB", "-c", "max_connections=500"]
+    environment:
+      POSTGRES_DB: ${FWMT_POSTGRES_DB:-postgres}
+      POSTGRES_USER: ${FWMT_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${FWMT_POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${FWMT_POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${FWMT_POSTGRES_USER:-postgres} -d ${FWMT_POSTGRES_DB:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - fwmt_acceptance_postgres:/var/lib/postgresql/data
+
+  pubsub:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command:
+      - gcloud
+      - beta
+      - emulators
+      - pubsub
+      - start
+      - --host-port=0.0.0.0:8085
+    ports:
+      - "${FWMT_PUBSUB_EMULATOR_PORT:-8085}:8085"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8085' 2>/dev/null && echo healthy || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:4.0
+    ports:
+      - "${FWMT_REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - fwmt_acceptance_redis:/data
+
+  pubsub-init:
+    image: maven:3.9-eclipse-temurin-25
+    working_dir: /workspace/acceptance-tests
+    environment:
+      FWMT_PUBSUB_MODE: emulator
+      FWMT_PUBSUB_HOST: pubsub
+      FWMT_PUBSUB_EMULATOR_PORT: 8085
+      FWMT_PUBSUB_PROJECT: ${FWMT_PUBSUB_PROJECT:-fwmt-local}
+      FWMT_RUNTIME: auto
+    depends_on:
+      pubsub:
+        condition: service_healthy
+    command:
+      - bash
+      - -lc
+      - |
+        apt-get update && apt-get install -y --no-install-recommends curl python3 && \
+        ./scripts/init-pubsub-for-compose.sh
+    volumes:
+      - ./:/workspace/acceptance-tests
+
+  jobservice-db-init:
+    image: maven:3.9-eclipse-temurin-25
+    working_dir: /workspace/acceptance-tests
+    environment:
+      CENSUS31_FWMT_ROOT: /workspace/census31
+      FWMT_POSTGRES_HOST: postgres
+      FWMT_POSTGRES_PORT: 5432
+      FWMT_POSTGRES_DB: ${FWMT_POSTGRES_DB:-postgres}
+      FWMT_POSTGRES_USER: ${FWMT_POSTGRES_USER:-postgres}
+      FWMT_POSTGRES_PASSWORD: ${FWMT_POSTGRES_PASSWORD:-postgres}
+      FWMT_RUN_LIQUIBASE_UPDATE: "true"
+      FWMT_RESET_DB_SCHEMA: ${FWMT_RESET_DB_SCHEMA:-false}
+      FWMT_MAVEN_BIN: mvn
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - bash
+      - -lc
+      - |
+        apt-get update && apt-get install -y --no-install-recommends postgresql-client && \
+        ./scripts/init-jobservice-db-for-compose.sh
+    volumes:
+      - ./:/workspace/acceptance-tests
+      - ../:/workspace/census31
+      - ${HOME}/.m2:/root/.m2:ro
+
+  tm-mock:
+    image: ${FWMT_TM_MOCK_IMAGE:-europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-tm-mock:27.0.3-RC}
+    environment:
+      SERVER_PORT: ${FWMT_TM_MOCK_PORT:-8000}
+    ports:
+      - "${FWMT_TM_MOCK_PORT:-8000}:${FWMT_TM_MOCK_PORT:-8000}"
+    depends_on:
+      pubsub-init:
+        condition: service_completed_successfully
+      jobservice-db-init:
+        condition: service_completed_successfully
+
+  job-service:
+    image: ${FWMT_JOB_SERVICE_IMAGE:-europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-job-service:27.0.3-RC}
+    environment:
+      APP_TESTING: "true"
+      APP_MESSAGING_PROVIDER: pubsub
+      PUBSUB_EMULATOR_HOST: pubsub:8085
+      FWMT_PUBSUB_PROJECT: ${FWMT_PUBSUB_PROJECT:-fwmt-local}
+      SPRING_CLOUD_GCP_PROJECT_ID: ${FWMT_PUBSUB_PROJECT:-fwmt-local}
+      SPRING_CLOUD_GCP_CREDENTIALS_ENABLED: "false"
+      SPRING_CLOUD_GCP_FIRESTORE_ENABLED: "false"
+      SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST: pubsub:8085
+      SPRING_CLOUD_GCP_PUBSUB_ENABLED: "true"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${FWMT_POSTGRES_DB:-postgres}?currentSchema=fwmtg
+      SPRING_DATASOURCE_USERNAME: ${FWMT_POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${FWMT_POSTGRES_PASSWORD:-postgres}
+      DECRYPTION_PASSWORD: ${DECRYPTION_PASSWORD:-testJobService}
+      TOTALMOBILE_BASEURL: http://tm-mock:${FWMT_TM_MOCK_PORT:-8000}/
+      RMAPI_BASEURL: http://tm-mock:${FWMT_TM_MOCK_PORT:-8000}/
+    ports:
+      - "${FWMT_JOB_SERVICE_PORT:-8025}:8025"
+    depends_on:
+      tm-mock:
+        condition: service_started
+      pubsub-init:
+        condition: service_completed_successfully
+      jobservice-db-init:
+        condition: service_completed_successfully
+
+  outcome-service:
+    image: ${FWMT_OUTCOME_SERVICE_IMAGE:-europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-outcome-service:27.0.3-RC}
+    environment:
+      APP_TESTING: "true"
+      APP_MESSAGING_PROVIDER: pubsub
+      PUBSUB_EMULATOR_HOST: pubsub:8085
+      FWMT_PUBSUB_PROJECT: ${FWMT_PUBSUB_PROJECT:-fwmt-local}
+      SPRING_CLOUD_GCP_PROJECT_ID: ${FWMT_PUBSUB_PROJECT:-fwmt-local}
+      SPRING_CLOUD_GCP_CREDENTIALS_ENABLED: "false"
+      SPRING_CLOUD_GCP_FIRESTORE_ENABLED: "false"
+      SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST: pubsub:8085
+      SPRING_CLOUD_GCP_PUBSUB_ENABLED: "true"
+      FEATURE_OUTCOME_HH: ${FEATURE_OUTCOME_HH:-true}
+      FEATURE_OUTCOME_SPG: ${FEATURE_OUTCOME_SPG:-true}
+      FEATURE_OUTCOME_CE: ${FEATURE_OUTCOME_CE:-true}
+      FEATURE_OUTCOME_CCS: ${FEATURE_OUTCOME_CCS:-true}
+      FEATURE_OUTCOME_NC: ${FEATURE_OUTCOME_NC:-true}
+    ports:
+      - "${FWMT_OUTCOME_SERVICE_PORT:-8030}:8030"
+    depends_on:
+      job-service:
+        condition: service_started
+      pubsub-init:
+        condition: service_completed_successfully
+
+  csv-service:
+    image: ${FWMT_CSV_SERVICE_IMAGE:-europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-csv-service:27.0.3-RC}
+    environment:
+      APP_TESTING: "true"
+      APP_MESSAGING_PROVIDER: pubsub
+      PUBSUB_EMULATOR_HOST: pubsub:8085
+      FWMT_PUBSUB_PROJECT: ${FWMT_PUBSUB_PROJECT:-fwmt-local}
+      SPRING_CLOUD_GCP_PROJECT_ID: ${FWMT_PUBSUB_PROJECT:-fwmt-local}
+      SPRING_CLOUD_GCP_CREDENTIALS_ENABLED: "false"
+      SPRING_CLOUD_GCP_FIRESTORE_ENABLED: "false"
+      SPRING_CLOUD_GCP_PUBSUB_EMULATOR_HOST: pubsub:8085
+      SPRING_CLOUD_GCP_PUBSUB_ENABLED: "true"
+    ports:
+      - "${FWMT_CSV_SERVICE_PORT:-8060}:8060"
+    depends_on:
+      job-service:
+        condition: service_started
+      pubsub-init:
+        condition: service_completed_successfully
+
+  acceptance-tests:
+    profiles: ["tests"]
+    image: maven:3.9-eclipse-temurin-25
+    working_dir: /workspace/acceptance-tests
+    environment:
+      FWMT_PUBSUB_PROJECT: ${FWMT_PUBSUB_PROJECT:-fwmt-local}
+      FWMT_PUBSUB_EMULATOR_PORT: 8085
+      FWMT_TM_MOCK_PORT: ${FWMT_TM_MOCK_PORT:-8000}
+    depends_on:
+      tm-mock:
+        condition: service_started
+      job-service:
+        condition: service_started
+      outcome-service:
+        condition: service_started
+      csv-service:
+        condition: service_started
+    command:
+      - bash
+      - -lc
+      - |
+        mvn --batch-mode verify \
+          -Dservice.jobservice.url=http://job-service:8025 \
+          -Dservice.outcome.url=http://outcome-service:8030 \
+          -Dservice.tm.url=http://tm-mock:${FWMT_TM_MOCK_PORT:-8000} \
+          -Dservice.mocktm.url=http://tm-mock:${FWMT_TM_MOCK_PORT:-8000} \
+          -Dservice.ccscsv.url=http://csv-service:8060/ingestCCSCsvFile \
+          -Dservice.cecsv.url=http://csv-service:8060/ingestCeCsvFile \
+          -Dservice.addresscheckcsv.url=http://csv-service:8060/ingestAddressCheckCsvFile \
+          -Dservice.addressfileload.url=http://csv-service:8060/ingestAddressLookupCsvFile \
+          -Dspring.datasource.url=jdbc:postgresql://postgres:5432/${FWMT_POSTGRES_DB:-postgres}?currentSchema=fwmtg \
+          -Dspring.datasource.username=${FWMT_POSTGRES_USER:-postgres} \
+          -Dspring.datasource.password=${FWMT_POSTGRES_PASSWORD:-postgres} \
+          -Dfwmt.pubsub.emulatorHost=pubsub:8085 \
+          -Dfwmt.pubsub.project=${FWMT_PUBSUB_PROJECT:-fwmt-local}
+    volumes:
+      - ./:/workspace/acceptance-tests
+      - ${HOME}/.m2:/root/.m2:ro
+
+volumes:
+  fwmt_acceptance_postgres:
+  fwmt_acceptance_redis:

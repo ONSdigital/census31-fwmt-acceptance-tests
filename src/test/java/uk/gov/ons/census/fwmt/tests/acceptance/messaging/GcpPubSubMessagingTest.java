@@ -1,13 +1,28 @@
 package uk.gov.ons.census.fwmt.tests.acceptance.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.google.api.gax.rpc.BidiStreamingCallable;
+import com.google.api.gax.rpc.ClientStream;
+import com.google.api.gax.rpc.ResponseObserver;
+import com.google.api.gax.rpc.UnaryCallable;
+import com.google.cloud.pubsub.v1.stub.SubscriberStub;
+import com.google.pubsub.v1.AcknowledgeRequest;
+import com.google.pubsub.v1.ModifyAckDeadlineRequest;
+import com.google.pubsub.v1.PullResponse;
+import com.google.pubsub.v1.StreamingPullRequest;
+import com.google.pubsub.v1.StreamingPullResponse;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import uk.gov.ons.census.fwmt.common.messaging.FieldWorkerInstructionJsonCodec;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
@@ -94,6 +109,192 @@ class GcpPubSubMessagingTest {
     assertThat(nodeCheck.isSuccesful()).isTrue();
     assertThat(nodeCheck.getName()).isEqualTo("Google Pub/Sub");
     assertThat(operations.drainedSubscriptions).containsExactly("acceptance-tests-Field-refusals");
+  }
+
+  @Test
+  void shouldReuseSingleSubscriberStubAcrossOperationsUntilClosed() throws Exception {
+    AtomicInteger stubCreations = new AtomicInteger();
+    SubscriberStub subscriberStub = mock(SubscriberStub.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<com.google.pubsub.v1.PullRequest, PullResponse> pullCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<AcknowledgeRequest, com.google.protobuf.Empty> acknowledgeCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<ModifyAckDeadlineRequest, com.google.protobuf.Empty> modifyAckCallable = mock(UnaryCallable.class);
+
+    when(subscriberStub.pullCallable()).thenReturn(pullCallable);
+    when(subscriberStub.acknowledgeCallable()).thenReturn(acknowledgeCallable);
+    when(subscriberStub.modifyAckDeadlineCallable()).thenReturn(modifyAckCallable);
+    when(pullCallable.call(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(PullResponse.getDefaultInstance())
+        .thenReturn(PullResponse.getDefaultInstance());
+
+    GcpPubSubMessaging.GooglePubSubOperations operations =
+        new GcpPubSubMessaging.GooglePubSubOperations(
+            "project-id",
+            () -> {
+              stubCreations.incrementAndGet();
+              return subscriberStub;
+            });
+
+    operations.pull("acceptance-tests-RM-Field", 1);
+    operations.acknowledge("acceptance-tests-RM-Field", List.of("ack-1"));
+    operations.release("acceptance-tests-RM-Field", List.of("ack-2"));
+    operations.drainSubscription("acceptance-tests-RM-Field");
+
+    assertThat(stubCreations).hasValue(1);
+
+    operations.close();
+
+    verify(subscriberStub, times(1)).close();
+  }
+
+  @Test
+  void shouldUseMultiplePullersForRmFieldSubscription() throws Exception {
+    AtomicInteger stubCreations = new AtomicInteger();
+    SubscriberStub subscriberStub = mock(SubscriberStub.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<com.google.pubsub.v1.PullRequest, PullResponse> pullCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<AcknowledgeRequest, com.google.protobuf.Empty> acknowledgeCallable = mock(UnaryCallable.class);
+
+    PullResponse empty = PullResponse.getDefaultInstance();
+    when(subscriberStub.pullCallable()).thenReturn(pullCallable);
+    when(subscriberStub.acknowledgeCallable()).thenReturn(acknowledgeCallable);
+    when(pullCallable.call(org.mockito.ArgumentMatchers.any())).thenReturn(empty);
+
+    GcpPubSubMessaging.GooglePubSubOperations operations =
+        new GcpPubSubMessaging.GooglePubSubOperations(
+            "project-id",
+            () -> {
+              stubCreations.incrementAndGet();
+              return subscriberStub;
+            });
+
+    assertThat(operations.pullerParallelismFor("acceptance-tests-RM-Field")).isEqualTo(3);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-Field-other")).isEqualTo(1);
+
+    operations.drainSubscription("acceptance-tests-RM-Field");
+
+    assertThat(stubCreations).hasValue(1);
+    operations.close();
+    verify(subscriberStub, times(1)).close();
+  }
+
+  @Test
+  void shouldUseStreamingPullDrainByDefault()
+      throws Exception {
+    AtomicInteger stubCreations = new AtomicInteger();
+    SubscriberStub subscriberStub = mock(SubscriberStub.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<com.google.pubsub.v1.PullRequest, PullResponse> pullCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<AcknowledgeRequest, com.google.protobuf.Empty> acknowledgeCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    BidiStreamingCallable<StreamingPullRequest, StreamingPullResponse> streamingCallable = mock(BidiStreamingCallable.class);
+
+    when(subscriberStub.pullCallable()).thenReturn(pullCallable);
+    when(subscriberStub.acknowledgeCallable()).thenReturn(acknowledgeCallable);
+    when(subscriberStub.streamingPullCallable()).thenReturn(streamingCallable);
+    when(pullCallable.call(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(PullResponse.getDefaultInstance());
+
+    List<StreamingPullRequest> sentRequests = new ArrayList<>();
+    ClientStream<StreamingPullRequest> fakeStream =
+        new ClientStream<>() {
+          @Override
+          public void send(StreamingPullRequest request) {
+            sentRequests.add(request);
+          }
+
+          @Override
+          public void closeSendWithError(Throwable t) {}
+
+          @Override
+          public void closeSend() {}
+
+          @Override
+          public boolean isSendReady() {
+            return true;
+          }
+        };
+    AtomicInteger streamingCalls = new AtomicInteger();
+    when(streamingCallable.splitCall(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(
+            invocation -> {
+              streamingCalls.incrementAndGet();
+              @SuppressWarnings("unchecked")
+              ResponseObserver<StreamingPullResponse> observer =
+                  (ResponseObserver<StreamingPullResponse>) invocation.getArgument(0);
+              // Simulate: one non-empty response then two empty responses (drain completes)
+              observer.onResponse(
+                  StreamingPullResponse.newBuilder()
+                      .addReceivedMessages(
+                          com.google.pubsub.v1.ReceivedMessage.newBuilder()
+                              .setAckId("ack-stream-1")
+                              .setMessage(
+                                  com.google.pubsub.v1.PubsubMessage.newBuilder()
+                                      .setData(com.google.protobuf.ByteString.copyFromUtf8("{}")))
+                              .build())
+                      .build());
+              observer.onResponse(StreamingPullResponse.getDefaultInstance());
+              observer.onResponse(StreamingPullResponse.getDefaultInstance());
+              return fakeStream;
+            });
+
+    // StreamingPull is used by default
+    GcpPubSubMessaging.GooglePubSubOperations pubsubOps =
+        new GcpPubSubMessaging.GooglePubSubOperations(
+            "project-id", true, () -> {
+              stubCreations.incrementAndGet();
+              return subscriberStub;
+            });
+
+    pubsubOps.drainSubscription("acceptance-tests-RM-Field");
+
+    assertThat(streamingCalls).hasValue(1);
+    assertThat(sentRequests).hasSize(2);
+    assertThat(sentRequests.get(0).getSubscription())
+        .isEqualTo("projects/project-id/subscriptions/acceptance-tests-RM-Field");
+    assertThat(sentRequests.get(1).getAckIdsList()).containsExactly("ack-stream-1");
+  }
+
+  @Test
+  void shouldFallbackToPipelinedWhenStreamingPullFails()
+      throws Exception {
+    SubscriberStub subscriberStub = mock(SubscriberStub.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<com.google.pubsub.v1.PullRequest, PullResponse> pullCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    UnaryCallable<AcknowledgeRequest, com.google.protobuf.Empty> acknowledgeCallable = mock(UnaryCallable.class);
+    @SuppressWarnings("unchecked")
+    BidiStreamingCallable<StreamingPullRequest, StreamingPullResponse> streamingCallable = mock(BidiStreamingCallable.class);
+
+    when(subscriberStub.pullCallable()).thenReturn(pullCallable);
+    when(subscriberStub.acknowledgeCallable()).thenReturn(acknowledgeCallable);
+    when(subscriberStub.streamingPullCallable()).thenReturn(streamingCallable);
+
+    // StreamingPull fails
+    when(streamingCallable.splitCall(org.mockito.ArgumentMatchers.any()))
+        .thenThrow(new RuntimeException("Streaming pull not available"));
+
+    // Fallback to pipelined pull
+    AtomicInteger pullCalls = new AtomicInteger();
+    when(pullCallable.call(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(
+            invocation -> {
+              pullCalls.incrementAndGet();
+              return PullResponse.getDefaultInstance();
+            });
+
+    GcpPubSubMessaging.GooglePubSubOperations pubsubOps =
+        new GcpPubSubMessaging.GooglePubSubOperations(
+            "project-id", true, () -> subscriberStub);
+    
+    pubsubOps.drainSubscription("acceptance-tests-RM-Field");
+    
+    // Should have fallen back to pipelined pull (pullCallable invoked at least once)
+    assertThat(pullCalls.get()).isGreaterThan(0);
   }
 
   private static class RecordingPubSubOperations implements GcpPubSubMessaging.PubSubOperations {

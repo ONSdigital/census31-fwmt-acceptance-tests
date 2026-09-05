@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: uk.gov.ons.census.fwmt.tests.acceptance.outcomes.OutcomeCorrelationIdentifiersTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s -- in uk.gov.ons.census.fwmt.tests.acceptance.outcomes.OutcomeCorrelationIdentifiersTest

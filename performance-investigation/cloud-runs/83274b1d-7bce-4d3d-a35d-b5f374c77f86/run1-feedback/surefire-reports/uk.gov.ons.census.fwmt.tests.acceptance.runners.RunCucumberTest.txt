@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: uk.gov.ons.census.fwmt.tests.acceptance.runners.RunCucumberTest
+-------------------------------------------------------------------------------
+Tests run: 225, Failures: 0, Errors: 0, Skipped: 223, Time elapsed: 70.88 s -- in uk.gov.ons.census.fwmt.tests.acceptance.runners.RunCucumberTest
