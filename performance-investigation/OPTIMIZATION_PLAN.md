@@ -174,6 +174,45 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 
 ---
 
+## StreamingPull A/B Test Plan (Phase 7d prototype)
+
+### 1. Baseline run (flag OFF - current production path)
+- **Build**: commit `2bf6eb4`, property `fwmt.pubsub.streaming-pull.enabled=false` (default)
+- **What it validates**: multi-puller pipelined pull (RM.Field = 3 pullers), parallel pause/resume
+- **Expected**: queue-reset median ~4.4s → ~2.5s (Phase 7 projection)
+- **Artifacts**: `gs://c31-fwmtg-ci-prod-acceptance-test-details/<build>/run1-hh/performance-investigation/timings.ndjson`
+
+### 2. StreamingPull run (flag ON)
+- **Same commit** `2bf6eb4`, property `fwmt.pubsub.streaming-pull.enabled=true`
+- **What it validates**: streaming-pull drain with pipelined-pull fallback on failure
+- **Expected**: queue-reset median < baseline if StreamingPull is effective
+- **Artifacts**: same bucket, different build ID
+
+### 3. Analysis & decision
+```bash
+# Per run:
+python3 scripts/analyse-ndjson-timings.py <build-a>/.../timings.ndjson <build-b>/.../timings.ndjson
+# Compare (queue-reset mean/p50/p95/max, RM.Field per-queue mean/max, scenario failures)
+```
+| Metric | Baseline (flag off) | StreamingPull (flag on) | Outcome |
+|--------|---------------------|-------------------------|---------|
+| queue-reset median | tbd | tbd | target < 3.5s |
+| RM.Field drain mean | tbd | tbd | target < ~1.8s |
+| queue-reset p95 | tbd | tbd | lower variance desired |
+| scenario failures | tbd | tbd | must stay 0 |
+
+### 4. Go / No-Go
+- **GO** (keep flag on by default): StreamingPull median < pipelined median by > noise (σ≈880ms → require ≥ ~500ms gain) AND zero scenario failures AND fallback never observed in logs
+- **NO-GO** (default stays OFF / revert prototype): no gain, worse tail, or any stream errors forcing fallback — the pipelined-pull path remains the production drain
+- Rollback is always a one-line property flip (`fwmt.pubsub.streaming-pull.enabled=false`); no code change required
+
+### 5. Preconditions & risks
+- Confirm `pubsub.subscriptions.consume` on the test subscriptions (already used by pull; StreamPull uses the same permission)
+- Two consecutive empty responses end the stream-drain; a queue that keeps receiving during the hook still drains correctly (non-empty keeps it alive)
+- Noise: run each config **3×** per the plan's measurement strategy, report median + percentiles (not single runs)
+
+---
+
 ## Success Criteria
 
 ### Primary (Must Have)
