@@ -250,9 +250,16 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   static final class GooglePubSubOperations implements PubSubOperations {
     private static final int DRAIN_PULL_BATCH_SIZE = 1000;
     private static final int DEFAULT_PULLER_PARALLELISM = 1;
-    private static final int RM_FIELD_PULLER_PARALLELISM = 3;
-    private static final Map<String, Integer> PULLER_PARALLELISM_BY_SUB_PREFIX =
-        Map.of("acceptance-tests-RM-Field", RM_FIELD_PULLER_PARALLELISM);
+    private static final int HOT_LANE_PULLER_PARALLELISM = 3;
+    private static final int BUSY_LANE_PULLER_PARALLELISM = 2;
+    private static final Map<String, Integer> PULLER_PARALLELISM_BY_SUB =
+        Map.of(
+            "acceptance-tests-RM-Field", HOT_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-Outcome-Preprocessing", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-Outcome-PreprocessingDLQ", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-RM-FieldDLQ", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-Field-other", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-Field-refusals", BUSY_LANE_PULLER_PARALLELISM);
 
     private final String projectId;
     private final boolean streamingPullEnabled;
@@ -370,25 +377,40 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
     @Override
     public void drainSubscription(String subscriptionId) {
-      try {
-        drainByStreamingPull(subscriber(), subscriptionId);
-        return;
-      } catch (Exception e) {
-        log.warn(
-            "Streaming pull drain failed for subscription {}, falling back to pipelined pull drain: {}",
-            subscriptionId,
-            e.getMessage());
+      if (streamingPullEnabled) {
+        try {
+          drainByStreamingPull(subscriber(), subscriptionId);
+          return;
+        } catch (Exception e) {
+          log.warn(
+              "Streaming pull drain failed for subscription {}, falling back to pipelined pull drain: {}",
+              subscriptionId,
+              e.getMessage());
+          // A stream failure can leave the shared gRPC stub/channel in a corrupt state
+          // (e.g. streamingPullCallable() returning null). Close and null it so the
+          // fallback and subsequent drains create a fresh stub rather than reuse the
+          // broken one — root cause of the bf252017 timeout regression.
+          invalidateSubscriberStub();
+        }
       }
       drainByPipelinedPull(subscriber(), subscriptionId, pullerParallelismFor(subscriptionId));
     }
 
+    private synchronized void invalidateSubscriberStub() {
+      if (subscriberStub == null) {
+        return;
+      }
+      try {
+        subscriberStub.close();
+      } catch (Exception e) {
+        log.debug("Failed to close invalidated subscriber stub: {}", e.getMessage());
+      }
+      subscriberStub = null;
+    }
+
     @Override
     public int pullerParallelismFor(String subscriptionId) {
-      return PULLER_PARALLELISM_BY_SUB_PREFIX.entrySet().stream()
-          .filter(entry -> subscriptionId.startsWith(entry.getKey()))
-          .map(Map.Entry::getValue)
-          .findFirst()
-          .orElse(DEFAULT_PULLER_PARALLELISM);
+      return PULLER_PARALLELISM_BY_SUB.getOrDefault(subscriptionId, DEFAULT_PULLER_PARALLELISM);
     }
 
     /**

@@ -165,26 +165,36 @@ The acceptance test suite's queue-reset hook is a critical performance bottlenec
 - [x] Overlap ack(batch k) with pull(batch k+1) on a single background thread per queue
 - [x] Remove seek code paths and constants; `DRAIN_PULL_BATCH_SIZE=1000` (API max)
 - [x] Compile + unit tests pass (8 affected tests: GcpPubSubMessagingTest 7, QueueClientTest 1)
-- [x] **Phase 7b**: parallel pause/resume (2 concurrent listener HTTP calls, was sequential)
-- [x] **Phase 7c**: RM.Field gets 3 pullers (default 1; configurable via `pullerParallelismFor` on subscription prefix); each puller pipelines its acks on shared ack threads — projected RM.Field 3.6s → ~1.2-1.8s
-- [x] **Phase 7d**: StreamingPull prototype behind `fwmt.pubsub.streaming-pull.enabled` (default false). `drainSubscription()` switches to a persistent streaming-pull drain (single bidirectional stream, acks on the same stream) when enabled; any stream failure falls back to the pipelined-pull path. Unit-tested on/off + fallback.
+- [x] **Phase 7b**: parallel pause/resume (2 concurrent listener HTTP calls, was sequential) — validated in build 1ced6799 (pause 150→83ms, resume 150→89ms)
+- [x] **Phase 7c**: RM.Field gets 3 pullers; pipelined pull/ack per puller — validated in build 1ced6799 (queue-reset 4398→3894ms, -11.5%, p<0.005)
+- [x] **Phase 7d**: StreamingPull prototype attempted as default (0fa9f15) → **reverted to flag-gated opt-in** (default false). Build bf252017 showed the stream never terminates on idle queues (server sends no empty responses) and a stream failure corrupts the shared stub, causing a 108s queue-reset timeout. StreamingPull is retained as a dormant prototype behind `fwmt.pubsub.streaming-pull.enabled`, with pipelined fallback.
+- [x] **Phase 7e**: extend parallel drains to the other bottleneck queues — Outcome.Preprocessing + 3 timeout-hit queues (RM.FieldDLQ, Field.other, Field.refusals) get 2 pullers; RM.Field keeps 3; exact-match map (fixes prefix collision where `acceptance-tests-RM-Field` matched `RM-FieldDLQ`). Plus `invalidateSubscriberStub()` on streaming failure so fallback/create reuses a fresh stub (bf252017 root fix).
 - [ ] Cloud run: confirm queue-reset median ~2.5s on `analyse-cucumber-timings.py` + `analyse-ndjson-timings.py`
-- [ ] A/B test: run with flag off (baseline) then flag on (StreamingPull prototype) and compare with the NDJSON analyzer
+- [ ] If StreamingPull is later revisited: fix the drain-termination heuristic (time-bounded receive, matching pull's empty-tail check) and re-A/B behind the flag
 - [ ] If insufficient: apply Phase 4 (shared stub) and/or 2 pullers per queue (12-thread pool)
 
 ---
 
-## StreamingPull A/B Test Plan (Phase 7d prototype)
+## StreamingPull A/B Test Plan (Phase 7d prototype — deferred)
+
+> **Status update**: The 7d prototype was provisionally made the default in commit 0fa9f15 and
+> cloud-tested in build bf252017, which produced a catastrophic timeout (queue-reset 3894→108,792ms).
+> Root cause: (1) the streaming drain waits for two consecutive empty `StreamingPullResponse`s that
+> the Pub/Sub server never sends on idle streams — it blocks forever; (2) a failed stream leaves the
+> shared `SubscriberStub` corrupted ("callable is null"), and the pipelined fallback reused it.
+> Until both are fixed (see Phase 7e note), **StreamingPull stays OFF and the pipelined multi-puller
+> drain remains the production path.** The A/B procedure below is only meaningful once the
+> termination heuristic is corrected.
 
 ### 1. Baseline run (flag OFF - current production path)
-- **Build**: commit `2bf6eb4`, property `fwmt.pubsub.streaming-pull.enabled=false` (default)
-- **What it validates**: multi-puller pipelined pull (RM.Field = 3 pullers), parallel pause/resume
-- **Expected**: queue-reset median ~4.4s → ~2.5s (Phase 7 projection)
+- **Build**: commit on/after Phase 7e, property `fwmt.pubsub.streaming-pull.enabled=false` (default)
+- **What it validates**: multi-puller pipelined drain across all 6 queues (RM.Field=3, others=2), parallel pause/resume, stub invalidation
+- **Expected**: queue-reset median ~3.9s → ~2.5s (Phase 7e projection)
 - **Artifacts**: `gs://c31-fwmtg-ci-prod-acceptance-test-details/<build>/run1-hh/performance-investigation/timings.ndjson`
 
-### 2. StreamingPull run (flag ON)
-- **Same commit** `2bf6eb4`, property `fwmt.pubsub.streaming-pull.enabled=true`
-- **What it validates**: streaming-pull drain with pipelined-pull fallback on failure
+### 2. StreamingPull run (flag ON — only after termination-heuristic fix)
+- **Same commit**, property `fwmt.pubsub.streaming-pull.enabled=true`
+- **What it validates**: streaming-pull drain with pipelined-pull fallback + stub invalidation on failure
 - **Expected**: queue-reset median < baseline if StreamingPull is effective
 - **Artifacts**: same bucket, different build ID
 
@@ -197,18 +207,19 @@ python3 scripts/analyse-ndjson-timings.py <build-a>/.../timings.ndjson <build-b>
 | Metric | Baseline (flag off) | StreamingPull (flag on) | Outcome |
 |--------|---------------------|-------------------------|---------|
 | queue-reset median | tbd | tbd | target < 3.5s |
-| RM.Field drain mean | tbd | tbd | target < ~1.8s |
+| slowest drain mean | tbd | tbd | target < ~2.0s |
 | queue-reset p95 | tbd | tbd | lower variance desired |
 | scenario failures | tbd | tbd | must stay 0 |
+| "drain failed, falling back" logs | tbd | tbd | must be 0 |
 
 ### 4. Go / No-Go
-- **GO** (keep flag on by default): StreamingPull median < pipelined median by > noise (σ≈880ms → require ≥ ~500ms gain) AND zero scenario failures AND fallback never observed in logs
-- **NO-GO** (default stays OFF / revert prototype): no gain, worse tail, or any stream errors forcing fallback — the pipelined-pull path remains the production drain
+- **GO** (keep flag on by default): StreamingPull median < pipelined median by > noise AND zero scenario failures AND zero fallback logs
+- **NO-GO** (default stays OFF): no gain, worse tail, or any stream errors forcing fallback — the pipelined-pull path remains the production drain
 - Rollback is always a one-line property flip (`fwmt.pubsub.streaming-pull.enabled=false`); no code change required
 
 ### 5. Preconditions & risks
 - Confirm `pubsub.subscriptions.consume` on the test subscriptions (already used by pull; StreamPull uses the same permission)
-- Two consecutive empty responses end the stream-drain; a queue that keeps receiving during the hook still drains correctly (non-empty keeps it alive)
+- **Must fix before re-enabling**: replace the 2-consecutive-empty termination (server never sends empties on idle streams → block forever) with a time-bounded receive, and invalidate the shared stub on stream failure (done in 7e)
 - Noise: run each config **3×** per the plan's measurement strategy, report median + percentiles (not single runs)
 
 ---

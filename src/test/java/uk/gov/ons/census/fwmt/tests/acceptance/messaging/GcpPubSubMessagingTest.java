@@ -150,7 +150,7 @@ class GcpPubSubMessagingTest {
   }
 
   @Test
-  void shouldUseMultiplePullersForRmFieldSubscription() throws Exception {
+  void shouldUseMultiplePullersForHotSubscriptionAndTwoForBusyOnes() throws Exception {
     AtomicInteger stubCreations = new AtomicInteger();
     SubscriberStub subscriberStub = mock(SubscriberStub.class);
     @SuppressWarnings("unchecked")
@@ -172,7 +172,12 @@ class GcpPubSubMessagingTest {
             });
 
     assertThat(operations.pullerParallelismFor("acceptance-tests-RM-Field")).isEqualTo(3);
-    assertThat(operations.pullerParallelismFor("acceptance-tests-Field-other")).isEqualTo(1);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-Outcome-Preprocessing")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-Outcome-PreprocessingDLQ")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-RM-FieldDLQ")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-Field-other")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-Field-refusals")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-Unknown-Lane")).isEqualTo(1);
 
     operations.drainSubscription("acceptance-tests-RM-Field");
 
@@ -182,7 +187,7 @@ class GcpPubSubMessagingTest {
   }
 
   @Test
-  void shouldUseStreamingPullDrainByDefault()
+  void shouldUseStreamingPullDrainWhenFlagEnabled()
       throws Exception {
     AtomicInteger stubCreations = new AtomicInteger();
     SubscriberStub subscriberStub = mock(SubscriberStub.class);
@@ -242,7 +247,7 @@ class GcpPubSubMessagingTest {
               return fakeStream;
             });
 
-    // StreamingPull is used by default
+    // StreamingPull is used only when the flag is enabled
     GcpPubSubMessaging.GooglePubSubOperations pubsubOps =
         new GcpPubSubMessaging.GooglePubSubOperations(
             "project-id", true, () -> {
@@ -260,9 +265,11 @@ class GcpPubSubMessagingTest {
   }
 
   @Test
-  void shouldFallbackToPipelinedWhenStreamingPullFails()
+  void shouldFallbackToPipelinedAndInvalidateStubWhenStreamingPullFails()
       throws Exception {
-    SubscriberStub subscriberStub = mock(SubscriberStub.class);
+    List<SubscriberStub> createdStubs = new ArrayList<>();
+    SubscriberStub firstStub = mock(SubscriberStub.class);
+    SubscriberStub fallbackStub = mock(SubscriberStub.class);
     @SuppressWarnings("unchecked")
     UnaryCallable<com.google.pubsub.v1.PullRequest, PullResponse> pullCallable = mock(UnaryCallable.class);
     @SuppressWarnings("unchecked")
@@ -270,9 +277,13 @@ class GcpPubSubMessagingTest {
     @SuppressWarnings("unchecked")
     BidiStreamingCallable<StreamingPullRequest, StreamingPullResponse> streamingCallable = mock(BidiStreamingCallable.class);
 
-    when(subscriberStub.pullCallable()).thenReturn(pullCallable);
-    when(subscriberStub.acknowledgeCallable()).thenReturn(acknowledgeCallable);
-    when(subscriberStub.streamingPullCallable()).thenReturn(streamingCallable);
+    when(firstStub.pullCallable()).thenReturn(pullCallable);
+    when(firstStub.acknowledgeCallable()).thenReturn(acknowledgeCallable);
+    when(fallbackStub.pullCallable()).thenReturn(pullCallable);
+    when(fallbackStub.acknowledgeCallable()).thenReturn(acknowledgeCallable);
+    // Streaming only available on the first stub — simulates a broken stream leaving the stub corrupt
+    when(firstStub.streamingPullCallable()).thenReturn(streamingCallable);
+    when(fallbackStub.streamingPullCallable()).thenReturn(streamingCallable);
 
     // StreamingPull fails
     when(streamingCallable.splitCall(org.mockito.ArgumentMatchers.any()))
@@ -289,12 +300,23 @@ class GcpPubSubMessagingTest {
 
     GcpPubSubMessaging.GooglePubSubOperations pubsubOps =
         new GcpPubSubMessaging.GooglePubSubOperations(
-            "project-id", true, () -> subscriberStub);
-    
+            "project-id",
+            true,
+            () -> {
+              if (createdStubs.isEmpty()) {
+                createdStubs.add(firstStub);
+                return firstStub;
+              }
+              createdStubs.add(fallbackStub);
+              return fallbackStub;
+            });
+
     pubsubOps.drainSubscription("acceptance-tests-RM-Field");
-    
-    // Should have fallen back to pipelined pull (pullCallable invoked at least once)
+
+    // Should have invalidated the broken first stub (closed) and created a fresh one for fallback
     assertThat(pullCalls.get()).isGreaterThan(0);
+    verify(firstStub, times(1)).close();
+    assertThat(createdStubs).hasSize(2);
   }
 
   private static class RecordingPubSubOperations implements GcpPubSubMessaging.PubSubOperations {
