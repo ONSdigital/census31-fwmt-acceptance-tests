@@ -14,6 +14,9 @@ scripts/.local-maven-artifacts/
 # CI build/report artifacts
 .ci-artifacts/
 
+# GPG decryption private key (test-only, never commit)
+key.gpg
+
 # Package Files #
 *.war
 *.ear
