@@ -11,6 +11,9 @@ scripts/.gradle-home/
 scripts/.local-artifacts/
 scripts/.local-maven-artifacts/
 
+# CI build/report artifacts
+.ci-artifacts/
+
 # Package Files #
 *.war
 *.ear
