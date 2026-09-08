@@ -19,7 +19,7 @@ steps:
       - gcloud auth print-access-token > /workspace/ar_token
 
   - name: "gcr.io/cloud-builders/git"
-    id: "compute-main-rc-version"
+    id: "Compute Main RC Version"
     entrypoint: bash
     args:
       - -ceu
@@ -31,6 +31,7 @@ steps:
         fi
         BASE_VERSION="$$(echo "$${BASE_VERSION}" | sed -E 's/-SNAPSHOT$//; s/-RC$//')"
         EFFECTIVE_VERSION="$${BASE_VERSION}-RC"
+        echo "Resolved main/release version: $${EFFECTIVE_VERSION} (branch=${BRANCH_NAME:-unknown})"
         echo "$${EFFECTIVE_VERSION}" > /workspace/effective-version.txt
 
   - name: "gcr.io/cloud-builders/docker"
@@ -44,6 +45,7 @@ steps:
       - -ceu
       - |
         EFFECTIVE_VERSION="$$(cat /workspace/effective-version.txt)"
+        echo "Building release image tag: $${EFFECTIVE_VERSION}"
         SNAPSHOT_CACHE_REF="${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/fwmtg-docker-snapshot/${_IMAGE}:buildcache"
         CACHE_REF="${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:buildcache"
         docker buildx build \
@@ -51,7 +53,6 @@ steps:
           --cache-from=type=registry,ref="$${SNAPSHOT_CACHE_REF}" \
           --cache-from=type=registry,ref="$${CACHE_REF}" \
           --cache-to=type=registry,ref="$${CACHE_REF}",mode=max \
-          -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:${SHORT_SHA}" \
           -t "${_DOCKER_REGION}-docker.pkg.dev/${PROJECT_ID}/${_DOCKER_REPO}/${_IMAGE}:$${EFFECTIVE_VERSION}" \
           --push \
           .

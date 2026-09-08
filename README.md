@@ -93,6 +93,12 @@ Two GCP-target runbooks are available:
 
 Cloud Build remains the target state; this manual flow is the validation baseline before full CI wiring. The mapping of local commands to Cloud Build execution is documented in [docs/run-acceptance-tests-locally-census31.md](docs/run-acceptance-tests-locally-census31.md#cloud-build-target-mapping-step-6-wrap-up).
 
+## CI release image versioning
+
+- `cloudbuild-main.yaml` derives the release image version from `.mvn/maven.config`.
+- The main/release lane strips `-SNAPSHOT` or `-RC` then publishes an `-RC` image tag (for example `4.0.0-RC`).
+- Snapshot and feature-branch tagging behavior remains in `cloudbuild-snapshot.yaml`.
+
 ## Pub/Sub emulator (local)
 
 | Item | Default |
