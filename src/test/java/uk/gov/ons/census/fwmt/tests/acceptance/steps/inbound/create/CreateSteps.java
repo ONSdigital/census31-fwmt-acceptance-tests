@@ -24,6 +24,7 @@ import io.cucumber.java.en.When;
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.common.data.tm.Case;
 import uk.gov.ons.census.fwmt.common.events.data.GatewayEventDTO;
+import uk.gov.ons.census.fwmt.common.rm.dto.ActionInstructionType;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
@@ -325,42 +326,43 @@ public class CreateSteps {
   }
 
   private JSONObject commonRMMessageObjects(JSONObject json, String caseId, String caseRef, String isSecure, String isHandDeliver, boolean extraObjects){
-    if ("T".equals(isSecure)) {
-      json.remove("secureEstablishment");
-      json.put("secureEstablishment", true);
-    }else {
-      json.remove("secureEstablishment");
-      json.put("secureEstablishment", false);
-    }
-
-
-    if ("T".equals(isHandDeliver)){
-      json.remove("handDeliver");
-      json.put("handDeliver", true);
-    }else {
-      json.remove("handDeliver");
-      json.put("handDeliver", false);
-    }
 
     json.remove("caseRef");
     json.put("caseRef", caseRef);
 
     if ("HH".equals(testBucket.get("survey"))) {
-      json.remove("addressLevel");
-      json.put("addressLevel", "U");
+      //Only insert fields that will be sent in the test
       json.remove("oa");
       json.put("oa", "NISRA".equals(testBucket.get("type")) ? "N00000001" : "E00167164");
-    }
+    } else {
 
-    if (extraObjects == true) {
-      json.remove("caseRef");
-      json.put("caseRef", caseRef);
+      // leave all non HH CREATES as they are for now
+      if ("T".equals(isSecure)) {
+        json.remove("secureEstablishment");
+        json.put("secureEstablishment", true);
+      } else {
+        json.remove("secureEstablishment");
+        json.put("secureEstablishment", false);
+      }
 
-      json.remove("uprn");
-      json.put("uprn", json.get("estabUprn"));
+      if ("T".equals(isHandDeliver)) {
+        json.remove("handDeliver");
+        json.put("handDeliver", true);
+      } else {
+        json.remove("handDeliver");
+        json.put("handDeliver", false);
+      }
 
-      json.remove("caseId");
-      json.put("caseId", caseId);
+      if (extraObjects == true) {
+        json.remove("caseRef");
+        json.put("caseRef", caseRef);
+
+        json.remove("uprn");
+        json.put("uprn", json.get("estabUprn"));
+
+        json.remove("caseId");
+        json.put("caseId", caseId);
+      }
     }
 
     return json;

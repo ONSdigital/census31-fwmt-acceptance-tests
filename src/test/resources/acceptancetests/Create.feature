@@ -32,9 +32,9 @@ Feature: Create Tests
 
     @HH @Census27Test
     Examples: HH
-      | Survey | Type  | IsSecure | CaseRef  | HandDeliver | SurveyType | TmCaseRef |
-      | HH     | E&W   | F        | 12345678 | F           | HH         | 12345678  |
-      | HH     | NISRA | F        | 12345678 | F           | HH         | 12345678  |
+      | Survey | Type  | IsSecure    | CaseRef  | HandDeliver    | SurveyType | TmCaseRef |
+      | HH     | E&W   | null        | 12345678 | null           | HH         | 12345678  |
+      | HH     | NISRA | null        | 12345678 | null           | HH         | 12345678  |
 
 
   Scenario Outline: As Gateway I can receive a create CE Site job request from RM when a matching CE Unit exists in cache
