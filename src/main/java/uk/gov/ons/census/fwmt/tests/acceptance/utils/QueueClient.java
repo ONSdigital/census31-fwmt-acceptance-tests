@@ -2,9 +2,15 @@ package uk.gov.ons.census.fwmt.tests.acceptance.utils;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,10 +21,13 @@ import com.google.common.base.Strings;
 
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.MessagingTestClient;
+import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 
 @Slf4j
 @Component
 public final class QueueClient {
+
+  private static final String RESET_HOOK_NAME = "ScenarioHooks.setup";
 
   @Value("${service.outcome.url}")
   private String outcomeServiceUrl;
@@ -50,8 +59,20 @@ public final class QueueClient {
 
   private static final String TEMP_FIELD_OTHERS_QUEUE = "Field.other";
 
+  private static final String[] RESET_QUEUES = {
+      FIELD_REFUSALS_QUEUE,
+      TEMP_FIELD_OTHERS_QUEUE,
+      RM_FIELD_QUEUE,
+      RM_FIELD_QUEUE_DLQ,
+      OUTCOME_PRE_PROCESSING,
+      OUTCOME_PRE_PROCESSING_DLQ
+  };
+
   @Autowired
   private MessagingTestClient messagingTestClient;
+
+  @Autowired
+  private PerformanceTimingRecorder performanceTimingRecorder;
 
   public long getMessageCount(String queueName) {
     return messagingTestClient.getMessageCount(queueName);
@@ -91,36 +112,78 @@ public final class QueueClient {
   }
 
   public void reset() throws Exception {
-    pauseInboundAdapters();
-    clearQueues(FIELD_REFUSALS_QUEUE, TEMP_FIELD_OTHERS_QUEUE, RM_FIELD_QUEUE, RM_FIELD_QUEUE_DLQ, OUTCOME_PRE_PROCESSING,
-        OUTCOME_PRE_PROCESSING_DLQ);
-    resumeInboundAdapters();
+    recordResetOperation("queue-reset-pause-inbound-adapters", this::pauseInboundAdapters);
+    drainQueuesInParallel();
+    recordResetOperation("queue-reset-resume-inbound-adapters", this::resumeInboundAdapters);
+  }
+
+  private void drainQueuesInParallel() throws Exception {
+    ExecutorService executor = Executors.newFixedThreadPool(RESET_QUEUES.length);
+    try {
+      List<Future<?>> futures = new ArrayList<>();
+      for (String queueName : RESET_QUEUES) {
+        Future<?> future = executor.submit(() -> {
+          try {
+            recordResetOperation("queue-reset-drain-" + queueName, () -> clearQueue(queueName));
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        });
+        futures.add(future);
+      }
+      // Wait for all drain operations to complete
+      for (Future<?> future : futures) {
+        future.get();
+      }
+    } finally {
+      executor.shutdown();
+    }
   }
 
   private void pauseInboundAdapters() {
-    try {
-      resetListeners(jobserviceServiceUrl + "/RM/stopListener", jobServiceUsername, jobServicePassword);
-      resetListeners(outcomeServiceUrl + "/StopPreprocessorListener", outcomeServiceUsername, outcomeServicePassword);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    resetListenersInParallel(
+        new ListenerCall("job-service", jobserviceServiceUrl + "/RM/stopListener", jobServiceUsername, jobServicePassword),
+        new ListenerCall("outcome-service", outcomeServiceUrl + "/StopPreprocessorListener", outcomeServiceUsername, outcomeServicePassword));
   }
 
   private void resumeInboundAdapters() {
+    resetListenersInParallel(
+        new ListenerCall("job-service", jobserviceServiceUrl + "/RM/startListener", jobServiceUsername, jobServicePassword),
+        new ListenerCall("outcome-service", outcomeServiceUrl + "/StartPreprocessorListener", outcomeServiceUsername, outcomeServicePassword));
+  }
+
+  private void resetListenersInParallel(ListenerCall first, ListenerCall second) {
+    ExecutorService executor = Executors.newFixedThreadPool(2);
     try {
-      resetListeners(jobserviceServiceUrl + "/RM/startListener", jobServiceUsername, jobServicePassword);
-      resetListeners(outcomeServiceUrl + "/StartPreprocessorListener", outcomeServiceUsername, outcomeServicePassword);
+      List<Future<?>> futures = new ArrayList<>();
+      futures.add(executor.submit(() -> callListener(first)));
+      futures.add(executor.submit(() -> callListener(second)));
+      for (Future<?> future : futures) {
+        future.get();
+      }
     } catch (Exception e) {
-      throw new RuntimeException(e);
+      throw new RuntimeException("Failed to reset inbound adapters in parallel", e);
+    } finally {
+      executor.shutdown();
     }
   }
 
+  private void callListener(ListenerCall listenerCall) {
+    try {
+      resetListeners(listenerCall.url(), listenerCall.user(), listenerCall.password());
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to call listener: " + listenerCall.name(), e);
+    }
+  }
+
+  private record ListenerCall(String name, String url, String user, String password) {}
+
   public void resetListeners(String listenerUrl, String user, String password) throws Exception {
 
-    URL url = new URL(listenerUrl);
+    URL url = URI.create(listenerUrl).toURL();
     HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
 
-    if (!Strings.isNullOrEmpty(user)) {
+    if (user != null && !Strings.isNullOrEmpty(user)) {
       String auth = user + ":" + password;
       byte[] encodedAuth = Base64.getEncoder().encode(auth.getBytes(StandardCharsets.UTF_8));
       String authHeaderValue = "Basic " + new String(encodedAuth);
@@ -135,6 +198,15 @@ public final class QueueClient {
 
   public NodeCheck doPreFlightCheck() {
     return messagingTestClient.doMessagingPreFlightCheck();
+  }
+
+  private void recordResetOperation(String operationName, PerformanceTimingRecorder.HookOperation operation)
+      throws Exception {
+    if (performanceTimingRecorder == null) {
+      operation.run();
+      return;
+    }
+    performanceTimingRecorder.recordHookOperation(RESET_HOOK_NAME, operationName, operation);
   }
 
 }

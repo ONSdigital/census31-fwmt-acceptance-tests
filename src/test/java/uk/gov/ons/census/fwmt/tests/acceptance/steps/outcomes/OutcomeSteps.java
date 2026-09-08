@@ -27,7 +27,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 
-import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
@@ -40,6 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.common.events.data.GatewayEventDTO;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
+import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.OutcomeServiceRefreshUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.SpgReasonCodeLookup;
@@ -63,6 +63,8 @@ public class OutcomeSteps {
     private Map<String, String> expectedRmMessageMap = new HashMap<>();
     private String addressTypeChangeMsg;
     private String newCaseId;
+    private String scenarioCaseId;
+    private String scenarioTransactionId;
 
 
     private Collection<GatewayEventDTO> processingEvents;
@@ -70,8 +72,6 @@ public class OutcomeSteps {
     private Collection<GatewayEventDTO> rmOutcomeEvents;
 
     private Collection<GatewayEventDTO> jsOutcomeEvents;
-
-    private final static String caseId = "bd6345af-d706-43d3-a13b-8c549e081a76";
 
     // Pack code that outcome-service derives from questionnaireType HUAC1 (the value
     // hard-coded in FULFILMENT_REQUESTED-in.ftl) via its questionnaireTypeLookup.
@@ -112,8 +112,6 @@ public class OutcomeSteps {
     @Autowired
     private QueueClient queueClient;
 
-    @Autowired
-    private CommonUtils commonUtils;
 
     @Autowired
     private AcceptanceGatewayEventMonitor gatewayEventMonitor;
@@ -124,6 +122,9 @@ public class OutcomeSteps {
     @Autowired
     private OutcomeServiceRefreshUtils outcomeServiceRefreshUtils;
 
+    @Autowired
+    private PerformanceTimingRecorder performanceTimingRecorder;
+
     private final ObjectMapper jsonObjectMapper = new ObjectMapper();
 
     @Autowired
@@ -132,9 +133,10 @@ public class OutcomeSteps {
 
     @Before
     public void setup() throws Exception {
-
-        commonUtils.setup();
-      outcomeServiceRefreshUtils.enableDefaultOutcomeFeatureFlags();
+      performanceTimingRecorder.recordHookOperation(
+          "OutcomeSteps.setup",
+          "outcome-service-feature-flags",
+          outcomeServiceRefreshUtils::enableDefaultOutcomeFeatureFlags);
 
         surveyType = null;
         businessFunction = null;
@@ -151,11 +153,8 @@ public class OutcomeSteps {
         expectedRmMessageMap.clear();
         addressTypeChangeMsg = null;
         newCaseId = null;
-    }
-
-    @After
-    public void tearDownGatewayEventMonitor() throws Exception {
-      commonUtils.clearDown();
+        scenarioCaseId = UUID.randomUUID().toString();
+        scenarioTransactionId = UUID.randomUUID().toString();
     }
 
     @Given("an {string} {string} outcome message")
@@ -286,6 +285,8 @@ public class OutcomeSteps {
         // HUAC1, which outcome-service maps to pack code UACHHT1 before sending to RM.
         root.put("fulfilmentCode",
             "FULFILMENT_REQUESTED".equals(rmMessageType) ? FULFILMENT_REQUESTED_PACK_CODE : outcomeCode);
+        root.put("caseId", scenarioCaseId);
+        root.put("transactionId", scenarioTransactionId);
         root.put("newCaseId", newCaseId != null ? newCaseId : UUID.randomUUID().toString());
         root.put("surveyType", surveyType);
         root.put("usualResidents", usesCeSiteResidentCountZero() ? 0 : 5);
@@ -302,7 +303,7 @@ public class OutcomeSteps {
         JsonNode actualJson = jsonObjectMapper.readTree(addressTypeChangeMsg);
         JsonNode caseIdNode = actualJson.findPath("id");
         assertThat(caseIdNode!=null && !caseIdNode.isMissingNode()).isTrue();
-        assertThat(caseId.equals(caseIdNode.asText())).isTrue();
+        assertThat(scenarioCaseId.equals(caseIdNode.asText())).isTrue();
     }
 
     private void collectRmMessages() throws Exception {
@@ -311,10 +312,32 @@ public class OutcomeSteps {
           continue;
         }
         String queue = operationToQueue(rmMessageType);
-        String msg = queueClient.getMessageWithEventType(queue, rmMessageType, (int) CommonUtils.TIMEOUT, 50);
+        String msg = awaitRmMessage(queue, rmMessageType, "collectRmMessages");
         JsonNode actualMessageRootNode = jsonObjectMapper.readTree(msg);
         JsonNode typeNode = actualMessageRootNode.path("event").path("type");
         actualRmMessageMap.put(typeNode.asText(), msg);
+      }
+    }
+
+    private String awaitRmMessage(String queue, String rmMessageType, String phase) throws Exception {
+      performanceTimingRecorder.startRmMessageWait(
+          phase,
+          queue,
+          rmMessageType,
+          expectedRmMessages,
+          scenarioTransactionId,
+          getMessageCaseId(),
+          scenarioCaseId,
+          newCaseId,
+          (int) CommonUtils.TIMEOUT,
+          50);
+      try {
+        String msg = queueClient.getMessageWithEventType(queue, rmMessageType, (int) CommonUtils.TIMEOUT, 50);
+        performanceTimingRecorder.finishRmMessageWait(msg, null);
+        return msg;
+      } catch (Exception e) {
+        performanceTimingRecorder.finishRmMessageWait(null, e);
+        throw e;
       }
     }
 
@@ -331,8 +354,7 @@ public class OutcomeSteps {
         return;
       }
       String queue = operationToQueue("ADDRESS_TYPE_CHANGED");
-      String msg = queueClient.getMessageWithEventType(queue, "ADDRESS_TYPE_CHANGED",
-          (int) CommonUtils.TIMEOUT, 50);
+      String msg = awaitRmMessage(queue, "ADDRESS_TYPE_CHANGED", "resolveNewCaseIdFromAddressTypeChangedMessage");
       assertThat(msg).isNotNull();
       actualRmMessageMap.put("ADDRESS_TYPE_CHANGED", msg);
       addressTypeChangeMsg = msg;
@@ -345,7 +367,7 @@ public class OutcomeSteps {
       if (getMessageCaseId().equals(eventCaseId)) {
         return true;
       }
-      if ("NC".equals(surveyType) && caseId.equals(eventCaseId)) {
+      if ("NC".equals(surveyType) && scenarioCaseId.equals(eventCaseId)) {
         return true;
       }
       if (newCaseId != null && newCaseId.equals(eventCaseId)) {
@@ -360,7 +382,7 @@ public class OutcomeSteps {
      * {@link #newCaseId}.
      */
     private boolean matchesProcessingEventCaseId(String eventCaseId) {
-      if (caseId.equals(eventCaseId)) {
+      if (scenarioCaseId.equals(eventCaseId)) {
         return true;
       }
       if ("NC".equals(surveyType) && ncCaseId.equals(eventCaseId)) {
@@ -476,7 +498,7 @@ public class OutcomeSteps {
       JsonNode actualJson = jsonObjectMapper.readTree(addressTypeChangeMsg);
       JsonNode newCaseIdNode = actualJson.findPath("newCaseId");
       assertThat(newCaseIdNode!=null && !newCaseIdNode.isMissingNode()).isTrue();
-      assertThat(!caseId.equals(newCaseIdNode.asText())).isTrue();
+      assertThat(!scenarioCaseId.equals(newCaseIdNode.asText())).isTrue();
       newCaseId = newCaseIdNode.asText();
     }
 
@@ -607,7 +629,7 @@ public class OutcomeSteps {
         response = tmMockUtils.sendTMCENewStandaloneAddressResponseMessage(request);
         break;
       default:
-        response = tmMockUtils.sendTMCEResponseMessage(request, caseId);
+        response = tmMockUtils.sendTMCEResponseMessage(request, scenarioCaseId);
       }
       return response;
     }
@@ -622,7 +644,7 @@ public class OutcomeSteps {
         response = tmMockUtils.sendTMSPGNewStandaloneAddressResponseMessage(request);
         break;
       default:
-        response = tmMockUtils.sendTMSPGResponseMessage(request, caseId);
+        response = tmMockUtils.sendTMSPGResponseMessage(request, scenarioCaseId);
       }
       return response;
     }
@@ -637,7 +659,7 @@ public class OutcomeSteps {
         response = tmMockUtils.sendTMHHNewStandaloneAddressResponseMessage(request);
         break;
       default:
-        response = tmMockUtils.sendTMHHResponseMessage(request, caseId);
+        response = tmMockUtils.sendTMHHResponseMessage(request, scenarioCaseId);
       }
       return response;
     }
@@ -645,11 +667,13 @@ public class OutcomeSteps {
    private String getTmOutcomeRequest() throws Exception {
         Map<String, Object> root = new HashMap();
 
+       root.put("caseId", scenarioCaseId);
+       root.put("transactionId", scenarioTransactionId);
+
         String linkedQid = (hasLinkedQid) ? createOutcomeMessage("LINKED_QID", root) : null;
         String fulfilmentRequested = (hasFulfillmentRequest) ? createOutcomeMessage("FULFILMENT_REQUESTED", root) : null;
         String usualResidents = (hasUsualResidentsCount) ? createOutcomeMessage("USUAL_RESIDENTS", root) : null;
 
-        root.put("caseId", caseId);
         root.put("primaryOutcomeDescription", primaryOutcome);
         root.put("secondaryOutcomeDescription", secondaryOutcome);
         root.put("outcomeCode", outcomeCode);
@@ -748,10 +772,10 @@ public class OutcomeSteps {
         break;
       case "No Action":
       case "Cancel Feedback":
-        messageCaseId = "NC".equals(surveyType) ? ncCaseId : caseId;
+        messageCaseId = "NC".equals(surveyType) ? ncCaseId : scenarioCaseId;
         break;
       default:
-        messageCaseId = caseId;
+        messageCaseId = scenarioCaseId;
       }
       return messageCaseId;
     }
@@ -931,7 +955,7 @@ public class OutcomeSteps {
       JsonNode actualJson = jsonObjectMapper.readTree(addressTypeChangeMsg);
       JsonNode caseIdNode = actualJson.findPath("id");
       assertThat(caseIdNode!=null && !caseIdNode.isMissingNode()).isTrue();
-      assertThat(caseId.equals(caseIdNode.asText())).isFalse();
+      assertThat(scenarioCaseId.equals(caseIdNode.asText())).isFalse();
       newCaseId = caseIdNode.asText();
     }
 
@@ -945,12 +969,12 @@ public class OutcomeSteps {
       String ceSpgEstabCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgEstabCreate.json"), Charsets.UTF_8);
       JSONObject json = new JSONObject(ceSpgEstabCreateJson);
 
-      commonRMMessageObjects(json, caseId, "1234", "F", "F", false);
+      commonRMMessageObjects(json, scenarioCaseId, "1234", "F", "F", false);
 
       String request = json.toString(4);
       log.info("Request = " + request);
       queueClient.sendToRMFieldQueue(request, "create");
-      boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
+      boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(scenarioCaseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
       assertThat(hasBeenTriggered).isTrue();
 
 
@@ -968,20 +992,20 @@ public class OutcomeSteps {
 
       JSONObject json = new JSONObject(parentCreate);
 
-      commonRMMessageObjects(json, caseId, "1234", "F", "F", false);
+      commonRMMessageObjects(json, scenarioCaseId, "1234", "F", "F", false);
 
-      json.put("oldCaseId", "bd6345af-d706-43d3-a13b-8c549e081a76");
+      json.put("oldCaseId", scenarioCaseId);
 
       String request = json.toString(4);
       log.info("Request = " + request);
       queueClient.sendToRMFieldQueue(request, "create");
-      boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
+      boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(scenarioCaseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
       assertThat(hasBeenTriggered).isTrue();
     }
 
     @And("an NC create case already exists")
     public void an_nc_create_case_exists() throws Exception {
-      tmMockUtils.addNcToDatabase(ncCaseId, caseId);
+      tmMockUtils.addNcToDatabase(ncCaseId, scenarioCaseId);
     }
 
     private JSONObject commonRMMessageObjects(JSONObject json, String caseId, String caseRef, String isSecure, String isHandDeliver, boolean extraObjects){
@@ -1005,6 +1029,9 @@ public class OutcomeSteps {
       json.remove("caseRef");
       json.put("caseRef", caseRef);
 
+      json.remove("caseId");
+      json.put("caseId", caseId);
+
       if ("HH".equals(json.optString("addressType"))) {
         json.put("addressLevel", "U");
       }
@@ -1015,9 +1042,6 @@ public class OutcomeSteps {
 
         json.remove("uprn");
         json.put("uprn", json.get("estabUprn"));
-
-        json.remove("caseId");
-        json.put("caseId", caseId);
       }
 
       return json;

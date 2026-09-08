@@ -9,14 +9,13 @@ import java.io.StringWriter;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 
 import org.springframework.beans.factory.annotation.Autowired;
 
-import io.cucumber.java.After;
-import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
@@ -40,8 +39,6 @@ public class FeedbackSteps {
   @Autowired
   private QueueClient queueClient;
 
-  @Autowired
-  private CommonUtils commonUtils;
 
   @Autowired
   private AcceptanceGatewayEventMonitor gatewayEventMonitor;
@@ -53,16 +50,6 @@ public class FeedbackSteps {
   private final String surveyType = "spg";
 
   private static final String COMET_CREATE_ACK = "COMET_CREATE_ACK";
-
-  @Before
-  public void setup() throws Exception {
-    commonUtils.setup();
-  }
-
-  @After
-  public void clearDown() throws Exception {
-    commonUtils.clearDown();
-  }
 
   @Given("a job has been created in TM with case id {string}")
   public void aJobHasBeenCreatedInTMWithCaseId(String caseId) throws IOException, URISyntaxException {
@@ -76,6 +63,8 @@ public class FeedbackSteps {
   @And("tm sends a {string} outcome")
   public void tmSendsAOutcome(String type) {
     Map<String, Object> inputRoot = new HashMap<>();
+    inputRoot.put("caseId", caseId);
+    inputRoot.put("transactionId", UUID.randomUUID().toString());
     if (type.equals("CANCEL_FEEDBACK")) {
       inputRoot.put("primaryOutcomeDescription", "Engagement - Contact made");
       inputRoot.put("secondaryOutcomeDescription", "Visit - Hard refusal");

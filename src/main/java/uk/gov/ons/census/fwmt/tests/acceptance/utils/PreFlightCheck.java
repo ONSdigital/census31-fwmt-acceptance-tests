@@ -1,17 +1,17 @@
 package uk.gov.ons.census.fwmt.tests.acceptance.utils;
 
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-
-import com.google.common.base.Strings;
 
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck.NodeCheckBuilder;
@@ -65,17 +65,34 @@ public class PreFlightCheck {
     checks.add(checkService("job-service", jobserviceServiceUrl+"/swagger-ui.html", jobServiceUsername, jobServicePassword));
     checks.add(checkService("tm-service", tmServiceUrl + TM_HEALTHCHECK_PATH, tmServiceUsername, tmServicePassword));
     checks.add(tmMockUtils.checkDbUp());
-    checks.stream().forEach(n -> System.out.println(n.toString()));
+
+    checks.forEach(check -> log.info("{}", check));
+
+    List<NodeCheck> failures =
+        checks.stream().filter(check -> !check.isSuccesful()).collect(Collectors.toList());
+    if (!failures.isEmpty()) {
+      String failureSummary =
+          failures.stream()
+              .map(
+                  check ->
+                      String.format(
+                          "%s (%s): %s",
+                          check.getName(),
+                          check.getUrl(),
+                          check.getFailureMsg()))
+              .collect(Collectors.joining("; "));
+      throw new IllegalStateException("Pre-flight checks failed: " + failureSummary);
+    }
   }
 
   public NodeCheck checkService(String name, String address, String user, String password){
     NodeCheckBuilder builder = NodeCheck.builder().name(name).url(address);
     
     try {
-      URL url = new URL(address);
+      URL url = URI.create(address).toURL();
       HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
 
-      if (!Strings.isNullOrEmpty(user)) {
+      if (user != null && !user.isEmpty()) {
         String auth = user + ":" + password;
         byte[] encodedAuth = Base64.getEncoder().encode(auth.getBytes(StandardCharsets.UTF_8));
         String authHeaderValue = "Basic " + new String(encodedAuth);

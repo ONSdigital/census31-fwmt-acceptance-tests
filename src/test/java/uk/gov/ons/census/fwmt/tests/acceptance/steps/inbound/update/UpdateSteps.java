@@ -17,7 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 
-import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
@@ -28,6 +27,7 @@ import uk.gov.ons.census.fwmt.common.events.data.GatewayEventDTO;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
+import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 
 import java.time.OffsetDateTime;
 
@@ -35,13 +35,15 @@ import java.time.OffsetDateTime;
 @Slf4j
 public class UpdateSteps {
 
-  private CommonUtils commonUtils;
 
   @Autowired
   private QueueClient queueClient;
 
   @Autowired
   private AcceptanceGatewayEventMonitor gatewayEventMonitor;
+
+  @Autowired
+  private PerformanceTimingRecorder performanceTimingRecorder;
 
   private static final String RM_UPDATE_REQUEST_RECEIVED = "RM_UPDATE_REQUEST_RECEIVED";
 
@@ -89,23 +91,17 @@ public class UpdateSteps {
 
   @Before
   public void setup() throws Exception {
-    ceSpgEstabCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgEstabCreate.json"), Charsets.UTF_8);
-    ceSpgUnitCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgUnitCreate.json"), Charsets.UTF_8);
-
-    ceSpgEstabUpdateJson = Resources.toString(Resources.getResource("files/input/spg/spgEstabUpdate.json"), Charsets.UTF_8);
-    ceSpgUnitUpdateJson = Resources.toString(Resources.getResource("files/input/spg/spgUnitUpdate.json"), Charsets.UTF_8);
-    ceEstabUpdateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabUpdate.json"), Charsets.UTF_8);
-    ceUnitUpdateJson = Resources.toString(Resources.getResource("files/input/ce/ceUnitUpdate.json"), Charsets.UTF_8);
-    
-    hhUpdateJson = Resources.toString(Resources.getResource("files/input/hh/hhUpdate.json"), Charsets.UTF_8);
-    hhPauseCaseJson = Resources.toString(Resources.getResource("files/input/hh/hhPauseCase.json"), Charsets.UTF_8);
-    //    commonUtils.setup();
+    performanceTimingRecorder.recordHookOperation("UpdateSteps.setup", "load-update-templates", () -> {
+      ceSpgEstabCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgEstabCreate.json"), Charsets.UTF_8);
+      ceSpgUnitCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgUnitCreate.json"), Charsets.UTF_8);
+      ceSpgEstabUpdateJson = Resources.toString(Resources.getResource("files/input/spg/spgEstabUpdate.json"), Charsets.UTF_8);
+      ceSpgUnitUpdateJson = Resources.toString(Resources.getResource("files/input/spg/spgUnitUpdate.json"), Charsets.UTF_8);
+      ceEstabUpdateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabUpdate.json"), Charsets.UTF_8);
+      ceUnitUpdateJson = Resources.toString(Resources.getResource("files/input/ce/ceUnitUpdate.json"), Charsets.UTF_8);
+      hhUpdateJson = Resources.toString(Resources.getResource("files/input/hh/hhUpdate.json"), Charsets.UTF_8);
+      hhPauseCaseJson = Resources.toString(Resources.getResource("files/input/hh/hhPauseCase.json"), Charsets.UTF_8);
+    });
  }
-
-  @After
-  public void clearDown() throws Exception {
-//    commonUtils.clearDown();
-  }
 
   @And("RM sends an update case request for the case")
   public void rmSendsUpdate() throws URISyntaxException {

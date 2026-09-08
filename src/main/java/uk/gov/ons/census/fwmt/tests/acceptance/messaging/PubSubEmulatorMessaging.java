@@ -1,7 +1,11 @@
 package uk.gov.ons.census.fwmt.tests.acceptance.messaging;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
@@ -10,8 +14,10 @@ import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import uk.gov.ons.census.fwmt.common.messaging.FieldWorkerInstructionJsonCodec;
+import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 
 @Slf4j
@@ -29,7 +35,21 @@ public class PubSubEmulatorMessaging implements MessagingTestClient {
   @Value("${fwmt.pubsub.emulatorHost:localhost:8085}")
   private String pubsubEmulatorHost;
 
+  @Autowired
+  private PerformanceTimingRecorder performanceTimingRecorder;
+
   private PubSubEmulatorHttp http;
+  private final Map<PubSubTestLane, Deque<String>> bufferedMessages =
+      new EnumMap<>(PubSubTestLane.class);
+
+  PubSubEmulatorMessaging() {
+  }
+
+  PubSubEmulatorMessaging(
+      PubSubEmulatorHttp http, PerformanceTimingRecorder performanceTimingRecorder) {
+    this.http = http;
+    this.performanceTimingRecorder = performanceTimingRecorder;
+  }
 
   private PubSubEmulatorHttp http() {
     if (http == null) {
@@ -49,7 +69,10 @@ public class PubSubEmulatorMessaging implements MessagingTestClient {
   public String getMessage(String logicalQueue, int msTimeout, int msInterval) throws InterruptedException {
     PubSubTestLane lane = PubSubTestLane.forLogicalQueue(logicalQueue)
         .orElseThrow(() -> new IllegalArgumentException("No Pub/Sub test lane for queue: " + logicalQueue));
-    String message = null;
+    String message = removeFirstBuffered(lane);
+    if (message != null) {
+      return message;
+    }
     int iterations = (msTimeout + msInterval - 1) / msInterval;
     for (int i = 0; i < iterations; i++) {
       message = pullOneMessage(lane, true);
@@ -80,7 +103,10 @@ public class PubSubEmulatorMessaging implements MessagingTestClient {
   @Override
   public void purge(String... logicalQueues) {
     for (String queue : logicalQueues) {
-      PubSubTestLane.forLogicalQueue(queue).ifPresent(this::drainSubscription);
+      PubSubTestLane.forLogicalQueue(queue).ifPresent(lane -> {
+        clearBuffered(lane);
+        drainSubscription(lane);
+      });
     }
   }
 
@@ -119,21 +145,33 @@ public class PubSubEmulatorMessaging implements MessagingTestClient {
   }
 
   String pullMessageWithEventType(PubSubTestLane lane, String expectedEventType, int msTimeout, int msInterval) {
+    String bufferedMatch = removeBuffered(lane, expectedEventType);
+    if (bufferedMatch != null) {
+      return bufferedMatch;
+    }
+
     int iterations = Math.max(1, (msTimeout + msInterval - 1) / msInterval);
     for (int i = 0; i < iterations; i++) {
       List<PubSubEmulatorHttp.ReceivedPubSubMessage> batch = http().pull(lane.testSubscription(), 10, true);
       if (!batch.isEmpty()) {
+        String matchedMessage = null;
         List<String> ackIds = new java.util.ArrayList<>();
         for (PubSubEmulatorHttp.ReceivedPubSubMessage received : batch) {
-          String eventType = parseEventType(received.data());
-          if (expectedEventType.equals(eventType)) {
-            http().acknowledge(lane.testSubscription(), List.of(received.ackId()));
-            return received.data();
-          }
-          http().publish(lane.topic(), received.data(), Map.of("contentType", "application/json"));
           ackIds.add(received.ackId());
+          String eventType = parseEventType(received.data());
+          if (matchedMessage == null && expectedEventType.equals(eventType)) {
+            matchedMessage = received.data();
+          } else {
+            buffer(lane, received.data());
+          }
         }
         http().acknowledge(lane.testSubscription(), ackIds);
+        performanceTimingRecorder.recordRmMessagePull(batch.size(), 0, matchedMessage != null);
+        if (matchedMessage != null) {
+          return matchedMessage;
+        }
+      } else {
+        performanceTimingRecorder.recordRmMessagePull(0, 0, false);
       }
       try {
         Thread.sleep(msInterval);
@@ -143,6 +181,35 @@ public class PubSubEmulatorMessaging implements MessagingTestClient {
       }
     }
     return null;
+  }
+
+  private synchronized void buffer(PubSubTestLane lane, String message) {
+    bufferedMessages.computeIfAbsent(lane, ignored -> new ArrayDeque<>()).addLast(message);
+  }
+
+  private synchronized String removeFirstBuffered(PubSubTestLane lane) {
+    Deque<String> messages = bufferedMessages.get(lane);
+    return messages == null ? null : messages.pollFirst();
+  }
+
+  private synchronized String removeBuffered(PubSubTestLane lane, String expectedEventType) {
+    Deque<String> messages = bufferedMessages.get(lane);
+    if (messages == null) {
+      return null;
+    }
+    Iterator<String> iterator = messages.iterator();
+    while (iterator.hasNext()) {
+      String message = iterator.next();
+      if (expectedEventType.equals(parseEventType(message))) {
+        iterator.remove();
+        return message;
+      }
+    }
+    return null;
+  }
+
+  private synchronized void clearBuffered(PubSubTestLane lane) {
+    bufferedMessages.remove(lane);
   }
 
   private long countAvailableMessages(PubSubTestLane lane) {

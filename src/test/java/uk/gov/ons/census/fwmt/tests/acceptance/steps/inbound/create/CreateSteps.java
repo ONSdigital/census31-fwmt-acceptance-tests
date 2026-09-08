@@ -16,7 +16,6 @@ import org.springframework.web.client.HttpClientErrorException;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 
-import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
@@ -28,6 +27,7 @@ import uk.gov.ons.census.fwmt.common.events.data.GatewayEventDTO;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
+import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.TMMockUtils;
 
 @Slf4j
@@ -67,21 +67,17 @@ public class CreateSteps {
   private QueueClient queueClient;
 
   @Autowired
-  private CommonUtils commonUtils;
+  private PerformanceTimingRecorder performanceTimingRecorder;
 
   @Before
   public void setup() throws Exception {
-    ceSpgEstabCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgEstabCreate.json"), Charsets.UTF_8);
-    ceSpgUnitCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgUnitCreate.json"), Charsets.UTF_8);
-    ceEstabCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabCreate.json"), Charsets.UTF_8);
-    ceUnitCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceUnitCreate.json"), Charsets.UTF_8);
-    hhCreateJson = Resources.toString(Resources.getResource("files/input/hh/hhCreate.json"), Charsets.UTF_8);
-    commonUtils.setup();
-  }
-
-  @After
-  public void clearDown() throws Exception {
-    commonUtils.clearDown();
+    performanceTimingRecorder.recordHookOperation("CreateSteps.setup", "load-create-templates", () -> {
+      ceSpgEstabCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgEstabCreate.json"), Charsets.UTF_8);
+      ceSpgUnitCreateJson = Resources.toString(Resources.getResource("files/input/spg/spgUnitCreate.json"), Charsets.UTF_8);
+      ceEstabCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceEstabCreate.json"), Charsets.UTF_8);
+      ceUnitCreateJson = Resources.toString(Resources.getResource("files/input/ce/ceUnitCreate.json"), Charsets.UTF_8);
+      hhCreateJson = Resources.toString(Resources.getResource("files/input/hh/hhCreate.json"), Charsets.UTF_8);
+    });
   }
 
   @Given("a TM doesnt have a job with case ID {string} in TM")
@@ -254,13 +250,13 @@ public class CreateSteps {
   @Then("a new case is created of the right {string}")
   public void a_new_case_is_created_of_the_right_type(String expectedSurveyType) {
     String actualSurveyType = event_COMET_CREATE_PRE_SENDING.getMetadata().get("Survey Type");
-    assertEquals("Survey Types created for TM", expectedSurveyType, actualSurveyType);
+    assertEquals(expectedSurveyType, actualSurveyType, "Survey Types created for TM");
   }
 
   @And("the right caseRef {string}")
   public void and_the_right_caseref(String expectedCaseRef) {
     String actualCaseRef = event_COMET_CREATE_PRE_SENDING.getMetadata().get("Case Ref");
-    assertEquals("Case Ref created for TM", expectedCaseRef, actualCaseRef);
+    assertEquals(expectedCaseRef, actualCaseRef, "Case Ref created for TM");
   }
 
   @Then("a new case with id of {string} is created in TM")
