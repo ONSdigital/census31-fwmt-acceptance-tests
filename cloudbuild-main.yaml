@@ -68,3 +68,61 @@ steps:
           projects/c31-fwmtg-ci-prod/topics/service-build-events \
           --message="{}" \
           --attribute=REPO_NAME=census31-fwmt-acceptance-tests,SHORT_SHA=$${EFFECTIVE_VERSION},STATUS=SUCCESS,DEPLOY_REQUESTED=false
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    id: "mint github app token"
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        app_id="$(gcloud secrets versions access latest --secret=github-app-id --project=${_CI_PROJECT_ID})"
+        installation_id="$(gcloud secrets versions access latest --secret=github-app-installation-id --project=${_CI_PROJECT_ID})"
+        gcloud secrets versions access latest --secret=github-app-private-key --project=${_CI_PROJECT_ID} > /workspace/github-app-key.pem
+        chmod 600 /workspace/github-app-key.pem
+
+        b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+
+        iat=$(( $(date +%s) - 60 ))
+        exp=$(( iat + 600 ))
+        header=$(printf '{"alg":"RS256","typ":"JWT"}' | b64url)
+        payload=$(printf '{"iat":%s,"exp":%s,"iss":"%s"}' "$$iat" "$$exp" "$$app_id" | b64url)
+        signature=$(printf '%s.%s' "$$header" "$$payload" | openssl dgst -sha256 -sign /workspace/github-app-key.pem | b64url)
+        jwt="$$header.$$payload.$$signature"
+        rm -f /workspace/github-app-key.pem
+
+        response=$(curl -sf -X POST \
+          -H "Authorization: Bearer $$jwt" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/app/installations/$$installation_id/access_tokens")
+
+        python3 -c "import json,sys; print(json.loads(sys.argv[1])['token'])" "$$response" > /workspace/github-token.txt
+        chmod 600 /workspace/github-token.txt
+
+  - name: "gcr.io/cloud-builders/git"
+    id: "Tag release commit"
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        EFFECTIVE_VERSION="$(cat /workspace/effective-version.txt)"
+        token="$(cat /workspace/github-token.txt)"
+        git_basic_auth="$(printf 'x-access-token:%s' "$$token" | openssl base64 -A)"
+
+        git config user.name "census31-fwmtg-ci[bot]"
+        git config user.email "census31-fwmtg-ci[bot]@users.noreply.github.com"
+        git config http.extraHeader "Authorization: Basic $$git_basic_auth"
+        git remote set-url origin "https://github.com/ONSdigital/census31-fwmt-acceptance-tests.git"
+
+        HEAD_SHA="$(git rev-parse HEAD)"
+        REMOTE_TAG_SHA="$(git ls-remote --tags origin "refs/tags/$${EFFECTIVE_VERSION}^{}" | awk 'NR==1 {print $1}')"
+        if [[ -n "$${REMOTE_TAG_SHA}" ]]; then
+          if [[ "$${REMOTE_TAG_SHA}" != "$${HEAD_SHA}" ]]; then
+            echo "ERROR: tag $${EFFECTIVE_VERSION} already exists on $${REMOTE_TAG_SHA}, expected $${HEAD_SHA}" >&2
+            exit 1
+          fi
+          echo "Tag $${EFFECTIVE_VERSION} already exists on HEAD; skipping push."
+          exit 0
+        fi
+
+        git tag -a "$${EFFECTIVE_VERSION}" -m "Release $${EFFECTIVE_VERSION}"
+        git push origin "refs/tags/$${EFFECTIVE_VERSION}"
