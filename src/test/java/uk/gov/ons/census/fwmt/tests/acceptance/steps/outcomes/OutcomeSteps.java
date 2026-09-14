@@ -200,7 +200,13 @@ public class OutcomeSteps {
     @When("Gateway receives message with No Content Response")
     public void gateway_processes_the_hidden_outcome() throws Exception {
         sendTMOutcomeMessage(204);
-        confirmOutcomeServiceReceivesMessage();
+    }
+
+    @Then("the outcome is ignored due to the feature flag")
+    public void the_outcome_is_ignored_due_to_the_feature_flag() {
+      String messageCaseId = getMessageCaseId();
+      assertThat(gatewayEventMonitor.hasEventTriggered(messageCaseId, getOutcomeReceivedEventName(), 1000L)).isFalse();
+      assertThat(gatewayEventMonitor.hasEventTriggered(messageCaseId, PROCESSING_OUTCOME, 1000L)).isFalse();
     }
 
     private void collectProcessingEvents() {
@@ -739,28 +745,25 @@ public class OutcomeSteps {
     }
 
    private void confirmOutcomeServiceReceivesMessage() {
-     String event = null;
-     switch (surveyType) {
-     case "SPG":
-       event = getSpgRequestReceivedEventName();
-         break;
-     case "CE":
-       event = getCeRequestReceivedEventName();
-         break;
-     case "HH":
-       event = getHhRequestReceivedEventName();
-         break;
-     case "NC":
-       event = COMET_NC_OUTCOME_RECEIVED;
-         break;
-     default:
-         break;
-     }
-
      String messageCaseId = getMessageCaseId();
-     boolean isMsgRecieved = gatewayEventMonitor.hasEventTriggered(messageCaseId, event, CommonUtils.TIMEOUT);
+     boolean isMsgRecieved = gatewayEventMonitor.hasEventTriggered(messageCaseId, getOutcomeReceivedEventName(), CommonUtils.TIMEOUT);
      assertThat(isMsgRecieved).isTrue();
  }
+
+    private String getOutcomeReceivedEventName() {
+      switch (surveyType) {
+      case "SPG":
+        return getSpgRequestReceivedEventName();
+      case "CE":
+        return getCeRequestReceivedEventName();
+      case "HH":
+        return getHhRequestReceivedEventName();
+      case "NC":
+        return COMET_NC_OUTCOME_RECEIVED;
+      default:
+        throw new IllegalStateException("Unsupported survey type for outcome event: " + surveyType);
+      }
+    }
 
     private String getMessageCaseId() {
       String messageCaseId;
