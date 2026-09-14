@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Properties;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.support.PropertiesLoaderUtils;
@@ -16,11 +15,6 @@ import org.springframework.core.env.StandardEnvironment;
 class GcpProfilePropertyResolutionTest {
 
   private static final String ENV_PROPERTY = "FWMT_PUBSUB_PROJECT";
-
-  @AfterEach
-  void clearOverrides() {
-    System.clearProperty(ENV_PROPERTY);
-  }
 
   @Test
   void shouldResolvePubSubProjectFromOverrideInGcpInclusterProfile() throws IOException {
@@ -35,16 +29,16 @@ class GcpProfilePropertyResolutionTest {
   }
 
   private String resolvePubSubProject(String resourcePath, String overrideValue) throws IOException {
-    if (overrideValue == null) {
-      System.clearProperty(ENV_PROPERTY);
-    } else {
-      System.setProperty(ENV_PROPERTY, overrideValue);
-    }
-
     Properties properties =
         PropertiesLoaderUtils.loadProperties(new ClassPathResource(resourcePath));
 
     ConfigurableEnvironment environment = new StandardEnvironment();
+    environment
+        .getPropertySources()
+        .remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME);
+    environment
+        .getPropertySources()
+        .remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME);
     if (overrideValue != null) {
       environment
         .getPropertySources()
