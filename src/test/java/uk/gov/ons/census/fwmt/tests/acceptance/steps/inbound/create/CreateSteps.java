@@ -371,6 +371,11 @@ public class CreateSteps {
 
         json.remove("caseId");
         json.put("caseId", caseId);
+
+        if (json.optString("estabUprn") != null && !json.optString("estabUprn").isEmpty()) {
+          json.remove("uprn");
+          json.put("uprn", json.get("estabUprn"));
+        }
       }
     }
 
