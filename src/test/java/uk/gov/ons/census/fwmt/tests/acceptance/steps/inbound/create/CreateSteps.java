@@ -23,6 +23,7 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.common.data.tm.Case;
+import uk.gov.ons.census.fwmt.common.data.tm.SurveyType;
 import uk.gov.ons.census.fwmt.common.events.data.GatewayEventDTO;
 import uk.gov.ons.census.fwmt.common.rm.dto.ActionInstructionType;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
@@ -116,8 +117,12 @@ public class CreateSteps {
     tmMockUtils.addToDatabase("cached-ce-unit-case", true, Integer.parseInt(estabUprn), 3);
   }
 
-  @And("RM sends a create job request with {string} {string} {string} {string} {string}")
-  public void rmSendsACECreateJobRequest(String caseRef, String survey, String type, String isSecure, String isHandDeliver) throws Exception {
+  @And("RM sends a create job request with {string} {string} {string} {string} {string} {string}")
+  public void rmSendsACECreateJobRequest(String caseRef, String survey, String type, String isSecure, String isHandDeliver, String surveyType) throws Exception {
+    createAndSendACECreateJobRequest(caseRef, survey, type, isSecure, isHandDeliver, surveyType);
+  }
+
+  private void createAndSendACECreateJobRequest(String caseRef, String survey, String type, String isSecure, String isHandDeliver, String surveyType) throws Exception {
     testBucket.put("survey", survey);
     testBucket.put("type", type);
 
@@ -125,13 +130,18 @@ public class CreateSteps {
 
     JSONObject json = new JSONObject(getCreateRMJson());
 
-    commonRMMessageObjects(json, caseId, caseRef, isSecure, isHandDeliver, false);
+    commonRMMessageObjects(json, caseId, caseRef, isSecure, isHandDeliver, true, surveyType);
 
     String request = json.toString(4);
     log.info("Request = " + request);
     queueClient.sendToRMFieldQueue(request, "create");
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
+  }
+
+  @And("RM sends a create job request with {string} {string} {string} {string} {string}")
+  public void rmSendsACECreateJobRequest(String caseRef, String survey, String type, String isSecure, String isHandDeliver) throws Exception {
+    createAndSendACECreateJobRequest(caseRef, survey, type, isSecure, isHandDeliver, null);
   }
 
   @Given("RM sends a HH create job request")
@@ -141,7 +151,7 @@ public class CreateSteps {
 
     JSONObject json = new JSONObject(getCreateRMJson());
 
-    commonRMMessageObjects(json, caseId, "12345", "F", "F", true);
+    commonRMMessageObjects(json, caseId, "12345", "F", "F", true, null);
     
     String request = json.toString(4);
     log.info("Request = " + request);
@@ -162,7 +172,7 @@ public class CreateSteps {
 
     JSONObject json = new JSONObject(getCreateRMJson());
 
-    commonRMMessageObjects(json, caseId, caseRef, "F", "F", true);
+    commonRMMessageObjects(json, caseId, caseRef, "F", "F", true, null);
     json.remove("oa");
     json.put("oa", oa);
     
@@ -183,7 +193,7 @@ public class CreateSteps {
 
     JSONObject json = new JSONObject(getCreateRMJson());
 
-    commonRMMessageObjects(json, caseId, caseRef, isSecure, isHandDeliver, true);
+    commonRMMessageObjects(json, caseId, caseRef, isSecure, isHandDeliver, true, null);
 
     String request = json.toString(4);
     log.info("Request = " + request);
@@ -201,7 +211,7 @@ public class CreateSteps {
 
     JSONObject json = new JSONObject(getCreateRMJson());
 
-    commonRMMessageObjects(json, caseId, caseRef, isSecure, isHandDeliver, false);
+    commonRMMessageObjects(json, caseId, caseRef, isSecure, isHandDeliver, false, null);
     json.remove("uprn");
     json.put("uprn", json.get("estabUprn"));
 
@@ -223,7 +233,7 @@ public class CreateSteps {
 
     JSONObject json = new JSONObject(getCreateRMJson());
 
-    commonRMMessageObjects(json, caseId, caseRef, isSecure, isHandDeliver, true);
+    commonRMMessageObjects(json, caseId, caseRef, isSecure, isHandDeliver, true, null);
 
     String request = json.toString(4);
     log.info("Request = " + request);
@@ -325,7 +335,7 @@ public class CreateSteps {
     return json;
   }
 
-  private JSONObject commonRMMessageObjects(JSONObject json, String caseId, String caseRef, String isSecure, String isHandDeliver, boolean extraObjects){
+  private JSONObject commonRMMessageObjects(JSONObject json, String caseId, String caseRef, String isSecure, String isHandDeliver, boolean extraObjects, String surveyType){
 
     json.remove("caseRef");
     json.put("caseRef", caseRef);
@@ -348,17 +358,16 @@ public class CreateSteps {
       if ("T".equals(isHandDeliver)) {
         json.remove("handDeliver");
         json.put("handDeliver", true);
-      } else {
-        json.remove("handDeliver");
-        json.put("handDeliver", false);
       }
 
-      if (extraObjects == true) {
+      if (SurveyType.CE_ESTWU.toString().equals(surveyType)) {
+        json.remove("ceExpectedCapacity");
+        json.put("ceExpectedCapacity", 0);
+      }
+
+      if (extraObjects) {
         json.remove("caseRef");
         json.put("caseRef", caseRef);
-
-        json.remove("uprn");
-        json.put("uprn", json.get("estabUprn"));
 
         json.remove("caseId");
         json.put("caseId", caseId);
