@@ -10,7 +10,6 @@
   "fieldCoordinatorId":"SH-TWH1-ZJ",
   "organisationName":"",
   "uprn":"6031151",
-  "estabUprn":"6123456",
   "addressLine1":"Flat 20RAHD",
   "addressLine2":"Fairlead House",
   "addressLine3":"Cassilis Road",
@@ -19,11 +18,7 @@
   "oa":"E00167164",
   "latitude":51.497421,
   "longitude":-0.0222139,
-  "ce1Complete":false,
-  "handDeliver":false,
-  "ceExpectedCapacity":null,
+  "ceExpectedCapacity":10,
   "ceActualResponses":0,
-  "undeliveredAsAddress":false,
-  "blankFormReturned":null,
-  "secureEstablishment":false
+  "secureEstablishment": false
 }
