@@ -360,6 +360,8 @@ echo "Bootstrapping Pub/Sub emulator at ${PUBSUB_HOST}:${PUBSUB_PORT} (project=$
 TOPICS=(
   "RM.Field"
   "RM.FieldDLQ"
+  "event_fulfilment-request"
+  "event_fieldwork_action-instruction"
   "GW.Field"
   "GW.Permanent.ErrorQ"
   "GW.Transient.ErrorQ"
@@ -391,6 +393,7 @@ SUBS=(
   "outcome-service:Outcome.PreprocessingDLQ"
   "outcome-service:events"
   "fulfilment-event-service:events"
+  "fulfilment-event-service-fulfilment-request:event_fulfilment-request"
 )
 
 for pair in "${SUBS[@]}"; do
@@ -408,6 +411,7 @@ done
 ACCEPTANCE_TEST_SUBS=(
   "acceptance-tests-RM-Field:RM.Field"
   "acceptance-tests-RM-FieldDLQ:RM.FieldDLQ"
+  "acceptance-tests-fieldwork-action-instruction:event_fieldwork_action-instruction"
   "acceptance-tests-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
   "acceptance-tests-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
   "acceptance-tests-Outcome-Preprocessing:Outcome.Preprocessing"
