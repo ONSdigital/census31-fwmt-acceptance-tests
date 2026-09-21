@@ -76,6 +76,8 @@ services:
 
         put_topic 'RM.Field'
         put_topic 'RM.FieldDLQ'
+        put_topic 'event_fulfilment-request'
+        put_topic 'event_fieldwork_action-instruction'
         put_topic 'GW.Field'
         put_topic 'GW.Permanent.ErrorQ'
         put_topic 'GW.Transient.ErrorQ'
@@ -100,9 +102,11 @@ services:
         put_sub 'outcome-service-Outcome-PreprocessingDLQ' 'Outcome.PreprocessingDLQ'
         put_sub 'outcome-service-events' 'events'
         put_sub 'fulfilment-event-service-events' 'events'
+        put_sub 'fulfilment-event-service-fulfilment-request' 'event_fulfilment-request'
 
         put_sub 'acceptance-tests-RM-Field' 'RM.Field'
         put_sub 'acceptance-tests-RM-FieldDLQ' 'RM.FieldDLQ'
+        put_sub 'acceptance-tests-fieldwork-action-instruction' 'event_fieldwork_action-instruction'
         put_sub 'acceptance-tests-GW-Transient-ErrorQ' 'GW.Transient.ErrorQ'
         put_sub 'acceptance-tests-GW-Permanent-ErrorQ' 'GW.Permanent.ErrorQ'
         put_sub 'acceptance-tests-Outcome-Preprocessing' 'Outcome.Preprocessing'
