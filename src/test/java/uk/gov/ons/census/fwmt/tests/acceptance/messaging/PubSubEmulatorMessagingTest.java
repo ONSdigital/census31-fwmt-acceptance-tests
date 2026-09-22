@@ -13,6 +13,27 @@ import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 class PubSubEmulatorMessagingTest {
 
   @Test
+  void shouldReturnObservedMessageWithAttributes() throws InterruptedException {
+    RecordingPubSubEmulatorHttp http = new RecordingPubSubEmulatorHttp();
+    http.enqueuePull(
+        List.of(
+            new PubSubEmulatorHttp.ReceivedPubSubMessage(
+                "ack-1",
+                "{\"actionInstruction\":\"PAUSE\"}",
+                Map.of("eventType", "FIELDWORK_ACTION_INSTRUCTION", "caseId", "case-123"))));
+    PubSubEmulatorMessaging client =
+        new PubSubEmulatorMessaging(http, new PerformanceTimingRecorder());
+
+    MessagingTestClient.ObservedMessage observedMessage =
+        client.getObservedMessage("event_fieldwork_action-instruction_internal", 100, 10);
+
+    assertThat(observedMessage.body()).contains("PAUSE");
+    assertThat(observedMessage.attributes())
+        .containsEntry("eventType", "FIELDWORK_ACTION_INSTRUCTION")
+        .containsEntry("caseId", "case-123");
+  }
+
+  @Test
   void shouldSettleEntireBatchAndBufferMessagesForLaterExpectedTypes() throws InterruptedException {
     RecordingPubSubEmulatorHttp http = new RecordingPubSubEmulatorHttp();
     http.enqueuePull(

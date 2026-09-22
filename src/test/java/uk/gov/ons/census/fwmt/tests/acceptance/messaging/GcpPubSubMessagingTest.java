@@ -77,6 +77,26 @@ class GcpPubSubMessagingTest {
   }
 
   @Test
+  void shouldObserveInternalActionInstructionAttributes() throws InterruptedException {
+    RecordingPubSubOperations operations = new RecordingPubSubOperations();
+    operations.enqueuePull(
+        "acceptance-tests-fieldwork-action-instruction-internal",
+        List.of(new GcpPubSubMessaging.TestMessage(
+            "ack-1",
+            "{\"actionInstruction\":\"PAUSE\"}",
+            Map.of("eventType", "FIELDWORK_ACTION_INSTRUCTION", "caseId", "case-123"))));
+    GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
+
+    MessagingTestClient.ObservedMessage message =
+        client.getObservedMessage("event_fieldwork_action-instruction_internal", 100, 10);
+
+    assertThat(message.body()).contains("PAUSE");
+    assertThat(message.attributes())
+        .containsEntry("eventType", "FIELDWORK_ACTION_INSTRUCTION")
+        .containsEntry("caseId", "case-123");
+  }
+
+  @Test
   void shouldAcknowledgeMatchingMessageAndReleaseNonMatchingMessagesWhenFilteringByEventType()
       throws InterruptedException {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
@@ -172,6 +192,8 @@ class GcpPubSubMessagingTest {
             });
 
     assertThat(operations.pullerParallelismFor("acceptance-tests-RM-Field")).isEqualTo(3);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-fieldwork-action-instruction")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-fieldwork-action-instruction-internal")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Outcome-Preprocessing")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Outcome-PreprocessingDLQ")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-RM-FieldDLQ")).isEqualTo(2);
