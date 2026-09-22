@@ -129,6 +129,7 @@ if [[ "$INCLUDE_SERVICE_SUBSCRIPTIONS" == "true" ]]; then
   SERVICE_SUBS=(
     "job-service-RM-Field:RM.Field"
     "job-service-GW-Field:GW.Field"
+    "job-service-fieldwork-action-instruction:event_fieldwork_action-instruction"
     "job-service-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
     "job-service-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
     "outcome-service-Outcome-PreprocessingDLQ:Outcome.PreprocessingDLQ"

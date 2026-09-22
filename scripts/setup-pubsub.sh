@@ -154,6 +154,7 @@ done
 SUBS=(
   "job-service:RM.Field"
   "job-service:GW.Field"
+  "job-service:fieldwork-action-instruction"
   "job-service:GW.Transient.ErrorQ"
   "job-service:GW.Permanent.ErrorQ"
   "outcome-service:Outcome.Preprocessing"
