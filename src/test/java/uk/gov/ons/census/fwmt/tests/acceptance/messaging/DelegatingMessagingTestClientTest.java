@@ -24,6 +24,8 @@ class DelegatingMessagingTestClientTest {
 
     when(emulatorClient.getMessageCount("RM.Field")).thenReturn(7L);
     when(emulatorClient.getMessage("RM.Field", 5000, 250)).thenReturn("message-body");
+    when(emulatorClient.getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250))
+        .thenReturn(new MessagingTestClient.ObservedMessage("typed-body", java.util.Map.of("caseId", "123")));
     when(emulatorClient.getMessageWithEventType("Field.other", "FIELDWORKER_UPDATE", 4000, 200))
         .thenReturn("typed-message");
     when(emulatorClient.doMessagingPreFlightCheck()).thenReturn(preFlight);
@@ -33,6 +35,8 @@ class DelegatingMessagingTestClientTest {
 
     assertThat(client.getMessageCount("RM.Field")).isEqualTo(7L);
     assertThat(client.getMessage("RM.Field", 5000, 250)).isEqualTo("message-body");
+    assertThat(client.getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250).attributes())
+        .containsEntry("caseId", "123");
     assertThat(client.getMessageWithEventType("Field.other", "FIELDWORKER_UPDATE", 4000, 200))
         .isEqualTo("typed-message");
 
@@ -43,6 +47,7 @@ class DelegatingMessagingTestClientTest {
 
     verify(emulatorClient).getMessageCount("RM.Field");
     verify(emulatorClient).getMessage("RM.Field", 5000, 250);
+    verify(emulatorClient).getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250);
     verify(emulatorClient)
         .getMessageWithEventType("Field.other", "FIELDWORKER_UPDATE", 4000, 200);
     verify(emulatorClient).publishFieldWorkerInstruction("{\"action\":\"create\"}", "create");
@@ -61,6 +66,8 @@ class DelegatingMessagingTestClientTest {
 
     when(gcpClient.getMessageCount("RM.Field")).thenReturn(3L);
     when(gcpClient.getMessage("RM.Field", 2000, 100)).thenReturn("gcp-message");
+    when(gcpClient.getObservedMessage("event_fieldwork_action-instruction_internal", 2000, 100))
+        .thenReturn(new MessagingTestClient.ObservedMessage("gcp-observed", java.util.Map.of("eventType", "FIELDWORK_ACTION_INSTRUCTION")));
     when(gcpClient.getMessageWithEventType("Field.refusals", "event.respondent.refusal", 3000, 150))
         .thenReturn("refusal-message");
     when(gcpClient.doMessagingPreFlightCheck()).thenReturn(preFlight);
@@ -70,6 +77,8 @@ class DelegatingMessagingTestClientTest {
 
     assertThat(client.getMessageCount("RM.Field")).isEqualTo(3L);
     assertThat(client.getMessage("RM.Field", 2000, 100)).isEqualTo("gcp-message");
+    assertThat(client.getObservedMessage("event_fieldwork_action-instruction_internal", 2000, 100).body())
+        .isEqualTo("gcp-observed");
     assertThat(
             client.getMessageWithEventType(
                 "Field.refusals", "event.respondent.refusal", 3000, 150))
@@ -82,6 +91,7 @@ class DelegatingMessagingTestClientTest {
 
     verify(gcpClient).getMessageCount("RM.Field");
     verify(gcpClient).getMessage("RM.Field", 2000, 100);
+    verify(gcpClient).getObservedMessage("event_fieldwork_action-instruction_internal", 2000, 100);
     verify(gcpClient)
         .getMessageWithEventType("Field.refusals", "event.respondent.refusal", 3000, 150);
     verify(gcpClient).publishFieldWorkerInstruction("{\"action\":\"cancel\"}", "cancel");

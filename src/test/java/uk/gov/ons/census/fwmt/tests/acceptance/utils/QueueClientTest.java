@@ -61,6 +61,7 @@ class QueueClientTest {
         .contains("\"operationName\":\"queue-reset-drain-Field.other\"")
         .contains("\"operationName\":\"queue-reset-drain-RM.Field\"")
         .contains("\"operationName\":\"queue-reset-drain-RM.FieldDLQ\"")
+        .contains("\"operationName\":\"queue-reset-drain-event_fieldwork_action-instruction_internal\"")
         .contains("\"operationName\":\"queue-reset-drain-Outcome.Preprocessing\"")
         .contains("\"operationName\":\"queue-reset-drain-Outcome.PreprocessingDLQ\"")
         .contains("\"operationName\":\"queue-reset-resume-inbound-adapters\"");

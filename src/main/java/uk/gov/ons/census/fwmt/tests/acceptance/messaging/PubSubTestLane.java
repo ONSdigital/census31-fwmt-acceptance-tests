@@ -10,6 +10,16 @@ public enum PubSubTestLane {
 
   RM_FIELD("RM.Field", "RM.Field", "acceptance-tests-RM-Field", "job-service-RM-Field"),
   RM_FIELD_DLQ("RM.FieldDLQ", "RM.FieldDLQ", "acceptance-tests-RM-FieldDLQ", null),
+  FIELDWORK_ACTION_INSTRUCTION(
+      "event_fieldwork_action-instruction",
+      "event_fieldwork_action-instruction",
+      "acceptance-tests-fieldwork-action-instruction",
+      "job-service-fieldwork-action-instruction"),
+  FIELDWORK_ACTION_INSTRUCTION_INTERNAL(
+      "event_fieldwork_action-instruction_internal",
+      "event_fieldwork_action-instruction_internal",
+      "acceptance-tests-fieldwork-action-instruction-internal",
+      "job-service-fieldwork-action-instruction-internal"),
   OUTCOME_PREPROCESSING(
       "Outcome.Preprocessing",
       "Outcome.Preprocessing",
@@ -64,6 +74,8 @@ public enum PubSubTestLane {
     return Map.of(
         RM_FIELD.logicalQueueName, RM_FIELD,
         RM_FIELD_DLQ.logicalQueueName, RM_FIELD_DLQ,
+      FIELDWORK_ACTION_INSTRUCTION.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION,
+      FIELDWORK_ACTION_INSTRUCTION_INTERNAL.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION_INTERNAL,
         OUTCOME_PREPROCESSING.logicalQueueName, OUTCOME_PREPROCESSING,
         OUTCOME_PREPROCESSING_DLQ.logicalQueueName, OUTCOME_PREPROCESSING_DLQ,
         FIELD_REFUSALS.logicalQueueName, FIELD_REFUSALS,

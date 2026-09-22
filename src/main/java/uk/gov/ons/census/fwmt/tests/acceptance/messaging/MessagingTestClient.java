@@ -1,6 +1,7 @@
 package uk.gov.ons.census.fwmt.tests.acceptance.messaging;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 
@@ -9,9 +10,17 @@ import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
  */
 public interface MessagingTestClient {
 
+  record ObservedMessage(String body, Map<String, String> attributes) {}
+
   long getMessageCount(String logicalQueue);
 
-  String getMessage(String logicalQueue, int msTimeout, int msInterval) throws InterruptedException;
+  default String getMessage(String logicalQueue, int msTimeout, int msInterval) throws InterruptedException {
+    ObservedMessage message = getObservedMessage(logicalQueue, msTimeout, msInterval);
+    return message == null ? null : message.body();
+  }
+
+  ObservedMessage getObservedMessage(String logicalQueue, int msTimeout, int msInterval)
+      throws InterruptedException;
 
   /**
    * Pull a census RM outcome event from the logical queue whose {@code event.type} matches.
@@ -20,6 +29,8 @@ public interface MessagingTestClient {
       throws InterruptedException;
 
   void publishFieldWorkerInstruction(String messageJson, String instructionType);
+
+  void publishToTopic(String topicId, String messageJson, Map<String, String> attributes);
 
   void purge(String... logicalQueues);
 

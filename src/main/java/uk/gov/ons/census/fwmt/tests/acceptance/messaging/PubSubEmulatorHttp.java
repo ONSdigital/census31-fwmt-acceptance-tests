@@ -19,8 +19,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class PubSubEmulatorHttp {
 
-  private static final Pattern ACK_ID_PATTERN = Pattern.compile("\"ackId\"\\s*:\\s*\"([^\"]+)\"");
-  private static final Pattern DATA_PATTERN = Pattern.compile("\"data\"\\s*:\\s*\"([^\"]+)\"");
+  private static final Pattern ACK_ID_PATTERN = Pattern.compile("\"ackId\"\\s*:\\s*\"([^\"]*)\"");
+  private static final Pattern DATA_PATTERN = Pattern.compile("\"data\"\\s*:\\s*\"([^\"]*)\"");
+  private static final Pattern ATTRIBUTES_PATTERN = Pattern.compile("\"attributes\"\\s*:\\s*\\{([^}]*)}");
+  private static final Pattern ATTRIBUTE_ENTRY_PATTERN =
+      Pattern.compile("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"");
 
   private final String apiBase;
   // Reused across all requests: java.net.http.HttpClient owns an internal selector-manager
@@ -109,30 +112,60 @@ class PubSubEmulatorHttp {
     if (response == null || !response.contains("receivedMessages")) {
       return received;
     }
-    int index = 0;
-    while (true) {
-      int ackStart = response.indexOf("\"ackId\"", index);
-      if (ackStart < 0) {
-        break;
-      }
-      Matcher ackMatcher = ACK_ID_PATTERN.matcher(response.substring(ackStart));
-      if (!ackMatcher.find()) {
-        break;
-      }
-      String ackId = ackMatcher.group(1);
-      int dataStart = response.indexOf("\"data\"", ackStart);
-      if (dataStart < 0) {
-        break;
-      }
-      Matcher dataMatcher = DATA_PATTERN.matcher(response.substring(dataStart));
-      if (!dataMatcher.find()) {
-        break;
-      }
-      String data = new String(Base64.getDecoder().decode(dataMatcher.group(1)), StandardCharsets.UTF_8);
-      received.add(new ReceivedPubSubMessage(ackId, data, Map.of()));
-      index = dataStart + 1;
+    for (String objectJson : extractReceivedMessageObjects(response)) {
+      String ackId = matchGroup(ACK_ID_PATTERN, objectJson);
+      String encodedData = matchGroup(DATA_PATTERN, objectJson);
+      String data = encodedData.isEmpty()
+          ? ""
+          : new String(Base64.getDecoder().decode(encodedData), StandardCharsets.UTF_8);
+      Map<String, String> attributes = parseAttributes(objectJson);
+      received.add(new ReceivedPubSubMessage(ackId, data, Map.copyOf(attributes)));
     }
     return received;
+  }
+
+  private static List<String> extractReceivedMessageObjects(String response) {
+    List<String> objects = new ArrayList<>();
+    int arrayStart = response.indexOf('[');
+    if (arrayStart < 0) {
+      return objects;
+    }
+    int depth = 0;
+    int objectStart = -1;
+    for (int index = arrayStart; index < response.length(); index++) {
+      char current = response.charAt(index);
+      if (current == '{') {
+        if (depth == 0) {
+          objectStart = index;
+        }
+        depth += 1;
+      } else if (current == '}') {
+        depth -= 1;
+        if (depth == 0 && objectStart >= 0) {
+          objects.add(response.substring(objectStart, index + 1));
+          objectStart = -1;
+        }
+      }
+    }
+    return objects;
+  }
+
+  private static Map<String, String> parseAttributes(String objectJson) {
+    Map<String, String> attributes = new HashMap<>();
+    Matcher attributesMatcher = ATTRIBUTES_PATTERN.matcher(objectJson);
+    if (!attributesMatcher.find()) {
+      return attributes;
+    }
+    Matcher entryMatcher = ATTRIBUTE_ENTRY_PATTERN.matcher(attributesMatcher.group(1));
+    while (entryMatcher.find()) {
+      attributes.put(entryMatcher.group(1), entryMatcher.group(2));
+    }
+    return attributes;
+  }
+
+  private static String matchGroup(Pattern pattern, String input) {
+    Matcher matcher = pattern.matcher(input);
+    return matcher.find() ? matcher.group(1) : "";
   }
 
   private String httpPost(String url, String body) throws IOException {

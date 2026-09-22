@@ -84,6 +84,13 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
   @Override
   public String getMessage(String logicalQueue, int msTimeout, int msInterval) throws InterruptedException {
+    ObservedMessage message = getObservedMessage(logicalQueue, msTimeout, msInterval);
+    return message == null ? null : message.body();
+  }
+
+  @Override
+  public ObservedMessage getObservedMessage(String logicalQueue, int msTimeout, int msInterval)
+      throws InterruptedException {
     PubSubTestLane lane =
         PubSubTestLane.forLogicalQueue(logicalQueue)
             .orElseThrow(
@@ -94,7 +101,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
       if (!batch.isEmpty()) {
         TestMessage received = batch.getFirst();
         operations().acknowledge(lane.testSubscription(), List.of(received.ackId()));
-        return received.data();
+        return new ObservedMessage(received.data(), received.attributes());
       }
       Thread.sleep(msInterval);
     }
@@ -138,7 +145,12 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     Map<String, String> attributes = new HashMap<>();
     attributes.put(FieldWorkerInstructionJsonCodec.TYPE_ID_HEADER, typeIdForInstruction(instructionType));
     attributes.put(FieldWorkerInstructionJsonCodec.TIMESTAMP_HEADER, String.valueOf(System.currentTimeMillis()));
-    operations().publish(PubSubTestLane.RM_FIELD.topic(), messageJson, attributes);
+    publishToTopic(PubSubTestLane.RM_FIELD.topic(), messageJson, attributes);
+  }
+
+  @Override
+  public void publishToTopic(String topicId, String messageJson, Map<String, String> attributes) {
+    operations().publish(topicId, messageJson, attributes);
   }
 
   @Override
@@ -255,6 +267,8 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     private static final Map<String, Integer> PULLER_PARALLELISM_BY_SUB =
         Map.of(
             "acceptance-tests-RM-Field", HOT_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-fieldwork-action-instruction", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-fieldwork-action-instruction-internal", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Outcome-Preprocessing", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Outcome-PreprocessingDLQ", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-RM-FieldDLQ", BUSY_LANE_PULLER_PARALLELISM,

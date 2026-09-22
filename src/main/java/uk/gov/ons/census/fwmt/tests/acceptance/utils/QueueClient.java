@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -51,6 +52,9 @@ public final class QueueClient {
 
   private static final String RM_FIELD_QUEUE_DLQ = "RM.FieldDLQ";
 
+  private static final String FIELDWORK_ACTION_INSTRUCTION_INTERNAL =
+      "event_fieldwork_action-instruction_internal";
+
   private static final String OUTCOME_PRE_PROCESSING = "Outcome.Preprocessing";
 
   private static final String OUTCOME_PRE_PROCESSING_DLQ = "Outcome.PreprocessingDLQ";
@@ -64,6 +68,7 @@ public final class QueueClient {
       TEMP_FIELD_OTHERS_QUEUE,
       RM_FIELD_QUEUE,
       RM_FIELD_QUEUE_DLQ,
+        FIELDWORK_ACTION_INSTRUCTION_INTERNAL,
       OUTCOME_PRE_PROCESSING,
       OUTCOME_PRE_PROCESSING_DLQ
   };
@@ -90,6 +95,11 @@ public final class QueueClient {
     return messagingTestClient.getMessage(queueName, msTimeout, msInterval);
   }
 
+  public MessagingTestClient.ObservedMessage getObservedMessage(String queueName, int msTimeout, int msInterval)
+      throws InterruptedException {
+    return messagingTestClient.getObservedMessage(queueName, msTimeout, msInterval);
+  }
+
   public String getMessageWithEventType(String queueName, String eventType, int msTimeout, int msInterval)
       throws InterruptedException {
     return messagingTestClient.getMessageWithEventType(queueName, eventType, msTimeout, msInterval);
@@ -97,6 +107,10 @@ public final class QueueClient {
 
   public void sendToRMFieldQueue(String message, String type) {
     messagingTestClient.publishFieldWorkerInstruction(message, type);
+  }
+
+  public void publishToTopic(String topicId, String message, Map<String, String> attributes) {
+    messagingTestClient.publishToTopic(topicId, message, attributes);
   }
 
   public void clearQueues(String... qnames) {
