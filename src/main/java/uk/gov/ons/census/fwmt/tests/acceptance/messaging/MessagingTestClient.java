@@ -28,7 +28,12 @@ public interface MessagingTestClient {
   String getMessageWithEventType(String logicalQueue, String eventType, int msTimeout, int msInterval)
       throws InterruptedException;
 
-  void publishFieldWorkerInstruction(String messageJson, String instructionType);
+  default void publishExternalActionInstruction(String messageJson) {
+    publishExternalActionInstruction(messageJson, ExternalActionInstructionMetadataOverride.none());
+  }
+
+  void publishExternalActionInstruction(
+      String messageJson, ExternalActionInstructionMetadataOverride metadataOverride);
 
   void publishToTopic(String topicId, String messageJson, Map<String, String> attributes);
 

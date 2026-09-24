@@ -22,8 +22,8 @@ class DelegatingMessagingTestClientTest {
     MessagingTestClient gcpClient = mock(MessagingTestClient.class);
     NodeCheck preFlight = NodeCheck.builder().name("emulator").isSuccesful(true).build();
 
-    when(emulatorClient.getMessageCount("RM.Field")).thenReturn(7L);
-    when(emulatorClient.getMessage("RM.Field", 5000, 250)).thenReturn("message-body");
+    when(emulatorClient.getMessageCount("event_fieldwork_action-instruction")).thenReturn(7L);
+    when(emulatorClient.getMessage("event_fieldwork_action-instruction", 5000, 250)).thenReturn("message-body");
     when(emulatorClient.getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250))
         .thenReturn(new MessagingTestClient.ObservedMessage("typed-body", java.util.Map.of("caseId", "123")));
     when(emulatorClient.getMessageWithEventType("Field.other", "FIELDWORKER_UPDATE", 4000, 200))
@@ -33,25 +33,30 @@ class DelegatingMessagingTestClientTest {
     DelegatingMessagingTestClient client =
         new DelegatingMessagingTestClient(emulatorClient, gcpClient, "emulator");
 
-    assertThat(client.getMessageCount("RM.Field")).isEqualTo(7L);
-    assertThat(client.getMessage("RM.Field", 5000, 250)).isEqualTo("message-body");
+    assertThat(client.getMessageCount("event_fieldwork_action-instruction")).isEqualTo(7L);
+    assertThat(client.getMessage("event_fieldwork_action-instruction", 5000, 250)).isEqualTo("message-body");
     assertThat(client.getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250).attributes())
         .containsEntry("caseId", "123");
     assertThat(client.getMessageWithEventType("Field.other", "FIELDWORKER_UPDATE", 4000, 200))
         .isEqualTo("typed-message");
 
-    client.publishFieldWorkerInstruction("{\"action\":\"create\"}", "create");
-    client.purge("RM.Field", "Outcome.Preprocessing");
+    ExternalActionInstructionMetadataOverride metadataOverride =
+        ExternalActionInstructionMetadataOverride.none().withCorrelationId("corr-1");
+    client.publishExternalActionInstruction("{\"actionInstruction\":\"CREATE\",\"caseId\":\"123\",\"surveyName\":\"CENSUS\"}", metadataOverride);
+    client.purge("event_fieldwork_action-instruction", "Outcome.Preprocessing");
     client.ensureOutcomeBindings();
     assertThat(client.doMessagingPreFlightCheck()).isSameAs(preFlight);
 
-    verify(emulatorClient).getMessageCount("RM.Field");
-    verify(emulatorClient).getMessage("RM.Field", 5000, 250);
+    verify(emulatorClient).getMessageCount("event_fieldwork_action-instruction");
+    verify(emulatorClient).getMessage("event_fieldwork_action-instruction", 5000, 250);
     verify(emulatorClient).getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250);
     verify(emulatorClient)
         .getMessageWithEventType("Field.other", "FIELDWORKER_UPDATE", 4000, 200);
-    verify(emulatorClient).publishFieldWorkerInstruction("{\"action\":\"create\"}", "create");
-    verify(emulatorClient).purge("RM.Field", "Outcome.Preprocessing");
+    verify(emulatorClient)
+        .publishExternalActionInstruction(
+            "{\"actionInstruction\":\"CREATE\",\"caseId\":\"123\",\"surveyName\":\"CENSUS\"}",
+            metadataOverride);
+    verify(emulatorClient).purge("event_fieldwork_action-instruction", "Outcome.Preprocessing");
     verify(emulatorClient).ensureOutcomeBindings();
     verify(emulatorClient).doMessagingPreFlightCheck();
     verifyNoInteractions(gcpClient);
@@ -64,8 +69,8 @@ class DelegatingMessagingTestClientTest {
     MessagingTestClient gcpClient = mock(MessagingTestClient.class);
     NodeCheck preFlight = NodeCheck.builder().name("gcp").isSuccesful(true).build();
 
-    when(gcpClient.getMessageCount("RM.Field")).thenReturn(3L);
-    when(gcpClient.getMessage("RM.Field", 2000, 100)).thenReturn("gcp-message");
+    when(gcpClient.getMessageCount("event_fieldwork_action-instruction")).thenReturn(3L);
+    when(gcpClient.getMessage("event_fieldwork_action-instruction", 2000, 100)).thenReturn("gcp-message");
     when(gcpClient.getObservedMessage("event_fieldwork_action-instruction_internal", 2000, 100))
         .thenReturn(new MessagingTestClient.ObservedMessage("gcp-observed", java.util.Map.of("eventType", "FIELDWORK_ACTION_INSTRUCTION")));
     when(gcpClient.getMessageWithEventType("Field.refusals", "event.respondent.refusal", 3000, 150))
@@ -75,8 +80,8 @@ class DelegatingMessagingTestClientTest {
     DelegatingMessagingTestClient client =
         new DelegatingMessagingTestClient(emulatorClient, gcpClient, "gcp");
 
-    assertThat(client.getMessageCount("RM.Field")).isEqualTo(3L);
-    assertThat(client.getMessage("RM.Field", 2000, 100)).isEqualTo("gcp-message");
+    assertThat(client.getMessageCount("event_fieldwork_action-instruction")).isEqualTo(3L);
+    assertThat(client.getMessage("event_fieldwork_action-instruction", 2000, 100)).isEqualTo("gcp-message");
     assertThat(client.getObservedMessage("event_fieldwork_action-instruction_internal", 2000, 100).body())
         .isEqualTo("gcp-observed");
     assertThat(
@@ -84,17 +89,24 @@ class DelegatingMessagingTestClientTest {
                 "Field.refusals", "event.respondent.refusal", 3000, 150))
         .isEqualTo("refusal-message");
 
-    client.publishFieldWorkerInstruction("{\"action\":\"cancel\"}", "cancel");
+    ExternalActionInstructionMetadataOverride metadataOverride =
+        ExternalActionInstructionMetadataOverride.none().omitOccurredAt();
+    client.publishExternalActionInstruction(
+        "{\"actionInstruction\":\"CANCEL\",\"caseId\":\"321\",\"surveyName\":\"CENSUS\"}",
+        metadataOverride);
     client.purge("Field.refusals");
     client.ensureOutcomeBindings();
     assertThat(client.doMessagingPreFlightCheck()).isSameAs(preFlight);
 
-    verify(gcpClient).getMessageCount("RM.Field");
-    verify(gcpClient).getMessage("RM.Field", 2000, 100);
+    verify(gcpClient).getMessageCount("event_fieldwork_action-instruction");
+    verify(gcpClient).getMessage("event_fieldwork_action-instruction", 2000, 100);
     verify(gcpClient).getObservedMessage("event_fieldwork_action-instruction_internal", 2000, 100);
     verify(gcpClient)
         .getMessageWithEventType("Field.refusals", "event.respondent.refusal", 3000, 150);
-    verify(gcpClient).publishFieldWorkerInstruction("{\"action\":\"cancel\"}", "cancel");
+    verify(gcpClient)
+        .publishExternalActionInstruction(
+            "{\"actionInstruction\":\"CANCEL\",\"caseId\":\"321\",\"surveyName\":\"CENSUS\"}",
+            metadataOverride);
     verify(gcpClient).purge("Field.refusals");
     verify(gcpClient).ensureOutcomeBindings();
     verify(gcpClient).doMessagingPreFlightCheck();
@@ -109,13 +121,13 @@ class DelegatingMessagingTestClientTest {
     DelegatingMessagingTestClient client =
         new DelegatingMessagingTestClient(emulatorClient, gcpClient, "unsupported");
 
-    assertThatThrownBy(() -> client.getMessageCount("RM.Field"))
+    assertThatThrownBy(() -> client.getMessageCount("event_fieldwork_action-instruction"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("unsupported")
         .hasMessageContaining("fwmt.pubsub.mode");
 
-    verify(emulatorClient, never()).getMessageCount("RM.Field");
-    verify(gcpClient, never()).getMessageCount("RM.Field");
+    verify(emulatorClient, never()).getMessageCount("event_fieldwork_action-instruction");
+    verify(gcpClient, never()).getMessageCount("event_fieldwork_action-instruction");
   }
 }
 

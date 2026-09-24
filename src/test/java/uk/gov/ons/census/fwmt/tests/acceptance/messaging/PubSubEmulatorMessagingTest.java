@@ -46,9 +46,9 @@ class PubSubEmulatorMessagingTest {
       new PubSubEmulatorMessaging(http, new PerformanceTimingRecorder());
 
     String addressMessage =
-        client.getMessageWithEventType("RM.Field", "ADDRESS_TYPE_CHANGED", 100, 10);
+        client.getMessageWithEventType("Field.other", "ADDRESS_TYPE_CHANGED", 100, 10);
     String fulfilmentMessage =
-        client.getMessageWithEventType("RM.Field", "FULFILMENT_REQUESTED", 100, 10);
+        client.getMessageWithEventType("Field.other", "FULFILMENT_REQUESTED", 100, 10);
 
     assertThat(addressMessage).contains("ADDRESS_TYPE_CHANGED");
     assertThat(fulfilmentMessage).contains("FULFILMENT_REQUESTED");
@@ -57,10 +57,67 @@ class PubSubEmulatorMessagingTest {
     assertThat(http.publishedMessages).isEmpty();
   }
 
+    @Test
+    void shouldPublishExternalActionInstructionWithCanonicalDefaults() {
+    RecordingPubSubEmulatorHttp http = new RecordingPubSubEmulatorHttp();
+    PubSubEmulatorMessaging client =
+      new PubSubEmulatorMessaging(http, new PerformanceTimingRecorder());
+
+    client.publishExternalActionInstruction(
+      "{\"caseId\":\"123\",\"surveyName\":\"CENSUS\",\"actionInstruction\":\"PAUSE\"}");
+
+    assertThat(http.publishedTopic).isEqualTo("event_fieldwork_action-instruction");
+    assertThat(http.publishedBody)
+      .isEqualTo("{\"caseId\":\"123\",\"surveyName\":\"CENSUS\",\"actionInstruction\":\"PAUSE\"}");
+    assertThat(http.publishedAttributes)
+      .containsEntry("caseId", "123")
+      .containsEntry("eventType", "CASE_UPDATE")
+      .containsEntry("schemaVersion", "1.0")
+      .containsKey("eventId")
+      .containsKey("occurredAt")
+      .doesNotContainKeys("__TypeId__", "timestamp");
+    }
+
+    @Test
+    void shouldApplyExternalActionInstructionOverrideValues() {
+    RecordingPubSubEmulatorHttp http = new RecordingPubSubEmulatorHttp();
+    PubSubEmulatorMessaging client =
+      new PubSubEmulatorMessaging(http, new PerformanceTimingRecorder());
+
+    client.publishExternalActionInstruction(
+      "{\"caseId\":\"123\",\"surveyName\":\"CENSUS\",\"actionInstruction\":\"UPDATE\"}",
+      ExternalActionInstructionMetadataOverride.none()
+        .withCorrelationId("corr-2")
+        .omitEventId()
+        .withOccurredAt("not-an-instant"));
+
+    assertThat(http.publishedAttributes)
+      .containsEntry("correlationId", "corr-2")
+      .containsEntry("occurredAt", "not-an-instant")
+      .doesNotContainKey("eventId");
+    }
+
+    @Test
+    void shouldRejectExternalActionInstructionWithWrongSurveyName() {
+    RecordingPubSubEmulatorHttp http = new RecordingPubSubEmulatorHttp();
+    PubSubEmulatorMessaging client =
+      new PubSubEmulatorMessaging(http, new PerformanceTimingRecorder());
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+        () ->
+          client.publishExternalActionInstruction(
+            "{\"caseId\":\"123\",\"surveyName\":\"NOT_CENSUS\",\"actionInstruction\":\"UPDATE\"}"))
+      .isInstanceOf(IllegalArgumentException.class)
+      .hasMessageContaining("surveyName");
+    }
+
   private static final class RecordingPubSubEmulatorHttp extends PubSubEmulatorHttp {
     private final Deque<List<ReceivedPubSubMessage>> pullBatches = new ArrayDeque<>();
     private final List<String> acknowledgedIds = new ArrayList<>();
     private final List<String> publishedMessages = new ArrayList<>();
+    private String publishedTopic;
+    private String publishedBody;
+    private Map<String, String> publishedAttributes;
     private int pullCount;
 
     private RecordingPubSubEmulatorHttp() {
@@ -81,6 +138,9 @@ class PubSubEmulatorMessagingTest {
 
     @Override
     void publish(String topicId, String jsonBody, Map<String, String> attributes) {
+      publishedTopic = topicId;
+      publishedBody = jsonBody;
+      publishedAttributes = Map.copyOf(attributes);
       publishedMessages.add(jsonBody);
     }
 

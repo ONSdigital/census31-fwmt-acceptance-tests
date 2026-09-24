@@ -55,7 +55,7 @@ public class FeedbackSteps {
   public void aJobHasBeenCreatedInTMWithCaseId(String caseId) throws IOException, URISyntaxException {
     this.caseId = caseId;
     String request = Resources.toString(Resources.getResource("files/input/spg/spgUnitCreate.json"), Charsets.UTF_8);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean jobAcknowledged = gatewayEventMonitor.hasEventTriggered(caseId, COMET_CREATE_ACK, CommonUtils.TIMEOUT);
     assertThat(jobAcknowledged).isTrue();
   }

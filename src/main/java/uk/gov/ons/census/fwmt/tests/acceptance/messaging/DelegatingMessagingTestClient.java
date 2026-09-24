@@ -51,8 +51,9 @@ public class DelegatingMessagingTestClient implements MessagingTestClient {
   }
 
   @Override
-  public void publishFieldWorkerInstruction(String messageJson, String instructionType) {
-    activeClient().publishFieldWorkerInstruction(messageJson, instructionType);
+  public void publishExternalActionInstruction(
+      String messageJson, ExternalActionInstructionMetadataOverride metadataOverride) {
+    activeClient().publishExternalActionInstruction(messageJson, metadataOverride);
   }
 
   @Override

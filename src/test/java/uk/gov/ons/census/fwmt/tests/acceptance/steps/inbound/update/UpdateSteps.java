@@ -131,7 +131,7 @@ public class UpdateSteps {
     }
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "update");
+    queueClient.publishExternalActionInstruction(request);
   }
 
   @Given("RM sends a HH Pause Case request for the case")
@@ -154,7 +154,7 @@ public class UpdateSteps {
     
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "update");  
+    queueClient.publishExternalActionInstruction(request);
   }
 
   
@@ -191,7 +191,7 @@ public class UpdateSteps {
   
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "update");
+    queueClient.publishExternalActionInstruction(request);
   }
   
   @When("Gateway receives an update message for the case")
@@ -260,7 +260,7 @@ public class UpdateSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "update");
+    queueClient.publishExternalActionInstruction(request);
   }
 
   @Then("the update job should fail")

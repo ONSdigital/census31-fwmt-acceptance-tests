@@ -49,9 +49,7 @@ class QueueClientTest {
 
     assertThat(listenerUrls)
         .containsExactlyInAnyOrder(
-            "/RM/stopListener",
             "/StopPreprocessorListener",
-            "/RM/startListener",
             "/StartPreprocessorListener");
 
     String output = Files.readString(timingsFile);
@@ -59,8 +57,7 @@ class QueueClientTest {
         .contains("\"operationName\":\"queue-reset-pause-inbound-adapters\"")
         .contains("\"operationName\":\"queue-reset-drain-Field.refusals\"")
         .contains("\"operationName\":\"queue-reset-drain-Field.other\"")
-        .contains("\"operationName\":\"queue-reset-drain-RM.Field\"")
-        .contains("\"operationName\":\"queue-reset-drain-RM.FieldDLQ\"")
+        .contains("\"operationName\":\"queue-reset-drain-event_fieldwork_action-instruction\"")
         .contains("\"operationName\":\"queue-reset-drain-event_fieldwork_action-instruction_internal\"")
         .contains("\"operationName\":\"queue-reset-drain-Outcome.Preprocessing\"")
         .contains("\"operationName\":\"queue-reset-drain-Outcome.PreprocessingDLQ\"")

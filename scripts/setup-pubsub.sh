@@ -125,12 +125,9 @@ ensure_emulator_reachable
 echo "Bootstrapping Pub/Sub emulator at ${PUBSUB_HOST}:${PUBSUB_PORT} (project=${PUBSUB_PROJECT})"
 
 TOPICS=(
-  "RM.Field"
-  "RM.FieldDLQ"
   "event_fulfilment-request"
   "event_fieldwork_action-instruction"
   "event_fieldwork_action-instruction_internal"
-  "GW.Field"
   "GW.Permanent.ErrorQ"
   "GW.Transient.ErrorQ"
   "GW.ErrorQ"
@@ -153,8 +150,6 @@ done
 
 # Publishers only (no subscription): Gateway.Actions.Exchange (csv-service), Gateway.Events.Exchange (events lib)
 SUBS=(
-  "job-service-RM-Field:RM.Field"
-  "job-service-GW-Field:GW.Field"
   "job-service-fieldwork-action-instruction:event_fieldwork_action-instruction"
   "job-service-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
   "job-service-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
@@ -178,8 +173,6 @@ done
 
 # Acceptance-test-only subscriptions (drain in Cucumber without stealing service traffic)
 ACCEPTANCE_TEST_SUBS=(
-  "acceptance-tests-RM-Field:RM.Field"
-  "acceptance-tests-RM-FieldDLQ:RM.FieldDLQ"
   "acceptance-tests-fieldwork-action-instruction:event_fieldwork_action-instruction"
   "acceptance-tests-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
   "acceptance-tests-GW-Transient-ErrorQ:GW.Transient.ErrorQ"

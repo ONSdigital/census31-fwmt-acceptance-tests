@@ -85,12 +85,9 @@ if [[ "$DRY_RUN" == "true" ]]; then
 fi
 
 TOPICS=(
-  "RM.Field"
-  "RM.FieldDLQ"
   "event_fulfilment-request"
   "event_fieldwork_action-instruction"
   "event_fieldwork_action-instruction_internal"
-  "GW.Field"
   "GW.Permanent.ErrorQ"
   "GW.Transient.ErrorQ"
   "Outcome.Preprocessing"
@@ -107,8 +104,6 @@ done
 
 # Acceptance-test-only subscriptions (safe default in shared env)
 ACCEPTANCE_TEST_SUBS=(
-  "acceptance-tests-RM-Field:RM.Field"
-  "acceptance-tests-RM-FieldDLQ:RM.FieldDLQ"
   "acceptance-tests-fieldwork-action-instruction:event_fieldwork_action-instruction"
   "acceptance-tests-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
   "acceptance-tests-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
@@ -129,8 +124,6 @@ done
 if [[ "$INCLUDE_SERVICE_SUBSCRIPTIONS" == "true" ]]; then
   echo "FWMT_PUBSUB_INCLUDE_SERVICE_SUBSCRIPTIONS=true, creating service subscriptions as well"
   SERVICE_SUBS=(
-    "job-service-RM-Field:RM.Field"
-    "job-service-GW-Field:GW.Field"
     "job-service-fieldwork-action-instruction:event_fieldwork_action-instruction"
     "job-service-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
     "job-service-GW-Transient-ErrorQ:GW.Transient.ErrorQ"

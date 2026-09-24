@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +15,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import uk.gov.ons.census.fwmt.common.messaging.FieldWorkerInstructionJsonCodec;
 import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 
@@ -25,7 +23,6 @@ import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 @ConditionalOnProperty(name = "fwmt.pubsub.mode", havingValue = "emulator", matchIfMissing = true)
 public class PubSubEmulatorMessaging implements MessagingTestClient {
 
-  private static final String TYPE_CANCEL = "cancel";
   private static final Pattern EVENT_TYPE_PATTERN =
       Pattern.compile("\"type\"\\s*:\\s*\"([^\"]+)\"");
 
@@ -100,11 +97,12 @@ public class PubSubEmulatorMessaging implements MessagingTestClient {
   }
 
   @Override
-  public void publishFieldWorkerInstruction(String messageJson, String instructionType) {
-    Map<String, String> attributes = new HashMap<>();
-    attributes.put(FieldWorkerInstructionJsonCodec.TYPE_ID_HEADER, typeIdForInstruction(instructionType));
-    attributes.put(FieldWorkerInstructionJsonCodec.TIMESTAMP_HEADER, String.valueOf(System.currentTimeMillis()));
-    publishToTopic(PubSubTestLane.RM_FIELD.topic(), messageJson, attributes);
+  public void publishExternalActionInstruction(
+      String messageJson, ExternalActionInstructionMetadataOverride metadataOverride) {
+    publishToTopic(
+        PubSubTestLane.FIELDWORK_ACTION_INSTRUCTION.topic(),
+        messageJson,
+        ExternalActionInstructionPublisher.buildExternalAttributes(messageJson, metadataOverride));
   }
 
   @Override
@@ -248,10 +246,4 @@ public class PubSubEmulatorMessaging implements MessagingTestClient {
     return "";
   }
 
-  private static String typeIdForInstruction(String instructionType) {
-    if (TYPE_CANCEL.equals(instructionType)) {
-      return "uk.gov.ons.census.fwmt.common.rm.dto.FwmtCancelActionInstruction";
-    }
-    return "uk.gov.ons.census.fwmt.common.rm.dto.FwmtActionInstruction";
-  }
 }

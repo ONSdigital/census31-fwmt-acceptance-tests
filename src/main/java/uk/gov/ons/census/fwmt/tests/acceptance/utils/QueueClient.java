@@ -48,9 +48,8 @@ public final class QueueClient {
   @Value("${service.jobservice.password}")
   private String jobServicePassword;
 
-  private static final String RM_FIELD_QUEUE = "RM.Field";
-
-  private static final String RM_FIELD_QUEUE_DLQ = "RM.FieldDLQ";
+    private static final String FIELDWORK_ACTION_INSTRUCTION =
+      "event_fieldwork_action-instruction";
 
   private static final String FIELDWORK_ACTION_INSTRUCTION_INTERNAL =
       "event_fieldwork_action-instruction_internal";
@@ -66,9 +65,8 @@ public final class QueueClient {
   private static final String[] RESET_QUEUES = {
       FIELD_REFUSALS_QUEUE,
       TEMP_FIELD_OTHERS_QUEUE,
-      RM_FIELD_QUEUE,
-      RM_FIELD_QUEUE_DLQ,
-        FIELDWORK_ACTION_INSTRUCTION_INTERNAL,
+      FIELDWORK_ACTION_INSTRUCTION,
+      FIELDWORK_ACTION_INSTRUCTION_INTERNAL,
       OUTCOME_PRE_PROCESSING,
       OUTCOME_PRE_PROCESSING_DLQ
   };
@@ -105,8 +103,13 @@ public final class QueueClient {
     return messagingTestClient.getMessageWithEventType(queueName, eventType, msTimeout, msInterval);
   }
 
-  public void sendToRMFieldQueue(String message, String type) {
-    messagingTestClient.publishFieldWorkerInstruction(message, type);
+  public void publishExternalActionInstruction(String message) {
+    messagingTestClient.publishExternalActionInstruction(message);
+  }
+
+  public void publishExternalActionInstruction(
+      String message, uk.gov.ons.census.fwmt.tests.acceptance.messaging.ExternalActionInstructionMetadataOverride metadataOverride) {
+    messagingTestClient.publishExternalActionInstruction(message, metadataOverride);
   }
 
   public void publishToTopic(String topicId, String message, Map<String, String> attributes) {
@@ -155,28 +158,35 @@ public final class QueueClient {
   }
 
   private void pauseInboundAdapters() {
-    resetListenersInParallel(
-        new ListenerCall("job-service", jobserviceServiceUrl + "/RM/stopListener", jobServiceUsername, jobServicePassword),
-        new ListenerCall("outcome-service", outcomeServiceUrl + "/StopPreprocessorListener", outcomeServiceUsername, outcomeServicePassword));
+    resetListeners(
+        new ListenerCall(
+            "outcome-service",
+            outcomeServiceUrl + "/StopPreprocessorListener",
+            outcomeServiceUsername,
+            outcomeServicePassword));
   }
 
   private void resumeInboundAdapters() {
-    resetListenersInParallel(
-        new ListenerCall("job-service", jobserviceServiceUrl + "/RM/startListener", jobServiceUsername, jobServicePassword),
-        new ListenerCall("outcome-service", outcomeServiceUrl + "/StartPreprocessorListener", outcomeServiceUsername, outcomeServicePassword));
+    resetListeners(
+        new ListenerCall(
+            "outcome-service",
+            outcomeServiceUrl + "/StartPreprocessorListener",
+            outcomeServiceUsername,
+            outcomeServicePassword));
   }
 
-  private void resetListenersInParallel(ListenerCall first, ListenerCall second) {
-    ExecutorService executor = Executors.newFixedThreadPool(2);
+  private void resetListeners(ListenerCall... listenerCalls) {
+    ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, listenerCalls.length));
     try {
       List<Future<?>> futures = new ArrayList<>();
-      futures.add(executor.submit(() -> callListener(first)));
-      futures.add(executor.submit(() -> callListener(second)));
+      for (ListenerCall listenerCall : listenerCalls) {
+        futures.add(executor.submit(() -> callListener(listenerCall)));
+      }
       for (Future<?> future : futures) {
         future.get();
       }
     } catch (Exception e) {
-      throw new RuntimeException("Failed to reset inbound adapters in parallel", e);
+      throw new RuntimeException("Failed to reset inbound adapters", e);
     } finally {
       executor.shutdown();
     }

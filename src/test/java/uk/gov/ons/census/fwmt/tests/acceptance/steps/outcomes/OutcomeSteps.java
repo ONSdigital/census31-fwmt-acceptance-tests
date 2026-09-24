@@ -88,7 +88,8 @@ public class OutcomeSteps {
 
     private final static String OUTCOME_SENT = "OUTCOME_SENT";
 
-    private final static String RM_FIELD_REPUBLISH = "RM_FIELD_REPUBLISH";
+    private final static String FIELDWORK_ACTION_INSTRUCTION_PUBLISH =
+      "FIELDWORK_ACTION_INSTRUCTION_PUBLISH";
 
     private static final String FIELD_REFUSALS_QUEUE = "Field.refusals";
 
@@ -241,7 +242,7 @@ public class OutcomeSteps {
         long deadline = System.currentTimeMillis() + CommonUtils.TIMEOUT;
         jsOutcomeEvents = new ArrayList<>();
         while (System.currentTimeMillis() < deadline) {
-            jsOutcomeEvents = gatewayEventMonitor.grabEventsTriggered(RM_FIELD_REPUBLISH, 50, 500L).stream()
+            jsOutcomeEvents = gatewayEventMonitor.grabEventsTriggered(FIELDWORK_ACTION_INSTRUCTION_PUBLISH, 50, 500L).stream()
                     .filter(e -> matchesJsOutcomeEventCaseId(e.getCaseId()))
                     .filter(e -> surveyType.equals(e.getMetadata().get("Address Type")))
                     .collect(Collectors.toList());
@@ -976,7 +977,7 @@ public class OutcomeSteps {
 
       String request = json.toString(4);
       log.info("Request = " + request);
-      queueClient.sendToRMFieldQueue(request, "create");
+      queueClient.publishExternalActionInstruction(request);
       boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(scenarioCaseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
       assertThat(hasBeenTriggered).isTrue();
 
@@ -1001,7 +1002,7 @@ public class OutcomeSteps {
 
       String request = json.toString(4);
       log.info("Request = " + request);
-      queueClient.sendToRMFieldQueue(request, "create");
+      queueClient.publishExternalActionInstruction(request);
       boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(scenarioCaseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
       assertThat(hasBeenTriggered).isTrue();
     }

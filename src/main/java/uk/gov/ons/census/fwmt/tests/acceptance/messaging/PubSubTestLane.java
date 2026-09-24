@@ -4,12 +4,10 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Maps legacy logical queue names used in acceptance tests to Pub/Sub topic + test subscription.
+ * Maps acceptance-test logical queue names to Pub/Sub topic + test subscription.
  */
 public enum PubSubTestLane {
 
-  RM_FIELD("RM.Field", "RM.Field", "acceptance-tests-RM-Field", "job-service-RM-Field"),
-  RM_FIELD_DLQ("RM.FieldDLQ", "RM.FieldDLQ", "acceptance-tests-RM-FieldDLQ", null),
   FIELDWORK_ACTION_INSTRUCTION(
       "event_fieldwork_action-instruction",
       "event_fieldwork_action-instruction",
@@ -72,10 +70,8 @@ public enum PubSubTestLane {
 
   public static Map<String, PubSubTestLane> byLogicalQueueName() {
     return Map.of(
-        RM_FIELD.logicalQueueName, RM_FIELD,
-        RM_FIELD_DLQ.logicalQueueName, RM_FIELD_DLQ,
-      FIELDWORK_ACTION_INSTRUCTION.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION,
-      FIELDWORK_ACTION_INSTRUCTION_INTERNAL.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION_INTERNAL,
+        FIELDWORK_ACTION_INSTRUCTION.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION,
+        FIELDWORK_ACTION_INSTRUCTION_INTERNAL.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION_INTERNAL,
         OUTCOME_PREPROCESSING.logicalQueueName, OUTCOME_PREPROCESSING,
         OUTCOME_PREPROCESSING_DLQ.logicalQueueName, OUTCOME_PREPROCESSING_DLQ,
         FIELD_REFUSALS.logicalQueueName, FIELD_REFUSALS,
