@@ -168,7 +168,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     NodeCheck.NodeCheckBuilder builder =
         NodeCheck.builder().name("Google Pub/Sub").url("projects/" + pubsubProject);
     if (operations().isReachable()) {
-      drainTestSubscription(PubSubTestLane.FIELD_REFUSALS);
+      drainTestSubscription(PubSubTestLane.FIELDWORK_ACTION_INSTRUCTION);
       builder.isSuccesful(true);
     } else {
       builder.isSuccesful(false).failureMsg("Google Pub/Sub is not reachable");

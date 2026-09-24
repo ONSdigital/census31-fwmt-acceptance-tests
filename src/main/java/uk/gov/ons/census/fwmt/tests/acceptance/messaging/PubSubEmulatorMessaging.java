@@ -129,7 +129,7 @@ public class PubSubEmulatorMessaging implements MessagingTestClient {
   public NodeCheck doMessagingPreFlightCheck() {
     NodeCheck.NodeCheckBuilder builder = NodeCheck.builder().name("Pub/Sub emulator").url(pubsubEmulatorHost);
     if (http().isReachable()) {
-      drainSubscription(PubSubTestLane.FIELD_REFUSALS);
+      drainSubscription(PubSubTestLane.FIELDWORK_ACTION_INSTRUCTION);
       builder.isSuccesful(true);
     } else {
       builder.isSuccesful(false).failureMsg("Pub/Sub emulator is not reachable");

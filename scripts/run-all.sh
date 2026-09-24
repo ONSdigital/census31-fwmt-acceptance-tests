@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUNNER="CreateTestRunner"
+RUNNER="all"
 FORCE_PREPARE=false
 BUILD_MISSING=true
 BOOT_RUN=false
@@ -12,7 +12,7 @@ NO_TESTS=false
 
 usage() {
   cat <<'EOF'
-Usage: ./run-all.sh [options] [RunnerName|all]
+Usage: ./run-all.sh [options] [RunCucumberTest|all]
 
 Runs the full local harness in order:
   1. start-infra.sh
@@ -31,7 +31,7 @@ Options:
 Examples:
   ./run-all.sh
   ./run-all.sh all
-  ./run-all.sh --boot-run CreateTestRunner
+  ./run-all.sh --boot-run RunCucumberTest
   ./run-all.sh --infra-only
 EOF
 }

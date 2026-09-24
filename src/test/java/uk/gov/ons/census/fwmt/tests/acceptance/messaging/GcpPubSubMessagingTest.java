@@ -168,7 +168,8 @@ class GcpPubSubMessagingTest {
 
     assertThat(nodeCheck.isSuccesful()).isTrue();
     assertThat(nodeCheck.getName()).isEqualTo("Google Pub/Sub");
-    assertThat(operations.drainedSubscriptions).containsExactly("acceptance-tests-Field-refusals");
+    assertThat(operations.drainedSubscriptions)
+      .containsExactly("acceptance-tests-fieldwork-action-instruction");
   }
 
   @Test
@@ -197,10 +198,10 @@ class GcpPubSubMessagingTest {
               return subscriberStub;
             });
 
-    operations.pull("acceptance-tests-RM-Field", 1);
-    operations.acknowledge("acceptance-tests-RM-Field", List.of("ack-1"));
-    operations.release("acceptance-tests-RM-Field", List.of("ack-2"));
-    operations.drainSubscription("acceptance-tests-RM-Field");
+    operations.pull("acceptance-tests-fieldwork-action-instruction", 1);
+    operations.acknowledge("acceptance-tests-fieldwork-action-instruction", List.of("ack-1"));
+    operations.release("acceptance-tests-fieldwork-action-instruction", List.of("ack-2"));
+    operations.drainSubscription("acceptance-tests-fieldwork-action-instruction");
 
     assertThat(stubCreations).hasValue(1);
 

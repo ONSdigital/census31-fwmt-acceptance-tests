@@ -109,19 +109,43 @@ class PubSubEmulatorMessagingTest {
             "{\"caseId\":\"123\",\"surveyName\":\"NOT_CENSUS\",\"actionInstruction\":\"UPDATE\"}"))
       .isInstanceOf(IllegalArgumentException.class)
       .hasMessageContaining("surveyName");
-    }
+  }
+
+  @Test
+  void shouldPreflightAgainstCanonicalExternalLane() {
+    RecordingPubSubEmulatorHttp http = new RecordingPubSubEmulatorHttp();
+    http.reachable = true;
+    PubSubEmulatorMessaging client =
+        new PubSubEmulatorMessaging(http, new PerformanceTimingRecorder());
+
+    uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck nodeCheck =
+        client.doMessagingPreFlightCheck();
+
+    assertThat(nodeCheck.isSuccesful()).isTrue();
+    assertThat(http.drainedSubscriptions)
+        .containsExactly(
+            "acceptance-tests-fieldwork-action-instruction",
+            "job-service-fieldwork-action-instruction");
+  }
 
   private static final class RecordingPubSubEmulatorHttp extends PubSubEmulatorHttp {
     private final Deque<List<ReceivedPubSubMessage>> pullBatches = new ArrayDeque<>();
     private final List<String> acknowledgedIds = new ArrayList<>();
+    private final List<String> drainedSubscriptions = new ArrayList<>();
     private final List<String> publishedMessages = new ArrayList<>();
     private String publishedTopic;
     private String publishedBody;
     private Map<String, String> publishedAttributes;
     private int pullCount;
+    private boolean reachable;
 
     private RecordingPubSubEmulatorHttp() {
       super("test-project", "localhost:1");
+    }
+
+    @Override
+    boolean isReachable() {
+      return reachable;
     }
 
     @Override
@@ -134,6 +158,11 @@ class PubSubEmulatorMessagingTest {
     @Override
     void acknowledge(String subscriptionId, List<String> ackIds) {
       acknowledgedIds.addAll(ackIds);
+    }
+
+    @Override
+    void drainSubscription(String subscriptionId) {
+      drainedSubscriptions.add(subscriptionId);
     }
 
     @Override

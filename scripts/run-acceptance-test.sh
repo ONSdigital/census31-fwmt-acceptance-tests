@@ -22,6 +22,9 @@ Usage: ./run-acceptance-test.sh [options] [RunCucumberTest|all]
 Runs acceptance tests (Maven) without rebuilding local dependency artifacts by default.
 Run ./prepare-local-artifacts.sh when dependency repos change.
 
+`RunCucumberTest` is the supported suite class on this branch. Use tag filters after `--`
+for focused runs instead of older named runner classes.
+
 Options:
   --prepare            Run local dependency artifact preparation first.
   --clean              Run clean before test.
