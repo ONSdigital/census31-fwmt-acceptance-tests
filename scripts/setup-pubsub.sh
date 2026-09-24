@@ -125,6 +125,8 @@ ensure_emulator_reachable
 echo "Bootstrapping Pub/Sub emulator at ${PUBSUB_HOST}:${PUBSUB_PORT} (project=${PUBSUB_PROJECT})"
 
 TOPICS=(
+  "event_refusal-received"
+  "event_field-case-updated"
   "event_fulfilment-request"
   "event_fieldwork_action-instruction"
   "event_fieldwork_action-instruction_internal"
@@ -173,6 +175,9 @@ done
 
 # Acceptance-test-only subscriptions (drain in Cucumber without stealing service traffic)
 ACCEPTANCE_TEST_SUBS=(
+  "acceptance-tests-refusal-received:event_refusal-received"
+  "acceptance-tests-field-case-updated:event_field-case-updated"
+  "acceptance-tests-fulfilment-request:event_fulfilment-request"
   "acceptance-tests-fieldwork-action-instruction:event_fieldwork_action-instruction"
   "acceptance-tests-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
   "acceptance-tests-GW-Transient-ErrorQ:GW.Transient.ErrorQ"

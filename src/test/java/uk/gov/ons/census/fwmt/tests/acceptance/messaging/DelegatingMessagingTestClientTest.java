@@ -26,7 +26,7 @@ class DelegatingMessagingTestClientTest {
     when(emulatorClient.getMessage("event_fieldwork_action-instruction", 5000, 250)).thenReturn("message-body");
     when(emulatorClient.getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250))
         .thenReturn(new MessagingTestClient.ObservedMessage("typed-body", java.util.Map.of("caseId", "123")));
-    when(emulatorClient.getMessageWithEventType("Field.other", "FIELDWORKER_UPDATE", 4000, 200))
+    when(emulatorClient.getMessageWithEventType("event_field-case-updated", "FIELD_CASE_UPDATED", 4000, 200))
         .thenReturn("typed-message");
     when(emulatorClient.doMessagingPreFlightCheck()).thenReturn(preFlight);
 
@@ -37,7 +37,7 @@ class DelegatingMessagingTestClientTest {
     assertThat(client.getMessage("event_fieldwork_action-instruction", 5000, 250)).isEqualTo("message-body");
     assertThat(client.getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250).attributes())
         .containsEntry("caseId", "123");
-    assertThat(client.getMessageWithEventType("Field.other", "FIELDWORKER_UPDATE", 4000, 200))
+    assertThat(client.getMessageWithEventType("event_field-case-updated", "FIELD_CASE_UPDATED", 4000, 200))
         .isEqualTo("typed-message");
 
     ExternalActionInstructionMetadataOverride metadataOverride =
@@ -51,7 +51,7 @@ class DelegatingMessagingTestClientTest {
     verify(emulatorClient).getMessage("event_fieldwork_action-instruction", 5000, 250);
     verify(emulatorClient).getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250);
     verify(emulatorClient)
-        .getMessageWithEventType("Field.other", "FIELDWORKER_UPDATE", 4000, 200);
+        .getMessageWithEventType("event_field-case-updated", "FIELD_CASE_UPDATED", 4000, 200);
     verify(emulatorClient)
         .publishExternalActionInstruction(
             "{\"actionInstruction\":\"CREATE\",\"caseId\":\"123\",\"surveyName\":\"CENSUS\"}",
@@ -73,7 +73,7 @@ class DelegatingMessagingTestClientTest {
     when(gcpClient.getMessage("event_fieldwork_action-instruction", 2000, 100)).thenReturn("gcp-message");
     when(gcpClient.getObservedMessage("event_fieldwork_action-instruction_internal", 2000, 100))
         .thenReturn(new MessagingTestClient.ObservedMessage("gcp-observed", java.util.Map.of("eventType", "FIELDWORK_ACTION_INSTRUCTION")));
-    when(gcpClient.getMessageWithEventType("Field.refusals", "event.respondent.refusal", 3000, 150))
+    when(gcpClient.getMessageWithEventType("event_refusal-received", "REFUSAL_RECEIVED", 3000, 150))
         .thenReturn("refusal-message");
     when(gcpClient.doMessagingPreFlightCheck()).thenReturn(preFlight);
 
@@ -86,7 +86,7 @@ class DelegatingMessagingTestClientTest {
         .isEqualTo("gcp-observed");
     assertThat(
             client.getMessageWithEventType(
-                "Field.refusals", "event.respondent.refusal", 3000, 150))
+                "event_refusal-received", "REFUSAL_RECEIVED", 3000, 150))
         .isEqualTo("refusal-message");
 
     ExternalActionInstructionMetadataOverride metadataOverride =
@@ -94,7 +94,7 @@ class DelegatingMessagingTestClientTest {
     client.publishExternalActionInstruction(
         "{\"actionInstruction\":\"CANCEL\",\"caseId\":\"321\",\"surveyName\":\"CENSUS\"}",
         metadataOverride);
-    client.purge("Field.refusals");
+    client.purge("event_refusal-received");
     client.ensureOutcomeBindings();
     assertThat(client.doMessagingPreFlightCheck()).isSameAs(preFlight);
 
@@ -102,12 +102,12 @@ class DelegatingMessagingTestClientTest {
     verify(gcpClient).getMessage("event_fieldwork_action-instruction", 2000, 100);
     verify(gcpClient).getObservedMessage("event_fieldwork_action-instruction_internal", 2000, 100);
     verify(gcpClient)
-        .getMessageWithEventType("Field.refusals", "event.respondent.refusal", 3000, 150);
+        .getMessageWithEventType("event_refusal-received", "REFUSAL_RECEIVED", 3000, 150);
     verify(gcpClient)
         .publishExternalActionInstruction(
             "{\"actionInstruction\":\"CANCEL\",\"caseId\":\"321\",\"surveyName\":\"CENSUS\"}",
             metadataOverride);
-    verify(gcpClient).purge("Field.refusals");
+    verify(gcpClient).purge("event_refusal-received");
     verify(gcpClient).ensureOutcomeBindings();
     verify(gcpClient).doMessagingPreFlightCheck();
     verifyNoInteractions(emulatorClient);

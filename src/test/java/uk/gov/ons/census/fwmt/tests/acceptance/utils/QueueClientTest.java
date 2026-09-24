@@ -55,6 +55,9 @@ class QueueClientTest {
     String output = Files.readString(timingsFile);
     assertThat(output)
         .contains("\"operationName\":\"queue-reset-pause-inbound-adapters\"")
+      .contains("\"operationName\":\"queue-reset-drain-event_refusal-received\"")
+      .contains("\"operationName\":\"queue-reset-drain-event_field-case-updated\"")
+      .contains("\"operationName\":\"queue-reset-drain-event_fulfilment-request\"")
         .contains("\"operationName\":\"queue-reset-drain-Field.refusals\"")
         .contains("\"operationName\":\"queue-reset-drain-Field.other\"")
         .contains("\"operationName\":\"queue-reset-drain-event_fieldwork_action-instruction\"")

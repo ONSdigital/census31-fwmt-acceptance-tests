@@ -23,6 +23,9 @@ import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 @ConditionalOnProperty(name = "fwmt.pubsub.mode", havingValue = "emulator", matchIfMissing = true)
 public class PubSubEmulatorMessaging implements MessagingTestClient {
 
+  private static final Pattern MESSAGE_TYPE_PATTERN =
+      Pattern.compile("\"messageType\"\\s*:\\s*\"([^\"]+)\"");
+
   private static final Pattern EVENT_TYPE_PATTERN =
       Pattern.compile("\"type\"\\s*:\\s*\"([^\"]+)\"");
 
@@ -239,6 +242,15 @@ public class PubSubEmulatorMessaging implements MessagingTestClient {
   }
 
   private static String parseEventType(String json) {
+    Matcher messageTypeMatcher = MESSAGE_TYPE_PATTERN.matcher(json);
+    if (messageTypeMatcher.find()) {
+      String messageType = messageTypeMatcher.group(1);
+      return switch (messageType) {
+        case "FULFILMENT_REQUEST" -> "FULFILMENT_REQUESTED";
+        default -> messageType;
+      };
+    }
+
     Matcher matcher = EVENT_TYPE_PATTERN.matcher(json);
     if (matcher.find()) {
       return matcher.group(1);

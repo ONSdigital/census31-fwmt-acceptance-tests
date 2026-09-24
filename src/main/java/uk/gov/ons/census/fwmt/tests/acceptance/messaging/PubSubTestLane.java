@@ -28,6 +28,21 @@ public enum PubSubTestLane {
       "Outcome.PreprocessingDLQ",
       "acceptance-tests-Outcome-PreprocessingDLQ",
       "outcome-service-Outcome-PreprocessingDLQ"),
+    REFUSAL_RECEIVED(
+      "event_refusal-received",
+      "event_refusal-received",
+      "acceptance-tests-refusal-received",
+      null),
+    FIELD_CASE_UPDATED(
+      "event_field-case-updated",
+      "event_field-case-updated",
+      "acceptance-tests-field-case-updated",
+      null),
+    FULFILMENT_REQUEST(
+      "event_fulfilment-request",
+      "event_fulfilment-request",
+      "acceptance-tests-fulfilment-request",
+      "fulfilment-event-service-fulfilment-request"),
   FIELD_REFUSALS("Field.refusals", "Field.refusals", "acceptance-tests-Field-refusals", null),
   FIELD_OTHER("Field.other", "Field.other", "acceptance-tests-Field-other", null);
 
@@ -74,6 +89,9 @@ public enum PubSubTestLane {
         FIELDWORK_ACTION_INSTRUCTION_INTERNAL.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION_INTERNAL,
         OUTCOME_PREPROCESSING.logicalQueueName, OUTCOME_PREPROCESSING,
         OUTCOME_PREPROCESSING_DLQ.logicalQueueName, OUTCOME_PREPROCESSING_DLQ,
+        REFUSAL_RECEIVED.logicalQueueName, REFUSAL_RECEIVED,
+        FIELD_CASE_UPDATED.logicalQueueName, FIELD_CASE_UPDATED,
+        FULFILMENT_REQUEST.logicalQueueName, FULFILMENT_REQUEST,
         FIELD_REFUSALS.logicalQueueName, FIELD_REFUSALS,
         FIELD_OTHER.logicalQueueName, FIELD_OTHER);
   }

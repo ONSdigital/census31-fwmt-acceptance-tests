@@ -47,6 +47,9 @@ import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 @ConditionalOnProperty(name = "fwmt.pubsub.mode", havingValue = "gcp")
 public class GcpPubSubMessaging implements MessagingTestClient {
 
+  private static final Pattern MESSAGE_TYPE_PATTERN =
+      Pattern.compile("\"messageType\"\\s*:\\s*\"([^\"]+)\"");
+
   private static final Pattern EVENT_TYPE_PATTERN =
       Pattern.compile("\"type\"\\s*:\\s*\"([^\"]+)\"");
 
@@ -216,6 +219,15 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   }
 
   private static String parseEventType(String json) {
+    Matcher messageTypeMatcher = MESSAGE_TYPE_PATTERN.matcher(json);
+    if (messageTypeMatcher.find()) {
+      String messageType = messageTypeMatcher.group(1);
+      return switch (messageType) {
+        case "FULFILMENT_REQUEST" -> "FULFILMENT_REQUESTED";
+        default -> messageType;
+      };
+    }
+
     Matcher matcher = EVENT_TYPE_PATTERN.matcher(json);
     if (matcher.find()) {
       return matcher.group(1);
@@ -260,6 +272,9 @@ public class GcpPubSubMessaging implements MessagingTestClient {
             "acceptance-tests-fieldwork-action-instruction-internal", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Outcome-Preprocessing", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Outcome-PreprocessingDLQ", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-refusal-received", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-field-case-updated", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-fulfilment-request", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Field-other", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Field-refusals", BUSY_LANE_PULLER_PARALLELISM);
 

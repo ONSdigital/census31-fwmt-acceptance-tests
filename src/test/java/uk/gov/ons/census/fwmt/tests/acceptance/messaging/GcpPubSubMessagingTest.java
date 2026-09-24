@@ -33,13 +33,13 @@ class GcpPubSubMessagingTest {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
     GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
 
-    client.purge("event_fieldwork_action-instruction", "Outcome.Preprocessing", "Field.refusals");
+    client.purge("event_fieldwork_action-instruction", "Outcome.Preprocessing", "event_refusal-received");
 
     assertThat(operations.drainedSubscriptions)
         .containsExactly(
         "acceptance-tests-fieldwork-action-instruction",
             "acceptance-tests-Outcome-Preprocessing",
-            "acceptance-tests-Field-refusals");
+        "acceptance-tests-refusal-received");
   }
 
   @Test
@@ -141,21 +141,21 @@ class GcpPubSubMessagingTest {
       throws InterruptedException {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
     operations.enqueuePull(
-        "acceptance-tests-Field-other",
+      "acceptance-tests-refusal-received",
         List.of(
             new GcpPubSubMessaging.TestMessage("ack-1", "{\"type\":\"event.other\"}", Map.of()),
             new GcpPubSubMessaging.TestMessage(
-                "ack-2", "{\"type\":\"event.respondent.refusal\"}", Map.of())));
+          "ack-2", "{\"header\":{\"messageType\":\"REFUSAL_RECEIVED\"},\"payload\":{}}", Map.of())));
     GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
 
     String message =
-        client.getMessageWithEventType("Field.other", "event.respondent.refusal", 100, 10);
+      client.getMessageWithEventType("event_refusal-received", "REFUSAL_RECEIVED", 100, 10);
 
-    assertThat(message).isEqualTo("{\"type\":\"event.respondent.refusal\"}");
+    assertThat(message).contains("REFUSAL_RECEIVED");
     assertThat(operations.releasedAckIdsBySubscription)
-        .containsEntry("acceptance-tests-Field-other", List.of("ack-1"));
+      .containsEntry("acceptance-tests-refusal-received", List.of("ack-1"));
     assertThat(operations.acknowledgedAckIdsBySubscription)
-        .containsEntry("acceptance-tests-Field-other", List.of("ack-2"));
+      .containsEntry("acceptance-tests-refusal-received", List.of("ack-2"));
   }
 
   @Test
@@ -236,6 +236,9 @@ class GcpPubSubMessagingTest {
     assertThat(operations.pullerParallelismFor("acceptance-tests-fieldwork-action-instruction-internal")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Outcome-Preprocessing")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Outcome-PreprocessingDLQ")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-refusal-received")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-field-case-updated")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-fulfilment-request")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Field-other")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Field-refusals")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Unknown-Lane")).isEqualTo(1);

@@ -58,11 +58,20 @@ public final class QueueClient {
 
   private static final String OUTCOME_PRE_PROCESSING_DLQ = "Outcome.PreprocessingDLQ";
 
+  private static final String REFUSAL_RECEIVED_TOPIC = "event_refusal-received";
+
+  private static final String FIELD_CASE_UPDATED_TOPIC = "event_field-case-updated";
+
+  private static final String FULFILMENT_REQUEST_TOPIC = "event_fulfilment-request";
+
   private static final String FIELD_REFUSALS_QUEUE = "Field.refusals";
 
   private static final String TEMP_FIELD_OTHERS_QUEUE = "Field.other";
 
   private static final String[] RESET_QUEUES = {
+      REFUSAL_RECEIVED_TOPIC,
+      FIELD_CASE_UPDATED_TOPIC,
+      FULFILMENT_REQUEST_TOPIC,
       FIELD_REFUSALS_QUEUE,
       TEMP_FIELD_OTHERS_QUEUE,
       FIELDWORK_ACTION_INSTRUCTION,

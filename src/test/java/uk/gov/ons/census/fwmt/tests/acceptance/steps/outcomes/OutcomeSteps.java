@@ -3,25 +3,21 @@ package uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.io.IOException;
 import java.io.StringWriter;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.util.Strings;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
@@ -91,7 +87,11 @@ public class OutcomeSteps {
     private final static String FIELDWORK_ACTION_INSTRUCTION_PUBLISH =
       "FIELDWORK_ACTION_INSTRUCTION_PUBLISH";
 
-    private static final String FIELD_REFUSALS_QUEUE = "Field.refusals";
+    private static final String REFUSAL_RECEIVED_QUEUE = "event_refusal-received";
+
+    private static final String FIELD_CASE_UPDATED_QUEUE = "event_field-case-updated";
+
+    private static final String FULFILMENT_REQUEST_QUEUE = "event_fulfilment-request";
 
     private static final String TEMP_FIELD_OTHERS_QUEUE = "Field.other";
 
@@ -283,7 +283,7 @@ public class OutcomeSteps {
     private void createExpectedRmMessages() throws Exception{
       expectedRmMessageMap.clear();
       for (String rmMessageType : expectedRmMessages) {
-        Map<String, Object> root = new HashMap();
+        Map<String, Object> root = new HashMap<>();
 
         root.clear();
         root.put("reason", spgReasonCodeLookup.getLookup(outcomeCode));
@@ -307,10 +307,7 @@ public class OutcomeSteps {
     public void the_caseId_of_the_message_will_be_the_original_caseid(String messageType) throws Exception{
         addressTypeChangeMsg = actualRmMessageMap.get(messageType);
         System.out.println("Actual:" + addressTypeChangeMsg);
-        JsonNode actualJson = jsonObjectMapper.readTree(addressTypeChangeMsg);
-        JsonNode caseIdNode = actualJson.findPath("id");
-        assertThat(caseIdNode!=null && !caseIdNode.isMissingNode()).isTrue();
-        assertThat(scenarioCaseId.equals(caseIdNode.asText())).isTrue();
+      assertThat(scenarioCaseId.equals(extractCaseIdFromRmMessage(messageType, addressTypeChangeMsg))).isTrue();
     }
 
     private void collectRmMessages() throws Exception {
@@ -321,8 +318,7 @@ public class OutcomeSteps {
         String queue = operationToQueue(rmMessageType);
         String msg = awaitRmMessage(queue, rmMessageType, "collectRmMessages");
         JsonNode actualMessageRootNode = jsonObjectMapper.readTree(msg);
-        JsonNode typeNode = actualMessageRootNode.path("event").path("type");
-        actualRmMessageMap.put(typeNode.asText(), msg);
+        actualRmMessageMap.put(extractRmMessageType(actualMessageRootNode), msg);
       }
     }
 
@@ -365,8 +361,8 @@ public class OutcomeSteps {
       assertThat(msg).isNotNull();
       actualRmMessageMap.put("ADDRESS_TYPE_CHANGED", msg);
       addressTypeChangeMsg = msg;
-      JsonNode newCaseIdNode = jsonObjectMapper.readTree(msg).findPath("newCaseId");
-      assertThat(newCaseIdNode != null && !newCaseIdNode.isMissingNode()).isTrue();
+      JsonNode newCaseIdNode = jsonObjectMapper.readTree(msg).path("newCaseId");
+      assertThat(!newCaseIdNode.isMissingNode()).isTrue();
       newCaseId = newCaseIdNode.asText();
     }
 
@@ -503,8 +499,8 @@ public class OutcomeSteps {
     @Then("it will include a new caseId")
     public void it_will_include_a_new_caseId() throws Exception{
       JsonNode actualJson = jsonObjectMapper.readTree(addressTypeChangeMsg);
-      JsonNode newCaseIdNode = actualJson.findPath("newCaseId");
-      assertThat(newCaseIdNode!=null && !newCaseIdNode.isMissingNode()).isTrue();
+      JsonNode newCaseIdNode = actualJson.path("newCaseId");
+      assertThat(!newCaseIdNode.isMissingNode()).isTrue();
       assertThat(!scenarioCaseId.equals(newCaseIdNode.asText())).isTrue();
       newCaseId = newCaseIdNode.asText();
     }
@@ -525,9 +521,9 @@ public class OutcomeSteps {
         case "FIELD_CASE_UPDATED":
           if (usesCeSiteResidentCountZero()) {
             JsonNode newAddressMessage = jsonObjectMapper.readTree(actualRmMessageMap.get("NEW_ADDRESS_REPORTED"));
-            atcMsg = replaceValueInJson(atcMsg, "id", newAddressMessage.findPath("sourceCaseId").asText());
+            atcMsg = replaceValueInJson(atcMsg, "caseId", newAddressMessage.findPath("sourceCaseId").asText());
           } else {
-            atcMsg = replaceValueInJson(atcMsg, "id", newCaseId);
+            atcMsg = replaceValueInJson(atcMsg, "caseId", newCaseId);
           }
           break;
         default:
@@ -672,7 +668,7 @@ public class OutcomeSteps {
     }
 
    private String getTmOutcomeRequest() throws Exception {
-        Map<String, Object> root = new HashMap();
+        Map<String, Object> root = new HashMap<>();
 
        root.put("caseId", scenarioCaseId);
        root.put("transactionId", scenarioTransactionId);
@@ -860,16 +856,18 @@ public class OutcomeSteps {
         switch (operation) {
         case "REFUSAL_RECEIVED":
         case "HARD_REFUSAL_RECEIVED":
-            return FIELD_REFUSALS_QUEUE;
+        return REFUSAL_RECEIVED_QUEUE;
+      case "FIELD_CASE_UPDATED":
+      case "UPDATE_RESIDENT_COUNT_1":
+      case "UPDATE_RESIDENT_COUNT":
+      case "UPDATE_RESIDENT_COUNT_0":
+        return FIELD_CASE_UPDATED_QUEUE;
+      case "FULFILMENT_REQUESTED":
+        return FULFILMENT_REQUEST_QUEUE;
         case "ADDRESS_NOT_VALID":
         case "ADDRESS_TYPE_CHANGED":
-        case "FULFILMENT_REQUESTED":
         case "QUESTIONNAIRE_LINKED":
         case "NEW_ADDRESS_REPORTED":
-        case "FIELD_CASE_UPDATED":
-        case "UPDATE_RESIDENT_COUNT_1":
-        case "UPDATE_RESIDENT_COUNT":
-        case "UPDATE_RESIDENT_COUNT_0":
             return TEMP_FIELD_OTHERS_QUEUE;
         default:
             throw new RuntimeException("Problem matching operation");
@@ -877,6 +875,10 @@ public class OutcomeSteps {
     }
 
     private String createExpectedRmMessage(String rmMessageType, Map<String, Object> root) throws Exception {
+      if (isDictionaryOutcomeMessage(rmMessageType)) {
+        return createExpectedDictionaryMessage(rmMessageType, root);
+      }
+
         String inputMessage = "";
         if ("ADDRESS_TYPE_CHANGED".equals(rmMessageType)) {
           switch (businessFunction) {
@@ -935,13 +937,17 @@ public class OutcomeSteps {
         assertEquals(expectedRmMessages.size(), actualRmMessageMap.size());
         assertThat(expectedRmMessages.containsAll(actualRmMessageMap.keySet()));
 
-        Map<String, Object> root = new HashMap();
         for (String rmMessageType : expectedRmMessages) {
             String expectedRmMessage = expectedRmMessageMap.get(rmMessageType);
             JsonNode expectedJson = jsonObjectMapper.readTree(expectedRmMessage);
 
             String actualRmMessage = actualRmMessageMap.get(rmMessageType);
             JsonNode actualJson = jsonObjectMapper.readTree(actualRmMessage);
+
+        if (isDictionaryOutcomeMessage(rmMessageType)) {
+          assertDictionaryOutcomeMessage(rmMessageType, expectedJson, actualJson);
+          continue;
+        }
 
             boolean isEqual = expectedJson.equals(actualJson);
             if (!isEqual) {
@@ -956,11 +962,134 @@ public class OutcomeSteps {
     public void the_caseId_of_the_message_will_be_a_new_caseId(String messageType) throws Exception {
       addressTypeChangeMsg = actualRmMessageMap.get(messageType);
       System.out.println("Actual:" + addressTypeChangeMsg);
-      JsonNode actualJson = jsonObjectMapper.readTree(addressTypeChangeMsg);
-      JsonNode caseIdNode = actualJson.findPath("id");
-      assertThat(caseIdNode!=null && !caseIdNode.isMissingNode()).isTrue();
-      assertThat(scenarioCaseId.equals(caseIdNode.asText())).isFalse();
-      newCaseId = caseIdNode.asText();
+      String actualCaseId = extractCaseIdFromRmMessage(messageType, addressTypeChangeMsg);
+      assertThat(scenarioCaseId.equals(actualCaseId)).isFalse();
+      newCaseId = actualCaseId;
+    }
+
+    private String extractRmMessageType(JsonNode actualMessageRootNode) {
+      JsonNode messageTypeNode = actualMessageRootNode.path("header").path("messageType");
+      if (!messageTypeNode.isMissingNode() && !messageTypeNode.asText().isBlank()) {
+        if ("FULFILMENT_REQUEST".equals(messageTypeNode.asText())) {
+          return "FULFILMENT_REQUESTED";
+        }
+        return messageTypeNode.asText();
+      }
+
+      JsonNode eventTypeNode = actualMessageRootNode.path("event").path("type");
+      if (!eventTypeNode.isMissingNode() && !eventTypeNode.asText().isBlank()) {
+        return eventTypeNode.asText();
+      }
+
+      return actualMessageRootNode.path("type").asText();
+    }
+
+    private String extractCaseIdFromRmMessage(String messageType, String messageJson) throws Exception {
+      JsonNode actualJson = jsonObjectMapper.readTree(messageJson);
+      switch (messageType) {
+        case "REFUSAL_RECEIVED":
+        case "HARD_REFUSAL_RECEIVED":
+          return actualJson.path("payload").path("refusal").path("collectionCase").path("id").asText();
+        case "FIELD_CASE_UPDATED":
+          return actualJson.path("payload").path("fieldCaseUpdate").path("caseId").asText();
+        case "FULFILMENT_REQUESTED":
+          return actualJson.path("payload").path("fulfilmentRequest").path("caseId").asText();
+        default:
+          return actualJson.findPath("id").asText();
+      }
+    }
+
+    private boolean isDictionaryOutcomeMessage(String rmMessageType) {
+      return "REFUSAL_RECEIVED".equals(rmMessageType)
+          || "FIELD_CASE_UPDATED".equals(rmMessageType)
+          || "FULFILMENT_REQUESTED".equals(rmMessageType);
+    }
+
+    private String createExpectedDictionaryMessage(String rmMessageType, Map<String, Object> root) throws Exception {
+      Map<String, Object> header = new LinkedHashMap<>();
+      header.put("version", "1.0.0");
+      header.put("source", "FIELDWORK_GATEWAY");
+      header.put("channel", "FIELD");
+      header.put("dateTime", "2020-04-17T11:53:11.000Z");
+      header.put("messageId", "00000000-0000-0000-0000-000000000000");
+      header.put("correlationId", "");
+
+      Map<String, Object> payload = new LinkedHashMap<>();
+
+      switch (rmMessageType) {
+        case "REFUSAL_RECEIVED":
+          header.put("topic", REFUSAL_RECEIVED_QUEUE);
+          header.put("messageType", "REFUSAL_RECEIVED");
+          Map<String, Object> refusal = new LinkedHashMap<>();
+          refusal.put("type", expectedRefusalType());
+          refusal.put("collectionCase", Map.of("id", root.get("caseId")));
+          payload.put("refusal", refusal);
+          break;
+        case "FIELD_CASE_UPDATED":
+          header.put("topic", FIELD_CASE_UPDATED_QUEUE);
+          header.put("messageType", "FIELD_CASE_UPDATED");
+          payload.put(
+              "fieldCaseUpdate",
+              Map.of("caseId", root.get("caseId"), "ceExpectedCapacity", root.get("usualResidents")));
+          break;
+        case "FULFILMENT_REQUESTED":
+          header.put("topic", FULFILMENT_REQUEST_QUEUE);
+          header.put("messageType", "FULFILMENT_REQUEST");
+          payload.put(
+              "fulfilmentRequest",
+              Map.of("fulfilmentCode", root.get("fulfilmentCode"), "caseId", root.get("caseId")));
+          break;
+        default:
+          throw new IllegalArgumentException("Unsupported dictionary RM message: " + rmMessageType);
+      }
+
+      Map<String, Object> message = new LinkedHashMap<>();
+      message.put("header", header);
+      message.put("payload", payload);
+      return jsonObjectMapper.writeValueAsString(message);
+    }
+
+    private String expectedRefusalType() {
+      return "Extraordinary Refusal".equals(businessFunction)
+          ? "EXTRAORDINARY_REFUSAL"
+          : "HARD_REFUSAL";
+    }
+
+    private void assertDictionaryOutcomeMessage(String rmMessageType, JsonNode expectedJson, JsonNode actualJson) {
+      JsonNode actualHeader = actualJson.path("header");
+      assertThat(actualHeader.path("version").asText()).isEqualTo("1.0.0");
+      assertThat(actualHeader.path("source").asText()).isEqualTo("FIELDWORK_GATEWAY");
+      assertThat(actualHeader.path("channel").asText()).isEqualTo("FIELD");
+      assertThat(actualHeader.path("correlationId").asText()).isEmpty();
+      assertThat(actualHeader.path("dateTime").asText()).isNotBlank();
+      assertThat(actualHeader.path("messageId").asText()).isNotBlank();
+
+      JsonNode expectedHeader = expectedJson.path("header");
+      assertThat(actualHeader.path("topic").asText()).isEqualTo(expectedHeader.path("topic").asText());
+      assertThat(actualHeader.path("messageType").asText()).isEqualTo(expectedHeader.path("messageType").asText());
+
+      switch (rmMessageType) {
+        case "REFUSAL_RECEIVED":
+          assertThat(actualJson.path("payload").path("refusal").path("type").asText())
+              .isEqualTo(expectedJson.path("payload").path("refusal").path("type").asText());
+          assertThat(actualJson.path("payload").path("refusal").path("collectionCase").path("id").asText())
+              .isEqualTo(expectedJson.path("payload").path("refusal").path("collectionCase").path("id").asText());
+          break;
+        case "FIELD_CASE_UPDATED":
+          assertThat(actualJson.path("payload").path("fieldCaseUpdate").path("caseId").asText())
+              .isEqualTo(expectedJson.path("payload").path("fieldCaseUpdate").path("caseId").asText());
+          assertThat(actualJson.path("payload").path("fieldCaseUpdate").path("ceExpectedCapacity").asInt())
+              .isEqualTo(expectedJson.path("payload").path("fieldCaseUpdate").path("ceExpectedCapacity").asInt());
+          break;
+        case "FULFILMENT_REQUESTED":
+          assertThat(actualJson.path("payload").path("fulfilmentRequest").path("caseId").asText())
+              .isEqualTo(expectedJson.path("payload").path("fulfilmentRequest").path("caseId").asText());
+          assertThat(actualJson.path("payload").path("fulfilmentRequest").path("fulfilmentCode").asText())
+              .isEqualTo(expectedJson.path("payload").path("fulfilmentRequest").path("fulfilmentCode").asText());
+          break;
+        default:
+          throw new IllegalArgumentException("Unsupported dictionary RM message: " + rmMessageType);
+      }
     }
 
     @Given("the message includes Usual Residents Count {string}")

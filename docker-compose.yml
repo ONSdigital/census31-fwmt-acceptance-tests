@@ -74,6 +74,8 @@ services:
 
         until curl -fsS "$$BASE/topics" >/dev/null 2>&1; do sleep 1; done
 
+        put_topic 'event_refusal-received'
+        put_topic 'event_field-case-updated'
         put_topic 'event_fulfilment-request'
         put_topic 'event_fieldwork_action-instruction'
         put_topic 'event_fieldwork_action-instruction_internal'
@@ -102,6 +104,9 @@ services:
         put_sub 'fulfilment-event-service-events' 'events'
         put_sub 'fulfilment-event-service-fulfilment-request' 'event_fulfilment-request'
 
+        put_sub 'acceptance-tests-refusal-received' 'event_refusal-received'
+        put_sub 'acceptance-tests-field-case-updated' 'event_field-case-updated'
+        put_sub 'acceptance-tests-fulfilment-request' 'event_fulfilment-request'
         put_sub 'acceptance-tests-fieldwork-action-instruction' 'event_fieldwork_action-instruction'
         put_sub 'acceptance-tests-fieldwork-action-instruction-internal' 'event_fieldwork_action-instruction_internal'
         put_sub 'acceptance-tests-GW-Transient-ErrorQ' 'GW.Transient.ErrorQ'

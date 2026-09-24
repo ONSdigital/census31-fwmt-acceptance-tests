@@ -39,19 +39,19 @@ class PubSubEmulatorMessagingTest {
     http.enqueuePull(
         List.of(
             new PubSubEmulatorHttp.ReceivedPubSubMessage(
-                "ack-address", "{\"event\":{\"type\":\"ADDRESS_TYPE_CHANGED\"}}", Map.of()),
+                "ack-address", "{\"header\":{\"messageType\":\"FIELD_CASE_UPDATED\"}}", Map.of()),
             new PubSubEmulatorHttp.ReceivedPubSubMessage(
-                "ack-fulfilment", "{\"event\":{\"type\":\"FULFILMENT_REQUESTED\"}}", Map.of())));
+                "ack-fulfilment", "{\"header\":{\"messageType\":\"FULFILMENT_REQUEST\"}}", Map.of())));
     PubSubEmulatorMessaging client =
       new PubSubEmulatorMessaging(http, new PerformanceTimingRecorder());
 
     String addressMessage =
-        client.getMessageWithEventType("Field.other", "ADDRESS_TYPE_CHANGED", 100, 10);
+        client.getMessageWithEventType("event_field-case-updated", "FIELD_CASE_UPDATED", 100, 10);
     String fulfilmentMessage =
-        client.getMessageWithEventType("Field.other", "FULFILMENT_REQUESTED", 100, 10);
+        client.getMessageWithEventType("event_field-case-updated", "FULFILMENT_REQUESTED", 100, 10);
 
-    assertThat(addressMessage).contains("ADDRESS_TYPE_CHANGED");
-    assertThat(fulfilmentMessage).contains("FULFILMENT_REQUESTED");
+    assertThat(addressMessage).contains("FIELD_CASE_UPDATED");
+    assertThat(fulfilmentMessage).contains("FULFILMENT_REQUEST");
     assertThat(http.acknowledgedIds).containsExactly("ack-address", "ack-fulfilment");
     assertThat(http.pullCount).isOne();
     assertThat(http.publishedMessages).isEmpty();
