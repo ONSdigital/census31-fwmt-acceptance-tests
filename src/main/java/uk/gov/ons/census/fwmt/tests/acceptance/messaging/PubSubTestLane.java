@@ -43,6 +43,11 @@ public enum PubSubTestLane {
       "event_fulfilment-request",
       "acceptance-tests-fulfilment-request",
       "fulfilment-event-service-fulfilment-request"),
+  ADDRESS_NOT_VALID(
+      "event_address-not-valid",
+      "event_address-not-valid",
+      "acceptance-tests-address-not-valid",
+      null),
   FIELD_REFUSALS("Field.refusals", "Field.refusals", "acceptance-tests-Field-refusals", null),
   FIELD_OTHER("Field.other", "Field.other", "acceptance-tests-Field-other", null);
 
@@ -92,6 +97,7 @@ public enum PubSubTestLane {
         REFUSAL_RECEIVED.logicalQueueName, REFUSAL_RECEIVED,
         FIELD_CASE_UPDATED.logicalQueueName, FIELD_CASE_UPDATED,
         FULFILMENT_REQUEST.logicalQueueName, FULFILMENT_REQUEST,
+        ADDRESS_NOT_VALID.logicalQueueName, ADDRESS_NOT_VALID,
         FIELD_REFUSALS.logicalQueueName, FIELD_REFUSALS,
         FIELD_OTHER.logicalQueueName, FIELD_OTHER);
   }

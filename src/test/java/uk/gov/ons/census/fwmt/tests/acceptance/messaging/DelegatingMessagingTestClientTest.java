@@ -26,7 +26,7 @@ class DelegatingMessagingTestClientTest {
     when(emulatorClient.getMessage("event_fieldwork_action-instruction", 5000, 250)).thenReturn("message-body");
     when(emulatorClient.getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250))
         .thenReturn(new MessagingTestClient.ObservedMessage("typed-body", java.util.Map.of("caseId", "123")));
-    when(emulatorClient.getMessageWithEventType("event_field-case-updated", "FIELD_CASE_UPDATED", 4000, 200))
+    when(emulatorClient.getMessageWithEventType("event_address-not-valid", "ADDRESS_NOT_VALID", 4000, 200))
         .thenReturn("typed-message");
     when(emulatorClient.doMessagingPreFlightCheck()).thenReturn(preFlight);
 
@@ -37,7 +37,7 @@ class DelegatingMessagingTestClientTest {
     assertThat(client.getMessage("event_fieldwork_action-instruction", 5000, 250)).isEqualTo("message-body");
     assertThat(client.getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250).attributes())
         .containsEntry("caseId", "123");
-    assertThat(client.getMessageWithEventType("event_field-case-updated", "FIELD_CASE_UPDATED", 4000, 200))
+    assertThat(client.getMessageWithEventType("event_address-not-valid", "ADDRESS_NOT_VALID", 4000, 200))
         .isEqualTo("typed-message");
 
     ExternalActionInstructionMetadataOverride metadataOverride =
@@ -51,7 +51,7 @@ class DelegatingMessagingTestClientTest {
     verify(emulatorClient).getMessage("event_fieldwork_action-instruction", 5000, 250);
     verify(emulatorClient).getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250);
     verify(emulatorClient)
-        .getMessageWithEventType("event_field-case-updated", "FIELD_CASE_UPDATED", 4000, 200);
+        .getMessageWithEventType("event_address-not-valid", "ADDRESS_NOT_VALID", 4000, 200);
     verify(emulatorClient)
         .publishExternalActionInstruction(
             "{\"actionInstruction\":\"CREATE\",\"caseId\":\"123\",\"surveyName\":\"CENSUS\"}",

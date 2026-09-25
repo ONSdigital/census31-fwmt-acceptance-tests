@@ -57,6 +57,25 @@ class PubSubEmulatorMessagingTest {
     assertThat(http.publishedMessages).isEmpty();
   }
 
+  @Test
+  void shouldFilterAddressNotValidMessagesOnDictionaryLane() throws InterruptedException {
+    RecordingPubSubEmulatorHttp http = new RecordingPubSubEmulatorHttp();
+    http.enqueuePull(
+        List.of(
+            new PubSubEmulatorHttp.ReceivedPubSubMessage(
+                "ack-address-not-valid",
+                "{\"header\":{\"messageType\":\"ADDRESS_NOT_VALID\"}}",
+                Map.of())));
+    PubSubEmulatorMessaging client =
+        new PubSubEmulatorMessaging(http, new PerformanceTimingRecorder());
+
+    String message =
+        client.getMessageWithEventType("event_address-not-valid", "ADDRESS_NOT_VALID", 100, 10);
+
+    assertThat(message).contains("ADDRESS_NOT_VALID");
+    assertThat(http.acknowledgedIds).containsExactly("ack-address-not-valid");
+  }
+
     @Test
     void shouldPublishExternalActionInstructionWithCanonicalDefaults() {
     RecordingPubSubEmulatorHttp http = new RecordingPubSubEmulatorHttp();

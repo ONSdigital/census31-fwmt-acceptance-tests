@@ -275,6 +275,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
             "acceptance-tests-refusal-received", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-field-case-updated", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-fulfilment-request", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-address-not-valid", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Field-other", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Field-refusals", BUSY_LANE_PULLER_PARALLELISM);
 

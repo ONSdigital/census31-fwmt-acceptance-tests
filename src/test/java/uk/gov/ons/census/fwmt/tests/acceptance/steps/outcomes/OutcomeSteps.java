@@ -2,6 +2,7 @@ package uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.StringWriter;
 import java.util.ArrayList;
@@ -92,6 +93,8 @@ public class OutcomeSteps {
     private static final String FIELD_CASE_UPDATED_QUEUE = "event_field-case-updated";
 
     private static final String FULFILMENT_REQUEST_QUEUE = "event_fulfilment-request";
+
+    private static final String ADDRESS_NOT_VALID_QUEUE = "event_address-not-valid";
 
     private static final String TEMP_FIELD_OTHERS_QUEUE = "Field.other";
 
@@ -862,6 +865,7 @@ public class OutcomeSteps {
       case "FULFILMENT_REQUESTED":
         return FULFILMENT_REQUEST_QUEUE;
         case "ADDRESS_NOT_VALID":
+        return ADDRESS_NOT_VALID_QUEUE;
         case "ADDRESS_TYPE_CHANGED":
         case "QUESTIONNAIRE_LINKED":
         case "NEW_ADDRESS_REPORTED":
@@ -999,7 +1003,8 @@ public class OutcomeSteps {
     private boolean isDictionaryOutcomeMessage(String rmMessageType) {
       return "REFUSAL_RECEIVED".equals(rmMessageType)
           || "FIELD_CASE_UPDATED".equals(rmMessageType)
-          || "FULFILMENT_REQUESTED".equals(rmMessageType);
+          || "FULFILMENT_REQUESTED".equals(rmMessageType)
+          || "ADDRESS_NOT_VALID".equals(rmMessageType);
     }
 
     private String createExpectedDictionaryMessage(String rmMessageType, Map<String, Object> root) throws Exception {
@@ -1035,6 +1040,13 @@ public class OutcomeSteps {
           payload.put(
               "fulfilmentRequest",
               Map.of("fulfilmentCode", root.get("fulfilmentCode"), "caseId", root.get("caseId")));
+          break;
+        case "ADDRESS_NOT_VALID":
+          header.put("topic", ADDRESS_NOT_VALID_QUEUE);
+          header.put("messageType", "ADDRESS_NOT_VALID");
+          payload.put(
+              "invalidAddress",
+              Map.of("reason", root.get("reason"), "caseId", root.get("caseId")));
           break;
         default:
           throw new IllegalArgumentException("Unsupported dictionary RM message: " + rmMessageType);
@@ -1083,6 +1095,14 @@ public class OutcomeSteps {
               .isEqualTo(expectedJson.path("payload").path("fulfilmentRequest").path("caseId").asText());
           assertThat(actualJson.path("payload").path("fulfilmentRequest").path("fulfilmentCode").asText())
               .isEqualTo(expectedJson.path("payload").path("fulfilmentRequest").path("fulfilmentCode").asText());
+          break;
+        case "ADDRESS_NOT_VALID":
+          JsonNode invalidAddress = actualJson.path("payload").path("invalidAddress");
+          assertThat(invalidAddress.path("reason").asText())
+            .isEqualTo(expectedJson.path("payload").path("invalidAddress").path("reason").asText());
+          assertThat(invalidAddress.path("caseId").asText())
+            .isEqualTo(expectedJson.path("payload").path("invalidAddress").path("caseId").asText());
+          assertThat(invalidAddress.has("notes")).isFalse();
           break;
         default:
           throw new IllegalArgumentException("Unsupported dictionary RM message: " + rmMessageType);

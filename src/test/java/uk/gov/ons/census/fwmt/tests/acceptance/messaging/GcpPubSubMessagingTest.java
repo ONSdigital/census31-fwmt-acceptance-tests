@@ -33,13 +33,18 @@ class GcpPubSubMessagingTest {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
     GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
 
-    client.purge("event_fieldwork_action-instruction", "Outcome.Preprocessing", "event_refusal-received");
+    client.purge(
+      "event_fieldwork_action-instruction",
+      "Outcome.Preprocessing",
+      "event_refusal-received",
+      "event_address-not-valid");
 
     assertThat(operations.drainedSubscriptions)
         .containsExactly(
         "acceptance-tests-fieldwork-action-instruction",
             "acceptance-tests-Outcome-Preprocessing",
-        "acceptance-tests-refusal-received");
+        "acceptance-tests-refusal-received",
+        "acceptance-tests-address-not-valid");
   }
 
   @Test
@@ -158,6 +163,26 @@ class GcpPubSubMessagingTest {
       .containsEntry("acceptance-tests-refusal-received", List.of("ack-2"));
   }
 
+    @Test
+    void shouldFilterAddressNotValidMessagesOnDictionaryLane() throws InterruptedException {
+    RecordingPubSubOperations operations = new RecordingPubSubOperations();
+    operations.enqueuePull(
+      "acceptance-tests-address-not-valid",
+      List.of(
+        new GcpPubSubMessaging.TestMessage(
+          "ack-1",
+          "{\"header\":{\"messageType\":\"ADDRESS_NOT_VALID\"},\"payload\":{}}",
+          Map.of())));
+    GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
+
+    String message =
+      client.getMessageWithEventType("event_address-not-valid", "ADDRESS_NOT_VALID", 100, 10);
+
+    assertThat(message).contains("ADDRESS_NOT_VALID");
+    assertThat(operations.acknowledgedAckIdsBySubscription)
+      .containsEntry("acceptance-tests-address-not-valid", List.of("ack-1"));
+    }
+
   @Test
   void shouldPreflightAgainstGcpAndAvoidServiceSubscriptionDrainByDefault() {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
@@ -239,6 +264,7 @@ class GcpPubSubMessagingTest {
     assertThat(operations.pullerParallelismFor("acceptance-tests-refusal-received")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-field-case-updated")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-fulfilment-request")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-address-not-valid")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Field-other")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Field-refusals")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Unknown-Lane")).isEqualTo(1);
