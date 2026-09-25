@@ -8,7 +8,7 @@ CE_DIR="${INPUT_ROOT}/ce"
 # Local-only static settings
 EMULATOR="localhost:8085"
 PROJECT="fwmt-local"
-TOPIC="RM.Field"
+TOPIC="event_fieldwork_action-instruction"
 
 TYPE=""
 RAW_JSON=""
@@ -33,7 +33,7 @@ Options:
                 - Fixture: -t HH_CREATE -f hhCreate.json
                 - Custom path: -t HH_CREATE -f ./my-msg.json or -t HH_CREATE -f /path/to/file.json
   -m JSON       Custom raw JSON payload (string, standalone - no -t needed)
-  -T TOPIC      Topic name (default: RM.Field)
+  -T TOPIC      Topic name (default: event_fieldwork_action-instruction)
   -c            Clear database tables before publishing (message_cache, quarantined_message, gateway_case_record)
   -n            No transformations: publish exact JSON as-is (skip adding caseId, addressLevel, oa, etc.)
                 - Use with -m to wrap exact payload without modifications
@@ -43,7 +43,7 @@ Examples:
   $(basename "$0") -t HH_CREATE
   $(basename "$0") -t CE_CREATE -f ceEstabCreate.json
   $(basename "$0") -c -t HH_CREATE
-  $(basename "$0") -t HH_CREATE -f ./my-msg.json -T GW.Field -c
+  $(basename "$0") -t HH_CREATE -f ./my-msg.json -T event_fieldwork_action-instruction_internal -c
   $(basename "$0") -m '{"actionInstruction":"CREATE","surveyName":"CENSUS"}'
   $(basename "$0") -c
 EOF
@@ -154,10 +154,6 @@ fi
 
 echo "$RAW_JSON" | jq -e . >/dev/null
 
-# Check if JSON is already in Pub/Sub message format
-IS_PUBSUB_FORMAT=$(echo "$RAW_JSON" | grep -c '{"messages":\[{"data":' 2>/dev/null || true)
-[[ -z "$IS_PUBSUB_FORMAT" ]] && IS_PUBSUB_FORMAT=0
-
 # Generate unique caseId (UUID v4)
 UNIQUE_CASE_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 
@@ -166,58 +162,55 @@ if [[ "$NO_TRANSFORM" == "true" ]]; then
   # No transformations: publish exact JSON as-is
   UNIQUE_CASE_ID="(no caseId generated)"
 else
-  # Apply transformations based on message type (only if not already in Pub/Sub format)
-  if [[ "$IS_PUBSUB_FORMAT" -eq 0 ]]; then
-    # First: handle caseId (always replace for default fixtures, add only if missing otherwise)
-    if [[ -n "$TYPE" && "$USER_PROVIDED_FILE" == "false" ]]; then
-      # Default fixture: always replace caseId
-      RAW_JSON=$(echo "$RAW_JSON" | jq ".caseId = \"$UNIQUE_CASE_ID\"")
-    else
-      # Custom file or inline JSON: add caseId only if missing
-      RAW_JSON=$(echo "$RAW_JSON" | jq ".caseId = (.caseId // \"$UNIQUE_CASE_ID\")")
-    fi
+  # First: handle caseId (always replace for default fixtures, add only if missing otherwise)
+  if [[ -n "$TYPE" && "$USER_PROVIDED_FILE" == "false" ]]; then
+    RAW_JSON=$(echo "$RAW_JSON" | jq ".caseId = \"$UNIQUE_CASE_ID\"")
+  else
+    RAW_JSON=$(echo "$RAW_JSON" | jq ".caseId = (.caseId // \"$UNIQUE_CASE_ID\")")
+  fi
 
-    # Then: handle type-specific fields (addressLevel, oa)
-    if [[ "$TYPE" == "HH_CREATE" ]]; then
-      # HH_CREATE: add addressLevel (default U) and oa
+  # Then: handle type-specific fields (addressLevel, oa)
+  if [[ "$TYPE" == "HH_CREATE" ]]; then
+    RAW_JSON=$(echo "$RAW_JSON" | jq \
+      ".addressLevel = (.addressLevel // \"U\") |
+       .oa = (if .oa then (if .oa | startswith(\"N\") then .oa else .oa end) else \"E00167164\" end)")
+  elif [[ "$TYPE" == "CE_CREATE" ]]; then
+    RAW_JSON=$(echo "$RAW_JSON" | jq ".addressLevel = (.addressLevel // \"E\")")
+  elif [[ -z "$TYPE" && -n "$RAW_JSON" ]]; then
+    ADDRESS_TYPE=$(echo "$RAW_JSON" | jq -r '.addressType // empty' 2>/dev/null || echo "")
+
+    if [[ "$ADDRESS_TYPE" == "HH" ]]; then
       RAW_JSON=$(echo "$RAW_JSON" | jq \
         ".addressLevel = (.addressLevel // \"U\") |
          .oa = (if .oa then (if .oa | startswith(\"N\") then .oa else .oa end) else \"E00167164\" end)")
-    elif [[ "$TYPE" == "CE_CREATE" ]]; then
-      # CE_CREATE: add addressLevel (default E)
+    elif [[ "$ADDRESS_TYPE" == "CE" ]]; then
       RAW_JSON=$(echo "$RAW_JSON" | jq ".addressLevel = (.addressLevel // \"E\")")
-    elif [[ -z "$TYPE" && -n "$RAW_JSON" ]]; then
-      # Using -m without -t: detect type from AddressType field and apply appropriate transformations
-      ADDRESS_TYPE=$(echo "$RAW_JSON" | jq -r '.addressType // empty' 2>/dev/null || echo "")
-
-      if [[ "$ADDRESS_TYPE" == "HH" ]]; then
-        # Treat as HH_CREATE: add addressLevel (default U) and oa
-        RAW_JSON=$(echo "$RAW_JSON" | jq \
-          ".addressLevel = (.addressLevel // \"U\") |
-           .oa = (if .oa then (if .oa | startswith(\"N\") then .oa else .oa end) else \"E00167164\" end)")
-      elif [[ "$ADDRESS_TYPE" == "CE" ]]; then
-        # Treat as CE_CREATE: add addressLevel (default E)
-        RAW_JSON=$(echo "$RAW_JSON" | jq ".addressLevel = (.addressLevel // \"E\")")
-      else
-        # Default to HH-like behavior if AddressType is missing or unrecognized
-        RAW_JSON=$(echo "$RAW_JSON" | jq \
-          ".addressLevel = (.addressLevel // \"U\") |
-           .oa = (if .oa then (if .oa | startswith(\"N\") then .oa else .oa end) else \"E00167164\" end)")
-      fi
+    else
+      RAW_JSON=$(echo "$RAW_JSON" | jq \
+        ".addressLevel = (.addressLevel // \"U\") |
+         .oa = (if .oa then (if .oa | startswith(\"N\") then .oa else .oa end) else \"E00167164\" end)")
     fi
   fi
 fi  # End of NO_TRANSFORM check
 
 # Build complete Pub/Sub message with attributes
-TS="$(date +%s)000"
+EVENT_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+OCCURRED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+CASE_ID="$(echo "$RAW_JSON" | jq -r '.caseId')"
 B64="$(printf '%s' "$RAW_JSON" | base64 | tr -d '\n')"
 URL="http://${EMULATOR}/v1/projects/${PROJECT}/topics/${TOPIC}:publish"
 
-# Always add attributes
-ATTRS="\"__TypeId__\":\"uk.gov.ons.census.fwmt.common.rm.dto.FwmtActionInstruction\",\"timestamp\":\"$TS\""
+ATTRS=$(jq -cn \
+  --arg eventId "$EVENT_ID" \
+  --arg correlationId "" \
+  --arg caseId "$CASE_ID" \
+  --arg eventType "CASE_UPDATE" \
+  --arg schemaVersion "1.0" \
+  --arg occurredAt "$OCCURRED_AT" \
+  '{eventId:$eventId, correlationId:$correlationId, caseId:$caseId, eventType:$eventType, schemaVersion:$schemaVersion, occurredAt:$occurredAt}')
 
 # Always publish in Pub/Sub format with attributes
-FINAL_MESSAGE="{\"messages\":[{\"data\":\"${B64}\",\"attributes\":{$ATTRS}}]}"
+FINAL_MESSAGE=$(jq -cn --arg data "$B64" --argjson attributes "$ATTRS" '{messages:[{data:$data, attributes:$attributes}]}')
 curl -sS -X POST "$URL" \
   -H "Content-Type: application/json" \
   -d "$FINAL_MESSAGE" | jq .

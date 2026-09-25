@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
-import uk.gov.ons.census.fwmt.common.messaging.FieldWorkerInstructionJsonCodec;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 
 class GcpPubSubMessagingTest {
@@ -34,13 +33,18 @@ class GcpPubSubMessagingTest {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
     GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
 
-    client.purge("RM.Field", "Outcome.Preprocessing", "Field.refusals");
+    client.purge(
+      "event_fieldwork_action-instruction",
+      "Outcome.Preprocessing",
+      "event_refusal-received",
+      "event_address-not-valid");
 
     assertThat(operations.drainedSubscriptions)
         .containsExactly(
-            "acceptance-tests-RM-Field",
+        "acceptance-tests-fieldwork-action-instruction",
             "acceptance-tests-Outcome-Preprocessing",
-            "acceptance-tests-Field-refusals");
+        "acceptance-tests-refusal-received",
+        "acceptance-tests-address-not-valid");
   }
 
   @Test
@@ -48,32 +52,93 @@ class GcpPubSubMessagingTest {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
     GcpPubSubMessaging client = new GcpPubSubMessaging(operations, true);
 
-    client.purge("RM.Field", "Outcome.PreprocessingDLQ");
+    client.purge("event_fieldwork_action-instruction", "Outcome.PreprocessingDLQ");
 
     assertThat(operations.drainedSubscriptions)
         .containsExactly(
-            "acceptance-tests-RM-Field",
-            "job-service-RM-Field",
+        "acceptance-tests-fieldwork-action-instruction",
+        "job-service-fieldwork-action-instruction",
             "acceptance-tests-Outcome-PreprocessingDLQ",
             "outcome-service-Outcome-PreprocessingDLQ");
   }
 
   @Test
-  void shouldPublishFieldWorkerInstructionWithExpectedAttributes() {
+    void shouldPublishExternalActionInstructionWithCanonicalDefaults() {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
     GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
 
-    client.publishFieldWorkerInstruction("{\"caseId\":\"123\"}", "cancel");
+    client.publishExternalActionInstruction(
+      "{\"caseId\":\"123\",\"surveyName\":\"CENSUS\",\"actionInstruction\":\"CANCEL\"}");
 
-    assertThat(operations.publishedTopic).isEqualTo("RM.Field");
-    assertThat(operations.publishedBody).isEqualTo("{\"caseId\":\"123\"}");
+    assertThat(operations.publishedTopic).isEqualTo("event_fieldwork_action-instruction");
+    assertThat(operations.publishedBody)
+      .isEqualTo("{\"caseId\":\"123\",\"surveyName\":\"CENSUS\",\"actionInstruction\":\"CANCEL\"}");
     assertThat(operations.publishedAttributes)
-        .containsEntry(
-            FieldWorkerInstructionJsonCodec.TYPE_ID_HEADER,
-            "uk.gov.ons.census.fwmt.common.rm.dto.FwmtCancelActionInstruction")
-        .containsKey(FieldWorkerInstructionJsonCodec.TIMESTAMP_HEADER);
-    assertThat(operations.publishedAttributes.get(FieldWorkerInstructionJsonCodec.TIMESTAMP_HEADER))
-        .matches("\\d+");
+      .containsEntry("caseId", "123")
+      .containsEntry("correlationId", "")
+      .containsEntry("eventType", "CASE_UPDATE")
+      .containsEntry("schemaVersion", "1.0")
+      .containsKey("eventId")
+      .containsKey("occurredAt")
+      .doesNotContainKeys("__TypeId__", "timestamp");
+    assertThat(operations.publishedAttributes.get("eventId")).isNotBlank();
+    assertThat(operations.publishedAttributes.get("occurredAt")).contains("T");
+    }
+
+    @Test
+    void shouldApplyExplicitMetadataOverridesAndAllowOmissions() {
+    RecordingPubSubOperations operations = new RecordingPubSubOperations();
+    GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
+
+    client.publishExternalActionInstruction(
+      "{\"caseId\":\"123\",\"surveyName\":\"CENSUS\",\"actionInstruction\":\"CREATE\"}",
+      ExternalActionInstructionMetadataOverride.none()
+        .withEventId("event-1")
+        .withCorrelationId("corr-1")
+        .omitCaseId()
+        .withEventType("BROKEN_TYPE")
+        .withSchemaVersion("9.9")
+        .omitOccurredAt());
+
+    assertThat(operations.publishedAttributes)
+      .containsEntry("eventId", "event-1")
+      .containsEntry("correlationId", "corr-1")
+      .containsEntry("eventType", "BROKEN_TYPE")
+      .containsEntry("schemaVersion", "9.9")
+      .doesNotContainKeys("caseId", "occurredAt");
+    }
+
+    @Test
+    void shouldRejectExternalActionInstructionWithoutNonEmptyCaseId() {
+    RecordingPubSubOperations operations = new RecordingPubSubOperations();
+    GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+        () ->
+          client.publishExternalActionInstruction(
+            "{\"caseId\":\"\",\"surveyName\":\"CENSUS\",\"actionInstruction\":\"CREATE\"}"))
+      .isInstanceOf(IllegalArgumentException.class)
+      .hasMessageContaining("caseId");
+  }
+
+  @Test
+  void shouldObserveInternalActionInstructionAttributes() throws InterruptedException {
+    RecordingPubSubOperations operations = new RecordingPubSubOperations();
+    operations.enqueuePull(
+        "acceptance-tests-fieldwork-action-instruction-internal",
+        List.of(new GcpPubSubMessaging.TestMessage(
+            "ack-1",
+            "{\"actionInstruction\":\"PAUSE\"}",
+            Map.of("eventType", "FIELDWORK_ACTION_INSTRUCTION", "caseId", "case-123"))));
+    GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
+
+    MessagingTestClient.ObservedMessage message =
+        client.getObservedMessage("event_fieldwork_action-instruction_internal", 100, 10);
+
+    assertThat(message.body()).contains("PAUSE");
+    assertThat(message.attributes())
+        .containsEntry("eventType", "FIELDWORK_ACTION_INSTRUCTION")
+        .containsEntry("caseId", "case-123");
   }
 
   @Test
@@ -81,21 +146,61 @@ class GcpPubSubMessagingTest {
       throws InterruptedException {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
     operations.enqueuePull(
-        "acceptance-tests-Field-other",
+      "acceptance-tests-refusal-received",
         List.of(
             new GcpPubSubMessaging.TestMessage("ack-1", "{\"type\":\"event.other\"}", Map.of()),
             new GcpPubSubMessaging.TestMessage(
-                "ack-2", "{\"type\":\"event.respondent.refusal\"}", Map.of())));
+          "ack-2", "{\"header\":{\"messageType\":\"REFUSAL_RECEIVED\"},\"payload\":{}}", Map.of())));
     GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
 
     String message =
-        client.getMessageWithEventType("Field.other", "event.respondent.refusal", 100, 10);
+      client.getMessageWithEventType("event_refusal-received", "REFUSAL_RECEIVED", 100, 10);
 
-    assertThat(message).isEqualTo("{\"type\":\"event.respondent.refusal\"}");
+    assertThat(message).contains("REFUSAL_RECEIVED");
     assertThat(operations.releasedAckIdsBySubscription)
-        .containsEntry("acceptance-tests-Field-other", List.of("ack-1"));
+      .containsEntry("acceptance-tests-refusal-received", List.of("ack-1"));
     assertThat(operations.acknowledgedAckIdsBySubscription)
-        .containsEntry("acceptance-tests-Field-other", List.of("ack-2"));
+      .containsEntry("acceptance-tests-refusal-received", List.of("ack-2"));
+  }
+
+    @Test
+    void shouldFilterAddressNotValidMessagesOnDictionaryLane() throws InterruptedException {
+    RecordingPubSubOperations operations = new RecordingPubSubOperations();
+    operations.enqueuePull(
+      "acceptance-tests-address-not-valid",
+      List.of(
+        new GcpPubSubMessaging.TestMessage(
+          "ack-1",
+          "{\"header\":{\"messageType\":\"ADDRESS_NOT_VALID\"},\"payload\":{}}",
+          Map.of())));
+    GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
+
+    String message =
+      client.getMessageWithEventType("event_address-not-valid", "ADDRESS_NOT_VALID", 100, 10);
+
+    assertThat(message).contains("ADDRESS_NOT_VALID");
+    assertThat(operations.acknowledgedAckIdsBySubscription)
+      .containsEntry("acceptance-tests-address-not-valid", List.of("ack-1"));
+    }
+
+  @Test
+  void shouldFilterQuestionnaireLinkedMessagesOnDictionaryLane() throws InterruptedException {
+    RecordingPubSubOperations operations = new RecordingPubSubOperations();
+    operations.enqueuePull(
+      "acceptance-tests-questionnaire-linked",
+      List.of(
+        new GcpPubSubMessaging.TestMessage(
+          "ack-1",
+          "{\"header\":{\"messageType\":\"QUESTIONNAIRE_LINKED\"},\"payload\":{}}",
+          Map.of())));
+    GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
+
+    String message = client.getMessageWithEventType(
+      "event_questionnaire-linked", "QUESTIONNAIRE_LINKED", 100, 10);
+
+    assertThat(message).contains("QUESTIONNAIRE_LINKED");
+    assertThat(operations.acknowledgedAckIdsBySubscription)
+      .containsEntry("acceptance-tests-questionnaire-linked", List.of("ack-1"));
   }
 
   @Test
@@ -108,7 +213,8 @@ class GcpPubSubMessagingTest {
 
     assertThat(nodeCheck.isSuccesful()).isTrue();
     assertThat(nodeCheck.getName()).isEqualTo("Google Pub/Sub");
-    assertThat(operations.drainedSubscriptions).containsExactly("acceptance-tests-Field-refusals");
+    assertThat(operations.drainedSubscriptions)
+      .containsExactly("acceptance-tests-fieldwork-action-instruction");
   }
 
   @Test
@@ -137,10 +243,10 @@ class GcpPubSubMessagingTest {
               return subscriberStub;
             });
 
-    operations.pull("acceptance-tests-RM-Field", 1);
-    operations.acknowledge("acceptance-tests-RM-Field", List.of("ack-1"));
-    operations.release("acceptance-tests-RM-Field", List.of("ack-2"));
-    operations.drainSubscription("acceptance-tests-RM-Field");
+    operations.pull("acceptance-tests-fieldwork-action-instruction", 1);
+    operations.acknowledge("acceptance-tests-fieldwork-action-instruction", List.of("ack-1"));
+    operations.release("acceptance-tests-fieldwork-action-instruction", List.of("ack-2"));
+    operations.drainSubscription("acceptance-tests-fieldwork-action-instruction");
 
     assertThat(stubCreations).hasValue(1);
 
@@ -150,7 +256,7 @@ class GcpPubSubMessagingTest {
   }
 
   @Test
-  void shouldUseMultiplePullersForHotSubscriptionAndTwoForBusyOnes() throws Exception {
+  void shouldUseTwoPullersForBusySubscriptionsAndOneByDefault() throws Exception {
     AtomicInteger stubCreations = new AtomicInteger();
     SubscriberStub subscriberStub = mock(SubscriberStub.class);
     @SuppressWarnings("unchecked")
@@ -171,15 +277,19 @@ class GcpPubSubMessagingTest {
               return subscriberStub;
             });
 
-    assertThat(operations.pullerParallelismFor("acceptance-tests-RM-Field")).isEqualTo(3);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-fieldwork-action-instruction")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-fieldwork-action-instruction-internal")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Outcome-Preprocessing")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Outcome-PreprocessingDLQ")).isEqualTo(2);
-    assertThat(operations.pullerParallelismFor("acceptance-tests-RM-FieldDLQ")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-refusal-received")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-field-case-updated")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-fulfilment-request")).isEqualTo(2);
+    assertThat(operations.pullerParallelismFor("acceptance-tests-address-not-valid")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Field-other")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Field-refusals")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Unknown-Lane")).isEqualTo(1);
 
-    operations.drainSubscription("acceptance-tests-RM-Field");
+    operations.drainSubscription("acceptance-tests-fieldwork-action-instruction");
 
     assertThat(stubCreations).hasValue(1);
     operations.close();
@@ -255,12 +365,12 @@ class GcpPubSubMessagingTest {
               return subscriberStub;
             });
 
-    pubsubOps.drainSubscription("acceptance-tests-RM-Field");
+    pubsubOps.drainSubscription("acceptance-tests-fieldwork-action-instruction");
 
     assertThat(streamingCalls).hasValue(1);
     assertThat(sentRequests).hasSize(2);
     assertThat(sentRequests.get(0).getSubscription())
-        .isEqualTo("projects/project-id/subscriptions/acceptance-tests-RM-Field");
+        .isEqualTo("projects/project-id/subscriptions/acceptance-tests-fieldwork-action-instruction");
     assertThat(sentRequests.get(1).getAckIdsList()).containsExactly("ack-stream-1");
   }
 
@@ -311,7 +421,7 @@ class GcpPubSubMessagingTest {
               return fallbackStub;
             });
 
-    pubsubOps.drainSubscription("acceptance-tests-RM-Field");
+    pubsubOps.drainSubscription("acceptance-tests-fieldwork-action-instruction");
 
     // Should have invalidated the broken first stub (closed) and created a fresh one for fallback
     assertThat(pullCalls.get()).isGreaterThan(0);

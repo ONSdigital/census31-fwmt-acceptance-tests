@@ -4,12 +4,20 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Maps legacy logical queue names used in acceptance tests to Pub/Sub topic + test subscription.
+ * Maps acceptance-test logical queue names to Pub/Sub topic + test subscription.
  */
 public enum PubSubTestLane {
 
-  RM_FIELD("RM.Field", "RM.Field", "acceptance-tests-RM-Field", "job-service-RM-Field"),
-  RM_FIELD_DLQ("RM.FieldDLQ", "RM.FieldDLQ", "acceptance-tests-RM-FieldDLQ", null),
+  FIELDWORK_ACTION_INSTRUCTION(
+      "event_fieldwork_action-instruction",
+      "event_fieldwork_action-instruction",
+      "acceptance-tests-fieldwork-action-instruction",
+      "job-service-fieldwork-action-instruction"),
+  FIELDWORK_ACTION_INSTRUCTION_INTERNAL(
+      "event_fieldwork_action-instruction_internal",
+      "event_fieldwork_action-instruction_internal",
+      "acceptance-tests-fieldwork-action-instruction-internal",
+      "job-service-fieldwork-action-instruction-internal"),
   OUTCOME_PREPROCESSING(
       "Outcome.Preprocessing",
       "Outcome.Preprocessing",
@@ -20,6 +28,31 @@ public enum PubSubTestLane {
       "Outcome.PreprocessingDLQ",
       "acceptance-tests-Outcome-PreprocessingDLQ",
       "outcome-service-Outcome-PreprocessingDLQ"),
+    REFUSAL_RECEIVED(
+      "event_refusal-received",
+      "event_refusal-received",
+      "acceptance-tests-refusal-received",
+      null),
+    FIELD_CASE_UPDATED(
+      "event_field-case-updated",
+      "event_field-case-updated",
+      "acceptance-tests-field-case-updated",
+      null),
+    FULFILMENT_REQUEST(
+      "event_fulfilment-request",
+      "event_fulfilment-request",
+      "acceptance-tests-fulfilment-request",
+      "fulfilment-event-service-fulfilment-request"),
+  ADDRESS_NOT_VALID(
+      "event_address-not-valid",
+      "event_address-not-valid",
+      "acceptance-tests-address-not-valid",
+      null),
+    QUESTIONNAIRE_LINKED(
+      "event_questionnaire-linked",
+      "event_questionnaire-linked",
+      "acceptance-tests-questionnaire-linked",
+      null),
   FIELD_REFUSALS("Field.refusals", "Field.refusals", "acceptance-tests-Field-refusals", null),
   FIELD_OTHER("Field.other", "Field.other", "acceptance-tests-Field-other", null);
 
@@ -61,12 +94,17 @@ public enum PubSubTestLane {
   }
 
   public static Map<String, PubSubTestLane> byLogicalQueueName() {
-    return Map.of(
-        RM_FIELD.logicalQueueName, RM_FIELD,
-        RM_FIELD_DLQ.logicalQueueName, RM_FIELD_DLQ,
-        OUTCOME_PREPROCESSING.logicalQueueName, OUTCOME_PREPROCESSING,
-        OUTCOME_PREPROCESSING_DLQ.logicalQueueName, OUTCOME_PREPROCESSING_DLQ,
-        FIELD_REFUSALS.logicalQueueName, FIELD_REFUSALS,
-        FIELD_OTHER.logicalQueueName, FIELD_OTHER);
+    return Map.ofEntries(
+        Map.entry(FIELDWORK_ACTION_INSTRUCTION.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION),
+        Map.entry(FIELDWORK_ACTION_INSTRUCTION_INTERNAL.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION_INTERNAL),
+        Map.entry(OUTCOME_PREPROCESSING.logicalQueueName, OUTCOME_PREPROCESSING),
+        Map.entry(OUTCOME_PREPROCESSING_DLQ.logicalQueueName, OUTCOME_PREPROCESSING_DLQ),
+        Map.entry(REFUSAL_RECEIVED.logicalQueueName, REFUSAL_RECEIVED),
+        Map.entry(FIELD_CASE_UPDATED.logicalQueueName, FIELD_CASE_UPDATED),
+        Map.entry(FULFILMENT_REQUEST.logicalQueueName, FULFILMENT_REQUEST),
+        Map.entry(ADDRESS_NOT_VALID.logicalQueueName, ADDRESS_NOT_VALID),
+        Map.entry(QUESTIONNAIRE_LINKED.logicalQueueName, QUESTIONNAIRE_LINKED),
+        Map.entry(FIELD_REFUSALS.logicalQueueName, FIELD_REFUSALS),
+        Map.entry(FIELD_OTHER.logicalQueueName, FIELD_OTHER));
   }
 }

@@ -358,9 +358,11 @@ ensure_emulator_reachable
 echo "Bootstrapping Pub/Sub emulator at ${PUBSUB_HOST}:${PUBSUB_PORT} (project=${PUBSUB_PROJECT})"
 
 TOPICS=(
-  "RM.Field"
-  "RM.FieldDLQ"
-  "GW.Field"
+  "event_refusal-received"
+  "event_field-case-updated"
+  "event_fulfilment-request"
+  "event_fieldwork_action-instruction"
+  "event_fieldwork_action-instruction_internal"
   "GW.Permanent.ErrorQ"
   "GW.Transient.ErrorQ"
   "GW.ErrorQ"
@@ -383,21 +385,21 @@ done
 
 # Publishers only (no subscription): Gateway.Actions.Exchange (csv-service), Gateway.Events.Exchange (events lib)
 SUBS=(
-  "job-service:RM.Field"
-  "job-service:GW.Field"
-  "job-service:GW.Transient.ErrorQ"
-  "job-service:GW.Permanent.ErrorQ"
-  "outcome-service:Outcome.Preprocessing"
-  "outcome-service:Outcome.PreprocessingDLQ"
-  "outcome-service:events"
-  "fulfilment-event-service:events"
+  "job-service-fieldwork-action-instruction:event_fieldwork_action-instruction"
+  "job-service-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
+  "job-service-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
+  "job-service-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
+  "outcome-service-Outcome-Preprocessing:Outcome.Preprocessing"
+  "outcome-service-Outcome-PreprocessingDLQ:Outcome.PreprocessingDLQ"
+  "outcome-service-events:events"
+  "fulfilment-event-service-events:events"
+  "fulfilment-event-service-fulfilment-request:event_fulfilment-request"
 )
 
 for pair in "${SUBS[@]}"; do
-  service="${pair%%:*}"
+  subscription="${pair%%:*}"
   topic="${pair#*:}"
-  subscription="$(safe_sub_name "$service-$topic")"
-  if [[ "$service" == "outcome-service" && "$topic" == "Outcome.Preprocessing" ]]; then
+  if [[ "$subscription" == "outcome-service-Outcome-Preprocessing" ]]; then
     create_subscription_with_dlq_if_missing "$subscription" "$topic" "Outcome.PreprocessingDLQ" 5
   else
     create_subscription_if_missing "$subscription" "$topic"
@@ -406,8 +408,11 @@ done
 
 # Acceptance-test-only subscriptions (drain in Cucumber without stealing service traffic)
 ACCEPTANCE_TEST_SUBS=(
-  "acceptance-tests-RM-Field:RM.Field"
-  "acceptance-tests-RM-FieldDLQ:RM.FieldDLQ"
+  "acceptance-tests-refusal-received:event_refusal-received"
+  "acceptance-tests-field-case-updated:event_field-case-updated"
+  "acceptance-tests-fulfilment-request:event_fulfilment-request"
+  "acceptance-tests-fieldwork-action-instruction:event_fieldwork_action-instruction"
+  "acceptance-tests-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
   "acceptance-tests-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
   "acceptance-tests-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
   "acceptance-tests-Outcome-Preprocessing:Outcome.Preprocessing"

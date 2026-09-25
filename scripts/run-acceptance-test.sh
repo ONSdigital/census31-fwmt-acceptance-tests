@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/local-test-env.sh"
 
 ACCEPTANCE_REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUNNER="CreateTestRunner"
+RUNNER="RunCucumberTest"
 PREPARE=false
 CLEAN=false
 SETUP_PUBSUB=true
@@ -17,10 +17,13 @@ FEATURE_FLAG_RUNNERS="FeatureFlagTestRunner,OutcomeFeatureFlagTestRunner"
 
 usage() {
   cat <<'EOF'
-Usage: ./run-acceptance-test.sh [options] [RunnerName|all]
+Usage: ./run-acceptance-test.sh [options] [RunCucumberTest|all]
 
 Runs acceptance tests (Maven) without rebuilding local dependency artifacts by default.
 Run ./prepare-local-artifacts.sh when dependency repos change.
+
+`RunCucumberTest` is the supported suite class on this branch. Use tag filters after `--`
+for focused runs instead of older named runner classes.
 
 Options:
   --prepare            Run local dependency artifact preparation first.
@@ -33,12 +36,12 @@ Options:
                        and GCP credentials configured.
 
 Examples:
-  ./run-acceptance-test.sh CreateTestRunner
-  ./run-acceptance-test.sh OutcomesTestRunner
-  ./run-acceptance-test.sh --clean CreateTestRunner
+  ./run-acceptance-test.sh RunCucumberTest -- -Dcucumber.filter.tags='@Create'
+  ./run-acceptance-test.sh RunCucumberTest -- -Dcucumber.filter.tags='@Outcome'
+  ./run-acceptance-test.sh --clean RunCucumberTest -- -Dcucumber.filter.tags='@FulfilmentEvent'
   ./run-acceptance-test.sh --prepare all
   ./run-acceptance-test.sh --suite main all
-  ./run-acceptance-test.sh --gcp-mode CreateTestRunner
+  ./run-acceptance-test.sh --gcp-mode RunCucumberTest -- -Dcucumber.filter.tags='@Create'
   ./run-acceptance-test.sh --gcp-mode --suite main all
 EOF
 }

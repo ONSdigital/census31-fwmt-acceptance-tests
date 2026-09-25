@@ -6,8 +6,8 @@ against the run's timings.ndjson. This tool aggregates the hook-operation
 records (queue-reset orchestration plus per-queue drains) and the
 rm-message-wait records into per-operation and per-scenario statistics:
 
-  - queue-reset total, its component operations (pause/drain/resume) and the
-    per-queue drains (the critical path is the slowest drain, RM.Field)
+    - queue-reset total, its component operations (pause/drain/resume) and the
+        per-queue drains (the critical path is the slowest canonical action-instruction drain)
   - percentile distribution per operation (p50/p90/p95/max), which surfaces
     the tail-latency variance the cloud builds keep reporting
   - summary across multiple runs so one pass compares builds directly

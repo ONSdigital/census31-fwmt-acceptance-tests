@@ -23,7 +23,6 @@ import com.google.pubsub.v1.StreamingPullResponse;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -40,7 +39,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
-import uk.gov.ons.census.fwmt.common.messaging.FieldWorkerInstructionJsonCodec;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 
 /** Real Google Pub/Sub implementation for the acceptance test messaging client. */
@@ -49,7 +47,9 @@ import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
 @ConditionalOnProperty(name = "fwmt.pubsub.mode", havingValue = "gcp")
 public class GcpPubSubMessaging implements MessagingTestClient {
 
-  private static final String TYPE_CANCEL = "cancel";
+  private static final Pattern MESSAGE_TYPE_PATTERN =
+      Pattern.compile("\"messageType\"\\s*:\\s*\"([^\"]+)\"");
+
   private static final Pattern EVENT_TYPE_PATTERN =
       Pattern.compile("\"type\"\\s*:\\s*\"([^\"]+)\"");
 
@@ -84,6 +84,13 @@ public class GcpPubSubMessaging implements MessagingTestClient {
 
   @Override
   public String getMessage(String logicalQueue, int msTimeout, int msInterval) throws InterruptedException {
+    ObservedMessage message = getObservedMessage(logicalQueue, msTimeout, msInterval);
+    return message == null ? null : message.body();
+  }
+
+  @Override
+  public ObservedMessage getObservedMessage(String logicalQueue, int msTimeout, int msInterval)
+      throws InterruptedException {
     PubSubTestLane lane =
         PubSubTestLane.forLogicalQueue(logicalQueue)
             .orElseThrow(
@@ -94,7 +101,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
       if (!batch.isEmpty()) {
         TestMessage received = batch.getFirst();
         operations().acknowledge(lane.testSubscription(), List.of(received.ackId()));
-        return received.data();
+        return new ObservedMessage(received.data(), received.attributes());
       }
       Thread.sleep(msInterval);
     }
@@ -134,11 +141,17 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   }
 
   @Override
-  public void publishFieldWorkerInstruction(String messageJson, String instructionType) {
-    Map<String, String> attributes = new HashMap<>();
-    attributes.put(FieldWorkerInstructionJsonCodec.TYPE_ID_HEADER, typeIdForInstruction(instructionType));
-    attributes.put(FieldWorkerInstructionJsonCodec.TIMESTAMP_HEADER, String.valueOf(System.currentTimeMillis()));
-    operations().publish(PubSubTestLane.RM_FIELD.topic(), messageJson, attributes);
+  public void publishExternalActionInstruction(
+      String messageJson, ExternalActionInstructionMetadataOverride metadataOverride) {
+    publishToTopic(
+        PubSubTestLane.FIELDWORK_ACTION_INSTRUCTION.topic(),
+        messageJson,
+        ExternalActionInstructionPublisher.buildExternalAttributes(messageJson, metadataOverride));
+  }
+
+  @Override
+  public void publishToTopic(String topicId, String messageJson, Map<String, String> attributes) {
+    operations().publish(topicId, messageJson, attributes);
   }
 
   @Override
@@ -158,7 +171,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     NodeCheck.NodeCheckBuilder builder =
         NodeCheck.builder().name("Google Pub/Sub").url("projects/" + pubsubProject);
     if (operations().isReachable()) {
-      drainTestSubscription(PubSubTestLane.FIELD_REFUSALS);
+      drainTestSubscription(PubSubTestLane.FIELDWORK_ACTION_INSTRUCTION);
       builder.isSuccesful(true);
     } else {
       builder.isSuccesful(false).failureMsg("Google Pub/Sub is not reachable");
@@ -206,18 +219,20 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   }
 
   private static String parseEventType(String json) {
+    Matcher messageTypeMatcher = MESSAGE_TYPE_PATTERN.matcher(json);
+    if (messageTypeMatcher.find()) {
+      String messageType = messageTypeMatcher.group(1);
+      return switch (messageType) {
+        case "FULFILMENT_REQUEST" -> "FULFILMENT_REQUESTED";
+        default -> messageType;
+      };
+    }
+
     Matcher matcher = EVENT_TYPE_PATTERN.matcher(json);
     if (matcher.find()) {
       return matcher.group(1);
     }
     return "";
-  }
-
-  private static String typeIdForInstruction(String instructionType) {
-    if (TYPE_CANCEL.equals(instructionType)) {
-      return "uk.gov.ons.census.fwmt.common.rm.dto.FwmtCancelActionInstruction";
-    }
-    return "uk.gov.ons.census.fwmt.common.rm.dto.FwmtActionInstruction";
   }
 
   interface PubSubOperations {
@@ -250,14 +265,17 @@ public class GcpPubSubMessaging implements MessagingTestClient {
   static final class GooglePubSubOperations implements PubSubOperations {
     private static final int DRAIN_PULL_BATCH_SIZE = 1000;
     private static final int DEFAULT_PULLER_PARALLELISM = 1;
-    private static final int HOT_LANE_PULLER_PARALLELISM = 3;
     private static final int BUSY_LANE_PULLER_PARALLELISM = 2;
     private static final Map<String, Integer> PULLER_PARALLELISM_BY_SUB =
         Map.of(
-            "acceptance-tests-RM-Field", HOT_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-fieldwork-action-instruction", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-fieldwork-action-instruction-internal", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Outcome-Preprocessing", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Outcome-PreprocessingDLQ", BUSY_LANE_PULLER_PARALLELISM,
-            "acceptance-tests-RM-FieldDLQ", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-refusal-received", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-field-case-updated", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-fulfilment-request", BUSY_LANE_PULLER_PARALLELISM,
+            "acceptance-tests-address-not-valid", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Field-other", BUSY_LANE_PULLER_PARALLELISM,
             "acceptance-tests-Field-refusals", BUSY_LANE_PULLER_PARALLELISM);
 
@@ -289,7 +307,8 @@ public class GcpPubSubMessaging implements MessagingTestClient {
     public boolean isReachable() {
       // Use a lightweight pull against known acceptance subscriptions so preflight
       // does not require broad topic-list permissions.
-      for (PubSubTestLane lane : List.of(PubSubTestLane.RM_FIELD, PubSubTestLane.OUTCOME_PREPROCESSING)) {
+      for (PubSubTestLane lane :
+          List.of(PubSubTestLane.FIELDWORK_ACTION_INSTRUCTION, PubSubTestLane.OUTCOME_PREPROCESSING)) {
         try {
           pull(lane.testSubscription(), 1);
           return true;
@@ -417,7 +436,7 @@ public class GcpPubSubMessaging implements MessagingTestClient {
      * Drains a subscription using multiple concurrent pullers, each pipelining its pulls with the
      * acknowledgements of its previous batch on shared background ack threads. Multiple pullers on
      * one subscription are safe (Pub/Sub distributes pulls; the shared gRPC stub is thread-safe)
-     * and are used to raise throughput on the hot RM.Field lane, which dominates the queue-reset
+    * and are used to raise throughput on the canonical action-instruction lane, which dominates the queue-reset
      * critical path. Pipelining overlaps batch k+1's pull with batch k's ack, ~1 RTT per batch.
      */
     private void drainByPipelinedPull(

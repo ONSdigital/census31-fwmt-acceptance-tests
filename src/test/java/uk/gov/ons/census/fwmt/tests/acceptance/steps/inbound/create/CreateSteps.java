@@ -134,7 +134,7 @@ public class CreateSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }
@@ -155,7 +155,7 @@ public class CreateSteps {
     
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }
@@ -178,7 +178,7 @@ public class CreateSteps {
     
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }
@@ -197,7 +197,7 @@ public class CreateSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }
@@ -217,7 +217,7 @@ public class CreateSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }
@@ -237,7 +237,7 @@ public class CreateSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }

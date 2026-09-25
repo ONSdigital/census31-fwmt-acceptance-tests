@@ -85,9 +85,13 @@ if [[ "$DRY_RUN" == "true" ]]; then
 fi
 
 TOPICS=(
-  "RM.Field"
-  "RM.FieldDLQ"
-  "GW.Field"
+  "event_refusal-received"
+  "event_field-case-updated"
+  "event_fulfilment-request"
+  "event_address-not-valid"
+  "event_questionnaire-linked"
+  "event_fieldwork_action-instruction"
+  "event_fieldwork_action-instruction_internal"
   "GW.Permanent.ErrorQ"
   "GW.Transient.ErrorQ"
   "Outcome.Preprocessing"
@@ -104,8 +108,13 @@ done
 
 # Acceptance-test-only subscriptions (safe default in shared env)
 ACCEPTANCE_TEST_SUBS=(
-  "acceptance-tests-RM-Field:RM.Field"
-  "acceptance-tests-RM-FieldDLQ:RM.FieldDLQ"
+  "acceptance-tests-refusal-received:event_refusal-received"
+  "acceptance-tests-field-case-updated:event_field-case-updated"
+  "acceptance-tests-fulfilment-request:event_fulfilment-request"
+  "acceptance-tests-address-not-valid:event_address-not-valid"
+  "acceptance-tests-questionnaire-linked:event_questionnaire-linked"
+  "acceptance-tests-fieldwork-action-instruction:event_fieldwork_action-instruction"
+  "acceptance-tests-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
   "acceptance-tests-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
   "acceptance-tests-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
   "acceptance-tests-Outcome-Preprocessing:Outcome.Preprocessing"
@@ -124,13 +133,14 @@ done
 if [[ "$INCLUDE_SERVICE_SUBSCRIPTIONS" == "true" ]]; then
   echo "FWMT_PUBSUB_INCLUDE_SERVICE_SUBSCRIPTIONS=true, creating service subscriptions as well"
   SERVICE_SUBS=(
-    "job-service-RM-Field:RM.Field"
-    "job-service-GW-Field:GW.Field"
+    "job-service-fieldwork-action-instruction:event_fieldwork_action-instruction"
+    "job-service-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
     "job-service-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
     "job-service-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
     "outcome-service-Outcome-PreprocessingDLQ:Outcome.PreprocessingDLQ"
     "outcome-service-events:events"
     "fulfilment-event-service-events:events"
+    "fulfilment-event-service-fulfilment-request:event_fulfilment-request"
   )
 
   for pair in "${SERVICE_SUBS[@]}"; do

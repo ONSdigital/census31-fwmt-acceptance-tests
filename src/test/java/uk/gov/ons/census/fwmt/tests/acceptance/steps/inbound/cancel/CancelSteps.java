@@ -88,7 +88,7 @@ public class CancelSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "cancel");
+    queueClient.publishExternalActionInstruction(request);
   }
 
   @When("Gateway receives a cancel message for the case")
@@ -140,7 +140,7 @@ public class CancelSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "cancel");
+    queueClient.publishExternalActionInstruction(request);
   }
 
   private String getCreateRMJson() {
