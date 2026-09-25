@@ -152,7 +152,7 @@ services:
       - "8070:8070"
 
   census31-fwmt-job-service:
-    image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-job-service:27.0.3-RC
+    image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-job-service:27.0.12
     container_name: fwmt-job-service
     depends_on:
       postgres:
@@ -178,7 +178,7 @@ services:
       - "8025:8025"
 
   census31-fwmt-outcome-service:
-    image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-outcome-service:27.0.3-RC
+    image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-outcome-service:27.0.13
     container_name: fwmt-outcome-service
     depends_on:
       postgres:
@@ -195,7 +195,7 @@ services:
       - "8030:8030"
 
   census31-fwmt-tm-mock:
-    image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-tm-mock:27.0.3-RC
+    image: europe-west2-docker.pkg.dev/c31-fwmtg-ci-prod/fwmtg-docker-release/census31-fwmt-tm-mock:27.0.8
     container_name: fwmt-tm-mock
     depends_on:
       postgres:

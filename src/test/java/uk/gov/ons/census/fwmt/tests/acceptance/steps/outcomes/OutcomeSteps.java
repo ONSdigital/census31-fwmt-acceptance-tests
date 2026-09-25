@@ -284,7 +284,6 @@ public class OutcomeSteps {
       expectedRmMessageMap.clear();
       for (String rmMessageType : expectedRmMessages) {
         Map<String, Object> root = new HashMap<>();
-
         root.clear();
         root.put("reason", spgReasonCodeLookup.getLookup(outcomeCode));
         // FULFILMENT_REQUESTED carries the RM pack code, not the outcome code. The TM
@@ -574,8 +573,8 @@ public class OutcomeSteps {
         List<String> actualProcessors = processingEvents.stream()
                 .map(this::processorFromEvent)
                 .collect(Collectors.toList());
-        assertEquals(expectedProcessors.size(), actualProcessors.size());
-        assertThat(expectedProcessors.containsAll(actualProcessors));
+      assertThat(expectedProcessors.containsAll(actualProcessors));
+      assertEquals(expectedProcessors.size(), actualProcessors.size());
     }
 
     private void confirmRmMessagesAreSent() {
@@ -684,7 +683,6 @@ public class OutcomeSteps {
         root.put("fulfilmentRequested", fulfilmentRequested);
         root.put("usualResidents", usualResidents);
         root.put("surveyType", surveyType);
-
         try {
             String request = null;
             switch (businessFunction) {
@@ -837,9 +835,8 @@ public class OutcomeSteps {
         configuration.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
         configuration.setLogTemplateExceptions(false);
         configuration.setWrapUncheckedExceptions(true);
-
         Template temp = configuration.getTemplate(eventType + "-in.ftl");
-        try (StringWriter out = new StringWriter(); StringWriter outcomeEventMessage = new StringWriter()) {
+      try (StringWriter out = new StringWriter(); StringWriter outcomeEventMessage = new StringWriter()) {
 
             temp.process(root, out);
             out.flush();
@@ -1126,8 +1123,6 @@ public class OutcomeSteps {
       JSONObject json = new JSONObject(parentCreate);
 
       commonRMMessageObjects(json, scenarioCaseId, "1234", "F", "F", false);
-
-      json.put("oldCaseId", scenarioCaseId);
 
       String request = json.toString(4);
       log.info("Request = " + request);
