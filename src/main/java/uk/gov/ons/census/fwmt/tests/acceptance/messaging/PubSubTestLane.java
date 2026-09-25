@@ -48,6 +48,11 @@ public enum PubSubTestLane {
       "event_address-not-valid",
       "acceptance-tests-address-not-valid",
       null),
+    QUESTIONNAIRE_LINKED(
+      "event_questionnaire-linked",
+      "event_questionnaire-linked",
+      "acceptance-tests-questionnaire-linked",
+      null),
   FIELD_REFUSALS("Field.refusals", "Field.refusals", "acceptance-tests-Field-refusals", null),
   FIELD_OTHER("Field.other", "Field.other", "acceptance-tests-Field-other", null);
 
@@ -89,16 +94,17 @@ public enum PubSubTestLane {
   }
 
   public static Map<String, PubSubTestLane> byLogicalQueueName() {
-    return Map.of(
-        FIELDWORK_ACTION_INSTRUCTION.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION,
-        FIELDWORK_ACTION_INSTRUCTION_INTERNAL.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION_INTERNAL,
-        OUTCOME_PREPROCESSING.logicalQueueName, OUTCOME_PREPROCESSING,
-        OUTCOME_PREPROCESSING_DLQ.logicalQueueName, OUTCOME_PREPROCESSING_DLQ,
-        REFUSAL_RECEIVED.logicalQueueName, REFUSAL_RECEIVED,
-        FIELD_CASE_UPDATED.logicalQueueName, FIELD_CASE_UPDATED,
-        FULFILMENT_REQUEST.logicalQueueName, FULFILMENT_REQUEST,
-        ADDRESS_NOT_VALID.logicalQueueName, ADDRESS_NOT_VALID,
-        FIELD_REFUSALS.logicalQueueName, FIELD_REFUSALS,
-        FIELD_OTHER.logicalQueueName, FIELD_OTHER);
+    return Map.ofEntries(
+        Map.entry(FIELDWORK_ACTION_INSTRUCTION.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION),
+        Map.entry(FIELDWORK_ACTION_INSTRUCTION_INTERNAL.logicalQueueName, FIELDWORK_ACTION_INSTRUCTION_INTERNAL),
+        Map.entry(OUTCOME_PREPROCESSING.logicalQueueName, OUTCOME_PREPROCESSING),
+        Map.entry(OUTCOME_PREPROCESSING_DLQ.logicalQueueName, OUTCOME_PREPROCESSING_DLQ),
+        Map.entry(REFUSAL_RECEIVED.logicalQueueName, REFUSAL_RECEIVED),
+        Map.entry(FIELD_CASE_UPDATED.logicalQueueName, FIELD_CASE_UPDATED),
+        Map.entry(FULFILMENT_REQUEST.logicalQueueName, FULFILMENT_REQUEST),
+        Map.entry(ADDRESS_NOT_VALID.logicalQueueName, ADDRESS_NOT_VALID),
+        Map.entry(QUESTIONNAIRE_LINKED.logicalQueueName, QUESTIONNAIRE_LINKED),
+        Map.entry(FIELD_REFUSALS.logicalQueueName, FIELD_REFUSALS),
+        Map.entry(FIELD_OTHER.logicalQueueName, FIELD_OTHER));
   }
 }

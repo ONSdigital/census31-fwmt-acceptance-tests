@@ -66,6 +66,8 @@ public final class QueueClient {
 
   private static final String ADDRESS_NOT_VALID_TOPIC = "event_address-not-valid";
 
+  private static final String QUESTIONNAIRE_LINKED_TOPIC = "event_questionnaire-linked";
+
   private static final String FIELD_REFUSALS_QUEUE = "Field.refusals";
 
   private static final String TEMP_FIELD_OTHERS_QUEUE = "Field.other";
@@ -75,6 +77,7 @@ public final class QueueClient {
       FIELD_CASE_UPDATED_TOPIC,
       FULFILMENT_REQUEST_TOPIC,
       ADDRESS_NOT_VALID_TOPIC,
+      QUESTIONNAIRE_LINKED_TOPIC,
       FIELD_REFUSALS_QUEUE,
       TEMP_FIELD_OTHERS_QUEUE,
       FIELDWORK_ACTION_INSTRUCTION,

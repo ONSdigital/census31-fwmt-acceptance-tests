@@ -59,6 +59,7 @@ class QueueClientTest {
       .contains("\"operationName\":\"queue-reset-drain-event_field-case-updated\"")
       .contains("\"operationName\":\"queue-reset-drain-event_fulfilment-request\"")
       .contains("\"operationName\":\"queue-reset-drain-event_address-not-valid\"")
+      .contains("\"operationName\":\"queue-reset-drain-event_questionnaire-linked\"")
         .contains("\"operationName\":\"queue-reset-drain-Field.refusals\"")
         .contains("\"operationName\":\"queue-reset-drain-Field.other\"")
         .contains("\"operationName\":\"queue-reset-drain-event_fieldwork_action-instruction\"")

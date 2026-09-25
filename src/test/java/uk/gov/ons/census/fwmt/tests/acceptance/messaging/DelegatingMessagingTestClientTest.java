@@ -28,6 +28,9 @@ class DelegatingMessagingTestClientTest {
         .thenReturn(new MessagingTestClient.ObservedMessage("typed-body", java.util.Map.of("caseId", "123")));
     when(emulatorClient.getMessageWithEventType("event_address-not-valid", "ADDRESS_NOT_VALID", 4000, 200))
         .thenReturn("typed-message");
+    when(emulatorClient.getMessageWithEventType(
+            "event_questionnaire-linked", "QUESTIONNAIRE_LINKED", 4000, 200))
+        .thenReturn("questionnaire-linked-message");
     when(emulatorClient.doMessagingPreFlightCheck()).thenReturn(preFlight);
 
     DelegatingMessagingTestClient client =
@@ -39,6 +42,9 @@ class DelegatingMessagingTestClientTest {
         .containsEntry("caseId", "123");
     assertThat(client.getMessageWithEventType("event_address-not-valid", "ADDRESS_NOT_VALID", 4000, 200))
         .isEqualTo("typed-message");
+    assertThat(client.getMessageWithEventType(
+            "event_questionnaire-linked", "QUESTIONNAIRE_LINKED", 4000, 200))
+        .isEqualTo("questionnaire-linked-message");
 
     ExternalActionInstructionMetadataOverride metadataOverride =
         ExternalActionInstructionMetadataOverride.none().withCorrelationId("corr-1");
@@ -52,6 +58,8 @@ class DelegatingMessagingTestClientTest {
     verify(emulatorClient).getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250);
     verify(emulatorClient)
         .getMessageWithEventType("event_address-not-valid", "ADDRESS_NOT_VALID", 4000, 200);
+    verify(emulatorClient)
+        .getMessageWithEventType("event_questionnaire-linked", "QUESTIONNAIRE_LINKED", 4000, 200);
     verify(emulatorClient)
         .publishExternalActionInstruction(
             "{\"actionInstruction\":\"CREATE\",\"caseId\":\"123\",\"surveyName\":\"CENSUS\"}",

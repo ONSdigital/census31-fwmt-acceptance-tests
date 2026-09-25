@@ -76,6 +76,25 @@ class PubSubEmulatorMessagingTest {
     assertThat(http.acknowledgedIds).containsExactly("ack-address-not-valid");
   }
 
+  @Test
+  void shouldFilterQuestionnaireLinkedMessagesOnDictionaryLane() throws InterruptedException {
+    RecordingPubSubEmulatorHttp http = new RecordingPubSubEmulatorHttp();
+    http.enqueuePull(
+        List.of(
+            new PubSubEmulatorHttp.ReceivedPubSubMessage(
+                "ack-questionnaire-linked",
+                "{\"header\":{\"messageType\":\"QUESTIONNAIRE_LINKED\"}}",
+                Map.of())));
+    PubSubEmulatorMessaging client =
+        new PubSubEmulatorMessaging(http, new PerformanceTimingRecorder());
+
+    String message = client.getMessageWithEventType(
+        "event_questionnaire-linked", "QUESTIONNAIRE_LINKED", 100, 10);
+
+    assertThat(message).contains("QUESTIONNAIRE_LINKED");
+    assertThat(http.acknowledgedIds).containsExactly("ack-questionnaire-linked");
+  }
+
     @Test
     void shouldPublishExternalActionInstructionWithCanonicalDefaults() {
     RecordingPubSubEmulatorHttp http = new RecordingPubSubEmulatorHttp();

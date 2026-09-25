@@ -184,6 +184,26 @@ class GcpPubSubMessagingTest {
     }
 
   @Test
+  void shouldFilterQuestionnaireLinkedMessagesOnDictionaryLane() throws InterruptedException {
+    RecordingPubSubOperations operations = new RecordingPubSubOperations();
+    operations.enqueuePull(
+      "acceptance-tests-questionnaire-linked",
+      List.of(
+        new GcpPubSubMessaging.TestMessage(
+          "ack-1",
+          "{\"header\":{\"messageType\":\"QUESTIONNAIRE_LINKED\"},\"payload\":{}}",
+          Map.of())));
+    GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
+
+    String message = client.getMessageWithEventType(
+      "event_questionnaire-linked", "QUESTIONNAIRE_LINKED", 100, 10);
+
+    assertThat(message).contains("QUESTIONNAIRE_LINKED");
+    assertThat(operations.acknowledgedAckIdsBySubscription)
+      .containsEntry("acceptance-tests-questionnaire-linked", List.of("ack-1"));
+  }
+
+  @Test
   void shouldPreflightAgainstGcpAndAvoidServiceSubscriptionDrainByDefault() {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
     operations.reachable = true;

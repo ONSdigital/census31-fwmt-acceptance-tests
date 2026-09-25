@@ -96,6 +96,8 @@ public class OutcomeSteps {
 
     private static final String ADDRESS_NOT_VALID_QUEUE = "event_address-not-valid";
 
+    private static final String QUESTIONNAIRE_LINKED_QUEUE = "event_questionnaire-linked";
+
     private static final String TEMP_FIELD_OTHERS_QUEUE = "Field.other";
 
     private static final String COMET_SPG_UNITADDRESS_OUTCOME_RECEIVED = "COMET_SPG_UNITADDRESS_OUTCOME_RECEIVED";
@@ -866,8 +868,9 @@ public class OutcomeSteps {
         return FULFILMENT_REQUEST_QUEUE;
         case "ADDRESS_NOT_VALID":
         return ADDRESS_NOT_VALID_QUEUE;
-        case "ADDRESS_TYPE_CHANGED":
         case "QUESTIONNAIRE_LINKED":
+        return QUESTIONNAIRE_LINKED_QUEUE;
+        case "ADDRESS_TYPE_CHANGED":
         case "NEW_ADDRESS_REPORTED":
             return TEMP_FIELD_OTHERS_QUEUE;
         default:
@@ -995,6 +998,8 @@ public class OutcomeSteps {
           return actualJson.path("payload").path("fieldCaseUpdate").path("caseId").asText();
         case "FULFILMENT_REQUESTED":
           return actualJson.path("payload").path("fulfilmentRequest").path("caseId").asText();
+        case "QUESTIONNAIRE_LINKED":
+          return actualJson.path("payload").path("uac").path("caseId").asText();
         default:
           return actualJson.findPath("id").asText();
       }
@@ -1004,7 +1009,8 @@ public class OutcomeSteps {
       return "REFUSAL_RECEIVED".equals(rmMessageType)
           || "FIELD_CASE_UPDATED".equals(rmMessageType)
           || "FULFILMENT_REQUESTED".equals(rmMessageType)
-          || "ADDRESS_NOT_VALID".equals(rmMessageType);
+          || "ADDRESS_NOT_VALID".equals(rmMessageType)
+          || "QUESTIONNAIRE_LINKED".equals(rmMessageType);
     }
 
     private String createExpectedDictionaryMessage(String rmMessageType, Map<String, Object> root) throws Exception {
@@ -1048,6 +1054,13 @@ public class OutcomeSteps {
               "invalidAddress",
               Map.of("reason", root.get("reason"), "caseId", root.get("caseId")));
           break;
+            case "QUESTIONNAIRE_LINKED":
+              header.put("topic", QUESTIONNAIRE_LINKED_QUEUE);
+              header.put("messageType", "QUESTIONNAIRE_LINKED");
+              payload.put(
+                "uac",
+                Map.of("questionnaireId", "1110000009", "caseId", root.get("caseId")));
+              break;
         default:
           throw new IllegalArgumentException("Unsupported dictionary RM message: " + rmMessageType);
       }
@@ -1104,6 +1117,14 @@ public class OutcomeSteps {
             .isEqualTo(expectedJson.path("payload").path("invalidAddress").path("caseId").asText());
           assertThat(invalidAddress.has("notes")).isFalse();
           break;
+          case "QUESTIONNAIRE_LINKED":
+            JsonNode uac = actualJson.path("payload").path("uac");
+            assertThat(uac.path("questionnaireId").asText())
+              .isEqualTo(expectedJson.path("payload").path("uac").path("questionnaireId").asText());
+            assertThat(uac.path("caseId").asText())
+              .isEqualTo(expectedJson.path("payload").path("uac").path("caseId").asText());
+            assertThat(uac.has("individualCaseId")).isFalse();
+            break;
         default:
           throw new IllegalArgumentException("Unsupported dictionary RM message: " + rmMessageType);
       }
