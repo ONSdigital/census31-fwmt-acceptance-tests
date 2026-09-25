@@ -32,7 +32,7 @@ Known services:
 
 Options:
   --with-csv           Include csv-service when no explicit service list is supplied.
-  --build-missing      Build a service jar only when no boot jar exists.
+  --build-missing      Build a service jar when no usable boot jar exists.
   --prepare            Run local dependency artifact preparation first.
   --boot-run           Use Maven spring-boot:run instead of java -jar.
   --profile <name>     Spring profile for --boot-run (default: local).
@@ -253,12 +253,24 @@ start_service() {
       mvn -q "-Dspring-boot.run.profiles=$SPRING_PROFILE" spring-boot:run
   else
     local jar_path
-    if ! jar_path="$(latest_boot_jar "$service_dir")"; then
+    if jar_path="$(latest_boot_jar "$service_dir")"; then
+      if ! boot_jar_is_usable "$jar_path"; then
+        echo "Detected invalid boot jar for $name at $jar_path; forcing a clean Maven rebuild."
+        jar_path=""
+      fi
+    fi
+
+    if [[ -z "$jar_path" ]]; then
       if [[ "$BUILD_MISSING" == "true" ]]; then
         "$SCRIPT_DIR/build-service.sh" "$name"
         jar_path="$(latest_boot_jar "$service_dir")"
+        if ! boot_jar_is_usable "$jar_path"; then
+          echo "Built $name, but the boot jar still contains unresolved compilation markers: $jar_path" >&2
+          echo "This usually means a background IDE Java build has written problem classes into target/." >&2
+          exit 1
+        fi
       else
-        echo "No boot jar found for $name under $service_dir/target." >&2
+        echo "No usable boot jar found for $name under $service_dir/target." >&2
         echo "Run ./build-service.sh $name, or pass --build-missing." >&2
         exit 1
       fi
