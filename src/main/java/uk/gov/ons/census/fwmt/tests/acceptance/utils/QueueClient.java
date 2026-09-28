@@ -68,18 +68,12 @@ public final class QueueClient {
 
   private static final String QUESTIONNAIRE_LINKED_TOPIC = "event_questionnaire-linked";
 
-  private static final String FIELD_REFUSALS_QUEUE = "Field.refusals";
-
-  private static final String TEMP_FIELD_OTHERS_QUEUE = "Field.other";
-
   private static final String[] RESET_QUEUES = {
       REFUSAL_RECEIVED_TOPIC,
       FIELD_CASE_UPDATED_TOPIC,
       FULFILMENT_REQUEST_TOPIC,
       ADDRESS_NOT_VALID_TOPIC,
       QUESTIONNAIRE_LINKED_TOPIC,
-      FIELD_REFUSALS_QUEUE,
-      TEMP_FIELD_OTHERS_QUEUE,
       FIELDWORK_ACTION_INSTRUCTION,
       FIELDWORK_ACTION_INSTRUCTION_INTERNAL,
       OUTCOME_PRE_PROCESSING,

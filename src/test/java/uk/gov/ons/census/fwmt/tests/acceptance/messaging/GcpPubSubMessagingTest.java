@@ -285,8 +285,6 @@ class GcpPubSubMessagingTest {
     assertThat(operations.pullerParallelismFor("acceptance-tests-field-case-updated")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-fulfilment-request")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-address-not-valid")).isEqualTo(2);
-    assertThat(operations.pullerParallelismFor("acceptance-tests-Field-other")).isEqualTo(2);
-    assertThat(operations.pullerParallelismFor("acceptance-tests-Field-refusals")).isEqualTo(2);
     assertThat(operations.pullerParallelismFor("acceptance-tests-Unknown-Lane")).isEqualTo(1);
 
     operations.drainSubscription("acceptance-tests-fieldwork-action-instruction");

@@ -98,8 +98,6 @@ public class OutcomeSteps {
 
     private static final String QUESTIONNAIRE_LINKED_QUEUE = "event_questionnaire-linked";
 
-    private static final String TEMP_FIELD_OTHERS_QUEUE = "Field.other";
-
     private static final String COMET_SPG_UNITADDRESS_OUTCOME_RECEIVED = "COMET_SPG_UNITADDRESS_OUTCOME_RECEIVED";
 
     private static final String COMET_SPG_STANDALONE_OUTCOME_RECEIVED = "COMET_SPG_STANDALONE_OUTCOME_RECEIVED";
@@ -272,14 +270,20 @@ public class OutcomeSteps {
     @Then("create the following messages to RM {string}")
     public void create_the_following_messages_to_RM(String rmMessages) throws Exception{
         String[] rmMessagesArray = (!Strings.isBlank(rmMessages)) ? rmMessages.split(",") : new String[0];
-        expectedRmMessages = Arrays.asList(rmMessagesArray);
+      List<String> suppressedLegacyMessages = Arrays.stream(rmMessagesArray)
+        .filter(this::isSuppressedLegacyOutcomeMessage)
+        .collect(Collectors.toList());
+      expectedRmMessages = Arrays.stream(rmMessagesArray)
+        .filter(message -> !isSuppressedLegacyOutcomeMessage(message))
+        .collect(Collectors.toList());
         if (isGeneratedCaseIdFlow() && newCaseId == null) {
             resolveGeneratedCaseIdFromPreprocessingEvent();
         }
         if (isAddressTypeChangeFlow()) {
-            resolveNewCaseIdFromAddressTypeChangedMessage();
+        resolveGeneratedCaseIdFromProcessorEvents();
         }
         collectRmOutcomeEvents();
+      assertLegacyOutcomeEventsSuppressed(suppressedLegacyMessages);
         collectRmMessages();
         confirmRmMessagesAreSent();
         createExpectedRmMessages();
@@ -353,21 +357,19 @@ public class OutcomeSteps {
     }
 
     /**
-     * Address-type-change processors return a new caseId; fulfilment and linked-QID RM messages
-     * (and their OUTCOME_SENT events) are keyed to that id, not the original parent caseId.
+     * Address-type-change processors return a new caseId; later processor events use that ID even
+     * though the legacy address-type-change message is intentionally suppressed.
      */
-    private void resolveNewCaseIdFromAddressTypeChangedMessage() throws Exception {
-      if (!expectedRmMessages.contains("ADDRESS_TYPE_CHANGED") || newCaseId != null) {
+    private void resolveGeneratedCaseIdFromProcessorEvents() {
+      if (newCaseId != null || processingEvents == null) {
         return;
       }
-      String queue = operationToQueue("ADDRESS_TYPE_CHANGED");
-      String msg = awaitRmMessage(queue, "ADDRESS_TYPE_CHANGED", "resolveNewCaseIdFromAddressTypeChangedMessage");
-      assertThat(msg).isNotNull();
-      actualRmMessageMap.put("ADDRESS_TYPE_CHANGED", msg);
-      addressTypeChangeMsg = msg;
-      JsonNode newCaseIdNode = jsonObjectMapper.readTree(msg).path("newCaseId");
-      assertThat(!newCaseIdNode.isMissingNode()).isTrue();
-      newCaseId = newCaseIdNode.asText();
+      processingEvents.stream()
+          .filter(event -> event != null)
+          .map(event -> event.getCaseId())
+          .filter(caseId -> caseId != null && !scenarioCaseId.equals(caseId))
+          .findFirst()
+          .ifPresent(caseId -> newCaseId = caseId);
     }
 
     private boolean matchesRmOutcomeEventCaseId(String eventCaseId) {
@@ -500,6 +502,75 @@ public class OutcomeSteps {
       return event.getMetadata().get("type");
     }
 
+    private String buildMissingRmMessageDiagnostic(String queue, String rmMessageType, String phase) {
+      List<String> observedProcessors =
+          processingEvents == null
+              ? List.of()
+              : processingEvents.stream().map(this::processorFromEvent).collect(Collectors.toList());
+      List<String> observedRmEvents =
+          rmOutcomeEvents == null
+              ? List.of()
+              : rmOutcomeEvents.stream().map(this::rmMessageTypeFromEvent).collect(Collectors.toList());
+
+      return String.format(
+          "Timed out waiting for RM message '%s' on queue '%s' during phase '%s'. "
+              + "Candidate processor(s): %s. Expected processors: %s. Observed processors: %s. "
+              + "Observed RM outcome events: %s. surveyType=%s, businessFunction=%s, outcomeCode=%s, "
+              + "scenarioCaseId=%s, messageCaseId=%s, generatedCaseId=%s, transactionId=%s",
+          rmMessageType,
+          queue,
+          phase,
+          candidateProcessorsForRmMessage(rmMessageType),
+          expectedProcessors,
+          observedProcessors,
+          observedRmEvents,
+          surveyType,
+          businessFunction,
+          outcomeCode,
+          scenarioCaseId,
+          getMessageCaseId(),
+          newCaseId,
+          scenarioTransactionId);
+    }
+
+    private List<String> candidateProcessorsForRmMessage(String rmMessageType) {
+      List<String> candidates;
+      switch (rmMessageType) {
+        case "QUESTIONNAIRE_LINKED":
+          candidates = List.of("LINKED_QID");
+          break;
+        case "FULFILMENT_REQUESTED":
+          candidates = List.of("FULFILMENT_REQUESTED");
+          break;
+        case "REFUSAL_RECEIVED":
+          candidates = List.of("HARD_REFUSAL_RECEIVED", "EXTRAORDINARY_REFUSAL_RECEIVED");
+          break;
+        case "FIELD_CASE_UPDATED":
+          candidates = List.of("UPDATE_RESIDENT_COUNT", "UPDATE_RESIDENT_COUNT_0", "UPDATE_RESIDENT_COUNT_1");
+          break;
+        case "ADDRESS_NOT_VALID":
+          candidates = List.of("ADDRESS_NOT_VALID");
+          break;
+        case "ADDRESS_TYPE_CHANGED":
+          candidates = List.of("ADDRESS_TYPE_CHANGED_HH", "ADDRESS_TYPE_CHANGED_CE_EST", "ADDRESS_TYPE_CHANGED_SPG");
+          break;
+        case "NEW_ADDRESS_REPORTED":
+          candidates = List.of("NEW_UNIT_ADDRESS", "NEW_STANDALONE_ADDRESS");
+          break;
+        default:
+          candidates = List.of(rmMessageType);
+          break;
+      }
+
+      if (expectedProcessors == null || expectedProcessors.isEmpty()) {
+        return candidates;
+      }
+
+      List<String> matchedExpectedProcessors =
+          expectedProcessors.stream().filter(candidates::contains).collect(Collectors.toList());
+      return matchedExpectedProcessors.isEmpty() ? candidates : matchedExpectedProcessors;
+    }
+
     @Then("it will include a new caseId")
     public void it_will_include_a_new_caseId() throws Exception{
       JsonNode actualJson = jsonObjectMapper.readTree(addressTypeChangeMsg);
@@ -578,8 +649,39 @@ public class OutcomeSteps {
         List<String> actualProcessors = processingEvents.stream()
                 .map(this::processorFromEvent)
                 .collect(Collectors.toList());
-      assertThat(expectedProcessors.containsAll(actualProcessors));
-      assertEquals(expectedProcessors.size(), actualProcessors.size());
+      List<String> missingProcessors = new ArrayList<>(expectedProcessors);
+      List<String> unexpectedProcessors = new ArrayList<>();
+
+      for (String actualProcessor : actualProcessors) {
+        if (!missingProcessors.remove(actualProcessor)) {
+          unexpectedProcessors.add(actualProcessor);
+        }
+      }
+
+      if (!missingProcessors.isEmpty() || !unexpectedProcessors.isEmpty()) {
+        fail(buildProcessorMismatchDiagnostic(actualProcessors, missingProcessors, unexpectedProcessors));
+      }
+    }
+
+    private String buildProcessorMismatchDiagnostic(
+        List<String> actualProcessors,
+        List<String> missingProcessors,
+        List<String> unexpectedProcessors) {
+      return String.format(
+          "Processor mismatch. Expected processors: %s. Actual processors: %s. Missing processors: %s. "
+              + "Unexpected processors: %s. surveyType=%s, businessFunction=%s, outcomeCode=%s, "
+              + "scenarioCaseId=%s, messageCaseId=%s, generatedCaseId=%s, transactionId=%s",
+          expectedProcessors,
+          actualProcessors,
+          missingProcessors,
+          unexpectedProcessors,
+          surveyType,
+          businessFunction,
+          outcomeCode,
+          scenarioCaseId,
+          getMessageCaseId(),
+          newCaseId,
+          scenarioTransactionId);
     }
 
     private void confirmRmMessagesAreSent() {
@@ -870,13 +972,23 @@ public class OutcomeSteps {
         return ADDRESS_NOT_VALID_QUEUE;
         case "QUESTIONNAIRE_LINKED":
         return QUESTIONNAIRE_LINKED_QUEUE;
-        case "ADDRESS_TYPE_CHANGED":
-        case "NEW_ADDRESS_REPORTED":
-            return TEMP_FIELD_OTHERS_QUEUE;
         default:
-            throw new RuntimeException("Problem matching operation");
+          throw new IllegalArgumentException("No active Event Dictionary lane for outcome " + operation);
         }
     }
+
+      private boolean isSuppressedLegacyOutcomeMessage(String messageType) {
+        return "ADDRESS_TYPE_CHANGED".equals(messageType)
+          || "NEW_ADDRESS_REPORTED".equals(messageType)
+          || "CCS_ADDRESS_LISTED".equals(messageType);
+      }
+
+      private void assertLegacyOutcomeEventsSuppressed(List<String> legacyMessageTypes) {
+        assertThat(rmOutcomeEvents)
+          .filteredOn(event -> legacyMessageTypes.contains(rmMessageTypeFromEvent(event)))
+          .as("legacy RM template events are intentionally not published")
+          .isEmpty();
+      }
 
     private String createExpectedRmMessage(String rmMessageType, Map<String, Object> root) throws Exception {
       if (isDictionaryOutcomeMessage(rmMessageType)) {

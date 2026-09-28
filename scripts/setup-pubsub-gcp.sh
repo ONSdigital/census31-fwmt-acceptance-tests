@@ -96,8 +96,6 @@ TOPICS=(
   "GW.Transient.ErrorQ"
   "Outcome.Preprocessing"
   "Outcome.PreprocessingDLQ"
-  "Field.refusals"
-  "Field.other"
   "events"
   "Gateway.Events.Exchange"
 )
@@ -119,8 +117,6 @@ ACCEPTANCE_TEST_SUBS=(
   "acceptance-tests-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
   "acceptance-tests-Outcome-Preprocessing:Outcome.Preprocessing"
   "acceptance-tests-Outcome-PreprocessingDLQ:Outcome.PreprocessingDLQ"
-  "acceptance-tests-Field-refusals:Field.refusals"
-  "acceptance-tests-Field-other:Field.other"
   "acceptance-tests-Gateway-Events:Gateway.Events.Exchange"
 )
 
