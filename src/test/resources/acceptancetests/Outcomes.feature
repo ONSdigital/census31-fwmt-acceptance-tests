@@ -2,7 +2,7 @@
 Feature: Outcomes Tests
 
   @Census27Test
-  Scenario Outline: As a Gateway I can receive an outcome from TM and create Census Events
+  Scenario Outline: Receive <SurveyType> outcome <Outcome Code> - <BusinessFunction> / <Primary Outcome> / <Secondary Outcome> (linked QID: <HasLinkedQID>, fulfilment request: <HasFulfilmentRequest>)
     Given an "<SurveyType>" "<BusinessFunction>" outcome message
     And its Primary Outcome is "<Primary Outcome>"
     And its secondary Outcome "<Secondary Outcome>"

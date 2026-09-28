@@ -344,6 +344,12 @@ public class OutcomeSteps {
           50);
       try {
         String msg = queueClient.getMessageWithEventType(queue, rmMessageType, (int) CommonUtils.TIMEOUT, 50);
+        if (msg == null) {
+          IllegalStateException exception =
+              new IllegalStateException(buildMissingRmMessageDiagnostic(queue, rmMessageType, phase));
+          performanceTimingRecorder.finishRmMessageWait(null, exception);
+          throw exception;
+        }
         performanceTimingRecorder.finishRmMessageWait(msg, null);
         return msg;
       } catch (Exception e) {
@@ -391,6 +397,9 @@ public class OutcomeSteps {
      * {@link #newCaseId}.
      */
     private boolean matchesProcessingEventCaseId(String eventCaseId) {
+      if (isAddressTypeChangeFlow()) {
+        return true;
+      }
       if (scenarioCaseId.equals(eventCaseId)) {
         return true;
       }
