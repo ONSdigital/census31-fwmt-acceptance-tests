@@ -143,14 +143,13 @@ TOPICS=(
   "GW.Error.Exchange"
   "adapter-outbound-exchange"
   "Outcome.Preprocessing.Exchange"
-  "Gateway.Actions.Exchange"
 )
 
 for topic in "${TOPICS[@]}"; do
   create_topic_if_missing "$topic"
 done
 
-# Publishers only (no subscription): Gateway.Actions.Exchange (csv-service), Gateway.Events.Exchange (events lib)
+# Publisher only (no subscription): Gateway.Events.Exchange (events lib)
 SUBS=(
   "job-service-fieldwork-action-instruction:event_fieldwork_action-instruction"
   "job-service-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
@@ -159,7 +158,6 @@ SUBS=(
   "outcome-service-Outcome-Preprocessing:Outcome.Preprocessing"
   "outcome-service-Outcome-PreprocessingDLQ:Outcome.PreprocessingDLQ"
   "outcome-service-events:events"
-  "fulfilment-event-service-events:events"
   "fulfilment-event-service-fulfilment-request:event_fulfilment-request"
 )
 

@@ -90,7 +90,6 @@ services:
         put_topic 'GW.Error.Exchange'
         put_topic 'adapter-outbound-exchange'
         put_topic 'Outcome.Preprocessing.Exchange'
-        put_topic 'Gateway.Actions.Exchange'
 
         put_sub 'job-service-fieldwork-action-instruction' 'event_fieldwork_action-instruction'
         put_sub 'job-service-fieldwork-action-instruction-internal' 'event_fieldwork_action-instruction_internal'
@@ -99,7 +98,6 @@ services:
         put_sub_dlq 'outcome-service-Outcome-Preprocessing' 'Outcome.Preprocessing' 'Outcome.PreprocessingDLQ' '5'
         put_sub 'outcome-service-Outcome-PreprocessingDLQ' 'Outcome.PreprocessingDLQ'
         put_sub 'outcome-service-events' 'events'
-        put_sub 'fulfilment-event-service-events' 'events'
         put_sub 'fulfilment-event-service-fulfilment-request' 'event_fulfilment-request'
 
         put_sub 'acceptance-tests-refusal-received' 'event_refusal-received'

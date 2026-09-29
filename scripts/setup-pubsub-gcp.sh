@@ -135,7 +135,6 @@ if [[ "$INCLUDE_SERVICE_SUBSCRIPTIONS" == "true" ]]; then
     "job-service-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
     "outcome-service-Outcome-PreprocessingDLQ:Outcome.PreprocessingDLQ"
     "outcome-service-events:events"
-    "fulfilment-event-service-events:events"
     "fulfilment-event-service-fulfilment-request:event_fulfilment-request"
   )
 
