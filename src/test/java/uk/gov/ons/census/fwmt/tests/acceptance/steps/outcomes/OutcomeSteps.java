@@ -2,26 +2,23 @@ package uk.gov.ons.census.fwmt.tests.acceptance.steps.outcomes;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
-import java.io.IOException;
 import java.io.StringWriter;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.util.Strings;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
@@ -88,11 +85,18 @@ public class OutcomeSteps {
 
     private final static String OUTCOME_SENT = "OUTCOME_SENT";
 
-    private final static String RM_FIELD_REPUBLISH = "RM_FIELD_REPUBLISH";
+    private final static String FIELDWORK_ACTION_INSTRUCTION_PUBLISH =
+      "FIELDWORK_ACTION_INSTRUCTION_PUBLISH";
 
-    private static final String FIELD_REFUSALS_QUEUE = "Field.refusals";
+    private static final String REFUSAL_RECEIVED_QUEUE = "event_refusal-received";
 
-    private static final String TEMP_FIELD_OTHERS_QUEUE = "Field.other";
+    private static final String FIELD_CASE_UPDATED_QUEUE = "event_field-case-updated";
+
+    private static final String FULFILMENT_REQUEST_QUEUE = "event_fulfilment-request";
+
+    private static final String ADDRESS_NOT_VALID_QUEUE = "event_address-not-valid";
+
+    private static final String QUESTIONNAIRE_LINKED_QUEUE = "event_questionnaire-linked";
 
     private static final String COMET_SPG_UNITADDRESS_OUTCOME_RECEIVED = "COMET_SPG_UNITADDRESS_OUTCOME_RECEIVED";
 
@@ -241,7 +245,7 @@ public class OutcomeSteps {
         long deadline = System.currentTimeMillis() + CommonUtils.TIMEOUT;
         jsOutcomeEvents = new ArrayList<>();
         while (System.currentTimeMillis() < deadline) {
-            jsOutcomeEvents = gatewayEventMonitor.grabEventsTriggered(RM_FIELD_REPUBLISH, 50, 500L).stream()
+            jsOutcomeEvents = gatewayEventMonitor.grabEventsTriggered(FIELDWORK_ACTION_INSTRUCTION_PUBLISH, 50, 500L).stream()
                     .filter(e -> matchesJsOutcomeEventCaseId(e.getCaseId()))
                     .filter(e -> surveyType.equals(e.getMetadata().get("Address Type")))
                     .collect(Collectors.toList());
@@ -266,14 +270,20 @@ public class OutcomeSteps {
     @Then("create the following messages to RM {string}")
     public void create_the_following_messages_to_RM(String rmMessages) throws Exception{
         String[] rmMessagesArray = (!Strings.isBlank(rmMessages)) ? rmMessages.split(",") : new String[0];
-        expectedRmMessages = Arrays.asList(rmMessagesArray);
+      List<String> suppressedLegacyMessages = Arrays.stream(rmMessagesArray)
+        .filter(this::isSuppressedLegacyOutcomeMessage)
+        .collect(Collectors.toList());
+      expectedRmMessages = Arrays.stream(rmMessagesArray)
+        .filter(message -> !isSuppressedLegacyOutcomeMessage(message))
+        .collect(Collectors.toList());
         if (isGeneratedCaseIdFlow() && newCaseId == null) {
             resolveGeneratedCaseIdFromPreprocessingEvent();
         }
         if (isAddressTypeChangeFlow()) {
-            resolveNewCaseIdFromAddressTypeChangedMessage();
+        resolveGeneratedCaseIdFromProcessorEvents();
         }
         collectRmOutcomeEvents();
+      assertLegacyOutcomeEventsSuppressed(suppressedLegacyMessages);
         collectRmMessages();
         confirmRmMessagesAreSent();
         createExpectedRmMessages();
@@ -282,7 +292,7 @@ public class OutcomeSteps {
     private void createExpectedRmMessages() throws Exception{
       expectedRmMessageMap.clear();
       for (String rmMessageType : expectedRmMessages) {
-        Map<String, Object> root = new HashMap();
+        Map<String, Object> root = new HashMap<>();
         root.clear();
         root.put("reason", spgReasonCodeLookup.getLookup(outcomeCode));
         // FULFILMENT_REQUESTED carries the RM pack code, not the outcome code. The TM
@@ -305,10 +315,7 @@ public class OutcomeSteps {
     public void the_caseId_of_the_message_will_be_the_original_caseid(String messageType) throws Exception{
         addressTypeChangeMsg = actualRmMessageMap.get(messageType);
         System.out.println("Actual:" + addressTypeChangeMsg);
-        JsonNode actualJson = jsonObjectMapper.readTree(addressTypeChangeMsg);
-        JsonNode caseIdNode = actualJson.findPath("id");
-        assertThat(caseIdNode!=null && !caseIdNode.isMissingNode()).isTrue();
-        assertThat(scenarioCaseId.equals(caseIdNode.asText())).isTrue();
+      assertThat(scenarioCaseId.equals(extractCaseIdFromRmMessage(messageType, addressTypeChangeMsg))).isTrue();
     }
 
     private void collectRmMessages() throws Exception {
@@ -319,8 +326,7 @@ public class OutcomeSteps {
         String queue = operationToQueue(rmMessageType);
         String msg = awaitRmMessage(queue, rmMessageType, "collectRmMessages");
         JsonNode actualMessageRootNode = jsonObjectMapper.readTree(msg);
-        JsonNode typeNode = actualMessageRootNode.path("event").path("type");
-        actualRmMessageMap.put(typeNode.asText(), msg);
+        actualRmMessageMap.put(extractRmMessageType(actualMessageRootNode), msg);
       }
     }
 
@@ -338,6 +344,12 @@ public class OutcomeSteps {
           50);
       try {
         String msg = queueClient.getMessageWithEventType(queue, rmMessageType, (int) CommonUtils.TIMEOUT, 50);
+        if (msg == null) {
+          IllegalStateException exception =
+              new IllegalStateException(buildMissingRmMessageDiagnostic(queue, rmMessageType, phase));
+          performanceTimingRecorder.finishRmMessageWait(null, exception);
+          throw exception;
+        }
         performanceTimingRecorder.finishRmMessageWait(msg, null);
         return msg;
       } catch (Exception e) {
@@ -351,21 +363,19 @@ public class OutcomeSteps {
     }
 
     /**
-     * Address-type-change processors return a new caseId; fulfilment and linked-QID RM messages
-     * (and their OUTCOME_SENT events) are keyed to that id, not the original parent caseId.
+     * Address-type-change processors return a new caseId; later processor events use that ID even
+     * though the legacy address-type-change message is intentionally suppressed.
      */
-    private void resolveNewCaseIdFromAddressTypeChangedMessage() throws Exception {
-      if (!expectedRmMessages.contains("ADDRESS_TYPE_CHANGED") || newCaseId != null) {
+    private void resolveGeneratedCaseIdFromProcessorEvents() {
+      if (newCaseId != null || processingEvents == null) {
         return;
       }
-      String queue = operationToQueue("ADDRESS_TYPE_CHANGED");
-      String msg = awaitRmMessage(queue, "ADDRESS_TYPE_CHANGED", "resolveNewCaseIdFromAddressTypeChangedMessage");
-      assertThat(msg).isNotNull();
-      actualRmMessageMap.put("ADDRESS_TYPE_CHANGED", msg);
-      addressTypeChangeMsg = msg;
-      JsonNode newCaseIdNode = jsonObjectMapper.readTree(msg).findPath("newCaseId");
-      assertThat(newCaseIdNode != null && !newCaseIdNode.isMissingNode()).isTrue();
-      newCaseId = newCaseIdNode.asText();
+      processingEvents.stream()
+          .filter(event -> event != null)
+          .map(event -> event.getCaseId())
+          .filter(caseId -> caseId != null && !scenarioCaseId.equals(caseId))
+          .findFirst()
+          .ifPresent(caseId -> newCaseId = caseId);
     }
 
     private boolean matchesRmOutcomeEventCaseId(String eventCaseId) {
@@ -387,6 +397,9 @@ public class OutcomeSteps {
      * {@link #newCaseId}.
      */
     private boolean matchesProcessingEventCaseId(String eventCaseId) {
+      if (isAddressTypeChangeFlow()) {
+        return true;
+      }
       if (scenarioCaseId.equals(eventCaseId)) {
         return true;
       }
@@ -498,11 +511,80 @@ public class OutcomeSteps {
       return event.getMetadata().get("type");
     }
 
+    private String buildMissingRmMessageDiagnostic(String queue, String rmMessageType, String phase) {
+      List<String> observedProcessors =
+          processingEvents == null
+              ? List.of()
+              : processingEvents.stream().map(this::processorFromEvent).collect(Collectors.toList());
+      List<String> observedRmEvents =
+          rmOutcomeEvents == null
+              ? List.of()
+              : rmOutcomeEvents.stream().map(this::rmMessageTypeFromEvent).collect(Collectors.toList());
+
+      return String.format(
+          "Timed out waiting for RM message '%s' on queue '%s' during phase '%s'. "
+              + "Candidate processor(s): %s. Expected processors: %s. Observed processors: %s. "
+              + "Observed RM outcome events: %s. surveyType=%s, businessFunction=%s, outcomeCode=%s, "
+              + "scenarioCaseId=%s, messageCaseId=%s, generatedCaseId=%s, transactionId=%s",
+          rmMessageType,
+          queue,
+          phase,
+          candidateProcessorsForRmMessage(rmMessageType),
+          expectedProcessors,
+          observedProcessors,
+          observedRmEvents,
+          surveyType,
+          businessFunction,
+          outcomeCode,
+          scenarioCaseId,
+          getMessageCaseId(),
+          newCaseId,
+          scenarioTransactionId);
+    }
+
+    private List<String> candidateProcessorsForRmMessage(String rmMessageType) {
+      List<String> candidates;
+      switch (rmMessageType) {
+        case "QUESTIONNAIRE_LINKED":
+          candidates = List.of("LINKED_QID");
+          break;
+        case "FULFILMENT_REQUESTED":
+          candidates = List.of("FULFILMENT_REQUESTED");
+          break;
+        case "REFUSAL_RECEIVED":
+          candidates = List.of("HARD_REFUSAL_RECEIVED", "EXTRAORDINARY_REFUSAL_RECEIVED");
+          break;
+        case "FIELD_CASE_UPDATED":
+          candidates = List.of("UPDATE_RESIDENT_COUNT", "UPDATE_RESIDENT_COUNT_0", "UPDATE_RESIDENT_COUNT_1");
+          break;
+        case "ADDRESS_NOT_VALID":
+          candidates = List.of("ADDRESS_NOT_VALID");
+          break;
+        case "ADDRESS_TYPE_CHANGED":
+          candidates = List.of("ADDRESS_TYPE_CHANGED_HH", "ADDRESS_TYPE_CHANGED_CE_EST", "ADDRESS_TYPE_CHANGED_SPG");
+          break;
+        case "NEW_ADDRESS_REPORTED":
+          candidates = List.of("NEW_UNIT_ADDRESS", "NEW_STANDALONE_ADDRESS");
+          break;
+        default:
+          candidates = List.of(rmMessageType);
+          break;
+      }
+
+      if (expectedProcessors == null || expectedProcessors.isEmpty()) {
+        return candidates;
+      }
+
+      List<String> matchedExpectedProcessors =
+          expectedProcessors.stream().filter(candidates::contains).collect(Collectors.toList());
+      return matchedExpectedProcessors.isEmpty() ? candidates : matchedExpectedProcessors;
+    }
+
     @Then("it will include a new caseId")
     public void it_will_include_a_new_caseId() throws Exception{
       JsonNode actualJson = jsonObjectMapper.readTree(addressTypeChangeMsg);
-      JsonNode newCaseIdNode = actualJson.findPath("newCaseId");
-      assertThat(newCaseIdNode!=null && !newCaseIdNode.isMissingNode()).isTrue();
+      JsonNode newCaseIdNode = actualJson.path("newCaseId");
+      assertThat(!newCaseIdNode.isMissingNode()).isTrue();
       assertThat(!scenarioCaseId.equals(newCaseIdNode.asText())).isTrue();
       newCaseId = newCaseIdNode.asText();
     }
@@ -523,9 +605,9 @@ public class OutcomeSteps {
         case "FIELD_CASE_UPDATED":
           if (usesCeSiteResidentCountZero()) {
             JsonNode newAddressMessage = jsonObjectMapper.readTree(actualRmMessageMap.get("NEW_ADDRESS_REPORTED"));
-            atcMsg = replaceValueInJson(atcMsg, "id", newAddressMessage.findPath("sourceCaseId").asText());
+            atcMsg = replaceValueInJson(atcMsg, "caseId", newAddressMessage.findPath("sourceCaseId").asText());
           } else {
-            atcMsg = replaceValueInJson(atcMsg, "id", newCaseId);
+            atcMsg = replaceValueInJson(atcMsg, "caseId", newCaseId);
           }
           break;
         default:
@@ -576,8 +658,39 @@ public class OutcomeSteps {
         List<String> actualProcessors = processingEvents.stream()
                 .map(this::processorFromEvent)
                 .collect(Collectors.toList());
-      assertThat(expectedProcessors.containsAll(actualProcessors));
-      assertEquals(expectedProcessors.size(), actualProcessors.size());
+      List<String> missingProcessors = new ArrayList<>(expectedProcessors);
+      List<String> unexpectedProcessors = new ArrayList<>();
+
+      for (String actualProcessor : actualProcessors) {
+        if (!missingProcessors.remove(actualProcessor)) {
+          unexpectedProcessors.add(actualProcessor);
+        }
+      }
+
+      if (!missingProcessors.isEmpty() || !unexpectedProcessors.isEmpty()) {
+        fail(buildProcessorMismatchDiagnostic(actualProcessors, missingProcessors, unexpectedProcessors));
+      }
+    }
+
+    private String buildProcessorMismatchDiagnostic(
+        List<String> actualProcessors,
+        List<String> missingProcessors,
+        List<String> unexpectedProcessors) {
+      return String.format(
+          "Processor mismatch. Expected processors: %s. Actual processors: %s. Missing processors: %s. "
+              + "Unexpected processors: %s. surveyType=%s, businessFunction=%s, outcomeCode=%s, "
+              + "scenarioCaseId=%s, messageCaseId=%s, generatedCaseId=%s, transactionId=%s",
+          expectedProcessors,
+          actualProcessors,
+          missingProcessors,
+          unexpectedProcessors,
+          surveyType,
+          businessFunction,
+          outcomeCode,
+          scenarioCaseId,
+          getMessageCaseId(),
+          newCaseId,
+          scenarioTransactionId);
     }
 
     private void confirmRmMessagesAreSent() {
@@ -670,7 +783,7 @@ public class OutcomeSteps {
     }
 
    private String getTmOutcomeRequest() throws Exception {
-        Map<String, Object> root = new HashMap();
+        Map<String, Object> root = new HashMap<>();
 
        root.put("caseId", scenarioCaseId);
        root.put("transactionId", scenarioTransactionId);
@@ -856,23 +969,41 @@ public class OutcomeSteps {
         switch (operation) {
         case "REFUSAL_RECEIVED":
         case "HARD_REFUSAL_RECEIVED":
-            return FIELD_REFUSALS_QUEUE;
+        return REFUSAL_RECEIVED_QUEUE;
+      case "FIELD_CASE_UPDATED":
+      case "UPDATE_RESIDENT_COUNT_1":
+      case "UPDATE_RESIDENT_COUNT":
+      case "UPDATE_RESIDENT_COUNT_0":
+        return FIELD_CASE_UPDATED_QUEUE;
+      case "FULFILMENT_REQUESTED":
+        return FULFILMENT_REQUEST_QUEUE;
         case "ADDRESS_NOT_VALID":
-        case "ADDRESS_TYPE_CHANGED":
-        case "FULFILMENT_REQUESTED":
+        return ADDRESS_NOT_VALID_QUEUE;
         case "QUESTIONNAIRE_LINKED":
-        case "NEW_ADDRESS_REPORTED":
-        case "FIELD_CASE_UPDATED":
-        case "UPDATE_RESIDENT_COUNT_1":
-        case "UPDATE_RESIDENT_COUNT":
-        case "UPDATE_RESIDENT_COUNT_0":
-            return TEMP_FIELD_OTHERS_QUEUE;
+        return QUESTIONNAIRE_LINKED_QUEUE;
         default:
-            throw new RuntimeException("Problem matching operation");
+          throw new IllegalArgumentException("No active Event Dictionary lane for outcome " + operation);
         }
     }
 
+      private boolean isSuppressedLegacyOutcomeMessage(String messageType) {
+        return "ADDRESS_TYPE_CHANGED".equals(messageType)
+          || "NEW_ADDRESS_REPORTED".equals(messageType)
+          || "CCS_ADDRESS_LISTED".equals(messageType);
+      }
+
+      private void assertLegacyOutcomeEventsSuppressed(List<String> legacyMessageTypes) {
+        assertThat(rmOutcomeEvents)
+          .filteredOn(event -> legacyMessageTypes.contains(rmMessageTypeFromEvent(event)))
+          .as("legacy RM template events are intentionally not published")
+          .isEmpty();
+      }
+
     private String createExpectedRmMessage(String rmMessageType, Map<String, Object> root) throws Exception {
+      if (isDictionaryOutcomeMessage(rmMessageType)) {
+        return createExpectedDictionaryMessage(rmMessageType, root);
+      }
+
         String inputMessage = "";
         if ("ADDRESS_TYPE_CHANGED".equals(rmMessageType)) {
           switch (businessFunction) {
@@ -931,13 +1062,17 @@ public class OutcomeSteps {
         assertEquals(expectedRmMessages.size(), actualRmMessageMap.size());
         assertThat(expectedRmMessages.containsAll(actualRmMessageMap.keySet()));
 
-        Map<String, Object> root = new HashMap();
         for (String rmMessageType : expectedRmMessages) {
             String expectedRmMessage = expectedRmMessageMap.get(rmMessageType);
             JsonNode expectedJson = jsonObjectMapper.readTree(expectedRmMessage);
 
             String actualRmMessage = actualRmMessageMap.get(rmMessageType);
             JsonNode actualJson = jsonObjectMapper.readTree(actualRmMessage);
+
+        if (isDictionaryOutcomeMessage(rmMessageType)) {
+          assertDictionaryOutcomeMessage(rmMessageType, expectedJson, actualJson);
+          continue;
+        }
 
             boolean isEqual = expectedJson.equals(actualJson);
             if (!isEqual) {
@@ -952,11 +1087,168 @@ public class OutcomeSteps {
     public void the_caseId_of_the_message_will_be_a_new_caseId(String messageType) throws Exception {
       addressTypeChangeMsg = actualRmMessageMap.get(messageType);
       System.out.println("Actual:" + addressTypeChangeMsg);
-      JsonNode actualJson = jsonObjectMapper.readTree(addressTypeChangeMsg);
-      JsonNode caseIdNode = actualJson.findPath("id");
-      assertThat(caseIdNode!=null && !caseIdNode.isMissingNode()).isTrue();
-      assertThat(scenarioCaseId.equals(caseIdNode.asText())).isFalse();
-      newCaseId = caseIdNode.asText();
+      String actualCaseId = extractCaseIdFromRmMessage(messageType, addressTypeChangeMsg);
+      assertThat(scenarioCaseId.equals(actualCaseId)).isFalse();
+      newCaseId = actualCaseId;
+    }
+
+    private String extractRmMessageType(JsonNode actualMessageRootNode) {
+      JsonNode messageTypeNode = actualMessageRootNode.path("header").path("messageType");
+      if (!messageTypeNode.isMissingNode() && !messageTypeNode.asText().isBlank()) {
+        if ("FULFILMENT_REQUEST".equals(messageTypeNode.asText())) {
+          return "FULFILMENT_REQUESTED";
+        }
+        return messageTypeNode.asText();
+      }
+
+      JsonNode eventTypeNode = actualMessageRootNode.path("event").path("type");
+      if (!eventTypeNode.isMissingNode() && !eventTypeNode.asText().isBlank()) {
+        return eventTypeNode.asText();
+      }
+
+      return actualMessageRootNode.path("type").asText();
+    }
+
+    private String extractCaseIdFromRmMessage(String messageType, String messageJson) throws Exception {
+      JsonNode actualJson = jsonObjectMapper.readTree(messageJson);
+      switch (messageType) {
+        case "REFUSAL_RECEIVED":
+        case "HARD_REFUSAL_RECEIVED":
+          return actualJson.path("payload").path("refusal").path("collectionCase").path("id").asText();
+        case "FIELD_CASE_UPDATED":
+          return actualJson.path("payload").path("fieldCaseUpdate").path("caseId").asText();
+        case "FULFILMENT_REQUESTED":
+          return actualJson.path("payload").path("fulfilmentRequest").path("caseId").asText();
+        case "QUESTIONNAIRE_LINKED":
+          return actualJson.path("payload").path("uac").path("caseId").asText();
+        default:
+          return actualJson.findPath("id").asText();
+      }
+    }
+
+    private boolean isDictionaryOutcomeMessage(String rmMessageType) {
+      return "REFUSAL_RECEIVED".equals(rmMessageType)
+          || "FIELD_CASE_UPDATED".equals(rmMessageType)
+          || "FULFILMENT_REQUESTED".equals(rmMessageType)
+          || "ADDRESS_NOT_VALID".equals(rmMessageType)
+          || "QUESTIONNAIRE_LINKED".equals(rmMessageType);
+    }
+
+    private String createExpectedDictionaryMessage(String rmMessageType, Map<String, Object> root) throws Exception {
+      Map<String, Object> header = new LinkedHashMap<>();
+      header.put("version", "1.0.0");
+      header.put("source", "FIELDWORK_GATEWAY");
+      header.put("channel", "FIELD");
+      header.put("dateTime", "2020-04-17T11:53:11.000Z");
+      header.put("messageId", "00000000-0000-0000-0000-000000000000");
+      header.put("correlationId", "");
+
+      Map<String, Object> payload = new LinkedHashMap<>();
+
+      switch (rmMessageType) {
+        case "REFUSAL_RECEIVED":
+          header.put("topic", REFUSAL_RECEIVED_QUEUE);
+          header.put("messageType", "REFUSAL_RECEIVED");
+          Map<String, Object> refusal = new LinkedHashMap<>();
+          refusal.put("type", expectedRefusalType());
+          refusal.put("collectionCase", Map.of("id", root.get("caseId")));
+          payload.put("refusal", refusal);
+          break;
+        case "FIELD_CASE_UPDATED":
+          header.put("topic", FIELD_CASE_UPDATED_QUEUE);
+          header.put("messageType", "FIELD_CASE_UPDATED");
+          payload.put(
+              "fieldCaseUpdate",
+              Map.of("caseId", root.get("caseId"), "ceExpectedCapacity", root.get("usualResidents")));
+          break;
+        case "FULFILMENT_REQUESTED":
+          header.put("topic", FULFILMENT_REQUEST_QUEUE);
+          header.put("messageType", "FULFILMENT_REQUEST");
+          payload.put(
+              "fulfilmentRequest",
+              Map.of("fulfilmentCode", root.get("fulfilmentCode"), "caseId", root.get("caseId")));
+          break;
+        case "ADDRESS_NOT_VALID":
+          header.put("topic", ADDRESS_NOT_VALID_QUEUE);
+          header.put("messageType", "ADDRESS_NOT_VALID");
+          payload.put(
+              "invalidAddress",
+              Map.of("reason", root.get("reason"), "caseId", root.get("caseId")));
+          break;
+            case "QUESTIONNAIRE_LINKED":
+              header.put("topic", QUESTIONNAIRE_LINKED_QUEUE);
+              header.put("messageType", "QUESTIONNAIRE_LINKED");
+              payload.put(
+                "uac",
+                Map.of("questionnaireId", "1110000009", "caseId", root.get("caseId")));
+              break;
+        default:
+          throw new IllegalArgumentException("Unsupported dictionary RM message: " + rmMessageType);
+      }
+
+      Map<String, Object> message = new LinkedHashMap<>();
+      message.put("header", header);
+      message.put("payload", payload);
+      return jsonObjectMapper.writeValueAsString(message);
+    }
+
+    private String expectedRefusalType() {
+      return "Extraordinary Refusal".equals(businessFunction)
+          ? "EXTRAORDINARY_REFUSAL"
+          : "HARD_REFUSAL";
+    }
+
+    private void assertDictionaryOutcomeMessage(String rmMessageType, JsonNode expectedJson, JsonNode actualJson) {
+      JsonNode actualHeader = actualJson.path("header");
+      assertThat(actualHeader.path("version").asText()).isEqualTo("1.0.0");
+      assertThat(actualHeader.path("source").asText()).isEqualTo("FIELDWORK_GATEWAY");
+      assertThat(actualHeader.path("channel").asText()).isEqualTo("FIELD");
+      assertThat(actualHeader.path("correlationId").asText()).isEmpty();
+      assertThat(actualHeader.path("dateTime").asText()).isNotBlank();
+      assertThat(actualHeader.path("messageId").asText()).isNotBlank();
+
+      JsonNode expectedHeader = expectedJson.path("header");
+      assertThat(actualHeader.path("topic").asText()).isEqualTo(expectedHeader.path("topic").asText());
+      assertThat(actualHeader.path("messageType").asText()).isEqualTo(expectedHeader.path("messageType").asText());
+
+      switch (rmMessageType) {
+        case "REFUSAL_RECEIVED":
+          assertThat(actualJson.path("payload").path("refusal").path("type").asText())
+              .isEqualTo(expectedJson.path("payload").path("refusal").path("type").asText());
+          assertThat(actualJson.path("payload").path("refusal").path("collectionCase").path("id").asText())
+              .isEqualTo(expectedJson.path("payload").path("refusal").path("collectionCase").path("id").asText());
+          break;
+        case "FIELD_CASE_UPDATED":
+          assertThat(actualJson.path("payload").path("fieldCaseUpdate").path("caseId").asText())
+              .isEqualTo(expectedJson.path("payload").path("fieldCaseUpdate").path("caseId").asText());
+          assertThat(actualJson.path("payload").path("fieldCaseUpdate").path("ceExpectedCapacity").asInt())
+              .isEqualTo(expectedJson.path("payload").path("fieldCaseUpdate").path("ceExpectedCapacity").asInt());
+          break;
+        case "FULFILMENT_REQUESTED":
+          assertThat(actualJson.path("payload").path("fulfilmentRequest").path("caseId").asText())
+              .isEqualTo(expectedJson.path("payload").path("fulfilmentRequest").path("caseId").asText());
+          assertThat(actualJson.path("payload").path("fulfilmentRequest").path("fulfilmentCode").asText())
+              .isEqualTo(expectedJson.path("payload").path("fulfilmentRequest").path("fulfilmentCode").asText());
+          break;
+        case "ADDRESS_NOT_VALID":
+          JsonNode invalidAddress = actualJson.path("payload").path("invalidAddress");
+          assertThat(invalidAddress.path("reason").asText())
+            .isEqualTo(expectedJson.path("payload").path("invalidAddress").path("reason").asText());
+          assertThat(invalidAddress.path("caseId").asText())
+            .isEqualTo(expectedJson.path("payload").path("invalidAddress").path("caseId").asText());
+          assertThat(invalidAddress.has("notes")).isFalse();
+          break;
+          case "QUESTIONNAIRE_LINKED":
+            JsonNode uac = actualJson.path("payload").path("uac");
+            assertThat(uac.path("questionnaireId").asText())
+              .isEqualTo(expectedJson.path("payload").path("uac").path("questionnaireId").asText());
+            assertThat(uac.path("caseId").asText())
+              .isEqualTo(expectedJson.path("payload").path("uac").path("caseId").asText());
+            assertThat(uac.has("individualCaseId")).isFalse();
+            break;
+        default:
+          throw new IllegalArgumentException("Unsupported dictionary RM message: " + rmMessageType);
+      }
     }
 
     @Given("the message includes Usual Residents Count {string}")
@@ -973,7 +1265,7 @@ public class OutcomeSteps {
 
       String request = json.toString(4);
       log.info("Request = " + request);
-      queueClient.sendToRMFieldQueue(request, "create");
+      queueClient.publishExternalActionInstruction(request);
       boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(scenarioCaseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
       assertThat(hasBeenTriggered).isTrue();
 
@@ -996,7 +1288,7 @@ public class OutcomeSteps {
 
       String request = json.toString(4);
       log.info("Request = " + request);
-      queueClient.sendToRMFieldQueue(request, "create");
+      queueClient.publishExternalActionInstruction(request);
       boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(scenarioCaseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
       assertThat(hasBeenTriggered).isTrue();
     }

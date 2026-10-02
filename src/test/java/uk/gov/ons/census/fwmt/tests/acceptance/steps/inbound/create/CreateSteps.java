@@ -25,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import uk.gov.ons.census.fwmt.common.data.tm.Case;
 import uk.gov.ons.census.fwmt.common.data.tm.SurveyType;
 import uk.gov.ons.census.fwmt.common.events.data.GatewayEventDTO;
-import uk.gov.ons.census.fwmt.common.rm.dto.ActionInstructionType;
+import uk.gov.ons.census.fwmt.common.dto.rm.ActionInstructionType;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.AcceptanceGatewayEventMonitor;
 import uk.gov.ons.census.fwmt.tests.acceptance.steps.inbound.common.CommonUtils;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.QueueClient;
@@ -134,7 +134,7 @@ public class CreateSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }
@@ -155,7 +155,7 @@ public class CreateSteps {
     
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }
@@ -178,7 +178,7 @@ public class CreateSteps {
     
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }
@@ -197,7 +197,7 @@ public class CreateSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }
@@ -217,7 +217,7 @@ public class CreateSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }
@@ -237,7 +237,7 @@ public class CreateSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, "create");
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }

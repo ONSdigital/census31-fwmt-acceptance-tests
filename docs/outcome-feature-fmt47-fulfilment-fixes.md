@@ -325,7 +325,7 @@ Two HH rows in `OutcomeHardRefusal.feature` listed fewer processors than
 
 New-unit and standalone outcomes assign `UUID.randomUUID()` in preprocessing
 (`OutcomePreprocessingReceiver`). All subsequent `PROCESSING_OUTCOME`, `OUTCOME_SENT`, and
-`RM_FIELD_REPUBLISH` events use that generated id. `getMessageCaseId()` returns `"N/A"` for these
+`FIELDWORK_ACTION_INSTRUCTION_PUBLISH` events use that generated id. `getMessageCaseId()` returns `"N/A"` for these
 flows (matching `COMET_*_OUTCOME_RECEIVED`), so event collection previously matched nothing
 (`expected:<N> but was:<0>`).
 

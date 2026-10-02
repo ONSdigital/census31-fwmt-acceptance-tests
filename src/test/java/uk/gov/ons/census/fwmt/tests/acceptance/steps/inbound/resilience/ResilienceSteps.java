@@ -106,23 +106,23 @@ public class ResilienceSteps {
       if (cancelNeeded) {
         request = jsonCreate.toString(4);
         log.info("Request = " + request);
-        queueClient.sendToRMFieldQueue(request, "create");
+        queueClient.publishExternalActionInstruction(request);
         assertThat(waitForGatewayAction("Create", caseId)).isEqualTo(1);
         request = jsonCancel.toString(4);
         log.info("Request = " + request);
-        queueClient.sendToRMFieldQueue(request, "cancel");
+        queueClient.publishExternalActionInstruction(request);
       } else if (updateNeeded) {
         request = jsonCreate.toString(4);
         log.info("Request = " + request);
-        queueClient.sendToRMFieldQueue(request, "create");
+        queueClient.publishExternalActionInstruction(request);
         assertThat(waitForGatewayAction("Create", caseId)).isEqualTo(1);
         request = jsonUpdate.toString(4);
         log.info("Request = " + request);
-        queueClient.sendToRMFieldQueue(request, "update");
+        queueClient.publishExternalActionInstruction(request);
       } else {
         request = json.toString(4);
         log.info("Request = " + request);
-        queueClient.sendToRMFieldQueue(request, rmAction);
+        queueClient.publishExternalActionInstruction(request);
       }
       assertThat(waitForGatewayAction(actionStored, caseId)).isEqualTo(1);
     }
@@ -172,7 +172,7 @@ public class ResilienceSteps {
 
     String request = json.toString(4);
     log.info("Request = " + request);
-    queueClient.sendToRMFieldQueue(request, rmAction);
+    queueClient.publishExternalActionInstruction(request);
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, gatewayResponse, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
   }
