@@ -10,6 +10,12 @@
 "refusal":{
 "type":"${reason}",
 "agentId":"SH-TWH1-ZA-25",
+"isHouseholder" : "false",
+"contact" : {
+"title" : "",
+"forename" : "",
+"surname" : ""
+},
 "collectionCase":{
 "id":"${caseId}"
 }
