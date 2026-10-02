@@ -14,6 +14,7 @@ Feature: Outcome Hard Refusal Tests
   #   And create the following messages to RM "<RmMessages>"
   #   And it will create the following messages "<JsMessages>" to JobService
 
+<<<<<<< Updated upstream
   #   @HH
   #   Examples: HH
   #     | SurveyType | BusinessFunction        | Primary Outcome | Secondary Outcome        | Outcome Code | HasLinkedQID | HasFulfilmentRequest | Operation List                                                        | RmMessages                                                 | JsMessages |
@@ -41,6 +42,53 @@ Feature: Outcome Hard Refusal Tests
   #   Examples: CE
   #     | SurveyType | BusinessFunction        | Primary Outcome | Secondary Outcome        | Outcome Code | HasLinkedQID | HasFulfilmentRequest | Operation List                                                        | RmMessages                                                 | JsMessages |
   #     | CE         | Address Type Changed CE | Not Valid       | Phone - Property is a CE | 01-03-07     | F            | F                    | ADDRESS_NOT_VALID,HARD_REFUSAL_RECEIVED                               | ADDRESS_NOT_VALID,REFUSAL_RECEIVED                         |            |
+=======
+    @HH
+    Examples: HH
+      | SurveyType | BusinessFunction        | Primary Outcome | Secondary Outcome        | Outcome Code | HasLinkedQID | HasFulfilmentRequest | Operation List                                                        | RmMessages                                                   | JsMessages |
+      | HH         | Hard Refusal            | Contact made     | Hard refusal            | 01-02-07     | F            | F                    | HARD_REFUSAL_RECEIVED,FEEDBACK_LONG_PAUSE                             | REFUSAL_RECEIVED                                             | CANCEL     |
+
+    @CE
+    Examples: CE
+      | SurveyType | BusinessFunction        | Primary Outcome | Secondary Outcome        | Outcome Code | HasLinkedQID | HasFulfilmentRequest | Operation List                                                        | RmMessages                                                   | JsMessages |
+      | CE         | Hard Refusal            | Contact Made    | Visit - Hard refusal     | 22-20-10     | F            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED                                             | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Visit - Hard refusal     | 22-20-10     | T            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,QUESTIONNAIRE_LINKED                        | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Visit - Hard refusal     | 22-20-10     | F            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED                        | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Visit - Hard refusal     | 22-20-10     | T            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED,QUESTIONNAIRE_LINKED   | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Phone - Hard refusal     | 22-20-03     | F            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED                                             | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Phone - Hard refusal     | 22-20-03     | T            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,QUESTIONNAIRE_LINKED                        | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Phone - Hard refusal     | 22-20-03     | F            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED                        | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Phone - Hard refusal     | 22-20-03     | T            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED,QUESTIONNAIRE_LINKED   | CANCEL     |
+
+      | CE         | Hard Refusal            | Contact made    | Hard refusal             | 25-20-04     | F            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED                                             | CANCEL     |
+      | CE         | Hard Refusal            | Contact made    | Hard refusal             | 25-20-04     | T            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,QUESTIONNAIRE_LINKED                        | CANCEL     |
+      | CE         | Hard Refusal            | Contact made    | Hard refusal             | 25-20-04     | F            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED                        | CANCEL     |
+      | CE         | Hard Refusal            | Contact made    | Hard refusal             | 25-20-04     | T            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED,QUESTIONNAIRE_LINKED   | CANCEL     |
+
+      | CE         | Hard Refusal            | Contact Made    | Phone - Hard refusal     | 21-20-05     | F            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED                                             | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Phone - Hard refusal     | 21-20-05     | T            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,QUESTIONNAIRE_LINKED                        | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Phone - Hard refusal     | 21-20-05     | F            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED                        | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Phone - Hard refusal     | 21-20-05     | T            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED,QUESTIONNAIRE_LINKED   | CANCEL     |
+
+      | CE         | Hard Refusal            | Contact Made    | Visit - Hard refusal     | 21-20-14     | F            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED                                             | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Visit - Hard refusal     | 21-20-14     | T            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,QUESTIONNAIRE_LINKED                        | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Visit - Hard refusal     | 21-20-14     | F            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED                        | CANCEL     |
+      | CE         | Hard Refusal            | Contact Made    | Visit - Hard refusal     | 21-20-14     | T            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED,QUESTIONNAIRE_LINKED   | CANCEL     |
+
+#
+#    @SPG
+#    Examples: SPG
+#      | SurveyType | BusinessFunction        | Primary Outcome | Secondary Outcome        | Outcome Code | HasLinkedQID | HasFulfilmentRequest | Operation List                                                        | RmMessages                                                 | JsMessages |
+#      | SPG        | Hard Refusal            | Contact Made    | Phone - Hard Refusal     | 6-20-04      | F            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED                                           | CANCEL     |
+#      | SPG        | Hard Refusal            | Contact Made    | Phone - Hard Refusal     | 6-20-04      | T            | F                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,QUESTIONNAIRE_LINKED                      | CANCEL     |
+#      | SPG        | Hard Refusal            | Contact Made    | Phone - Hard Refusal     | 6-20-04      | F            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED                      | CANCEL     |
+#      | SPG        | Hard Refusal            | Contact Made    | Phone - Hard Refusal     | 6-20-04      | T            | T                    | HARD_REFUSAL_RECEIVED,CANCEL_FEEDBACK,FULFILMENT_REQUESTED,LINKED_QID | REFUSAL_RECEIVED,FULFILMENT_REQUESTED,QUESTIONNAIRE_LINKED | CANCEL     |
+#
+#    @CE
+#    Examples: CE
+#      | SurveyType | BusinessFunction        | Primary Outcome | Secondary Outcome        | Outcome Code | HasLinkedQID | HasFulfilmentRequest | Operation List                                                        | RmMessages                                                 | JsMessages |
+#      | CE         | Address Type Changed CE | Not Valid       | Phone - Property is a CE | 01-03-07     | F            | F                    | ADDRESS_NOT_VALID,HARD_REFUSAL_RECEIVED                               | ADDRESS_NOT_VALID,REFUSAL_RECEIVED                         |            |
+>>>>>>> Stashed changes
 
 
   # Scenario Outline: As a Gateway I can receive a hard refusal outcome from TM and create Census Events
