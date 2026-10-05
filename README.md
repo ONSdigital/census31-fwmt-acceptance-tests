@@ -34,7 +34,7 @@ Start stack only (no Cucumber):
 | 2 | `./prepare-local-artifacts.sh` | Build/install integration + FWMT libs (`--force` to rebuild) |
 | 3 | `./build-services.sh` | Optional: build boot jars before start |
 | 4 | `./start-services.sh --build-missing` | Bootstrap Pub/Sub + start apps (logs in `scripts/logs/`) |
-| 5 | `./run-acceptance-test.sh CreateTestRunner` | Run one Cucumber runner (or `all`) |
+| 5 | `./run-acceptance-test.sh RunCucumberTest -- -Dcucumber.filter.tags='@Create'` | Run focused Cucumber tags (or use `all`) |
 | 6 | `./stop-services.sh` | Stop Spring Boot processes |
 | 7 | `./drop-infra.sh` | Tear down Docker infra (`--volumes` to wipe Postgres/Redis data) |
 
@@ -122,7 +122,7 @@ Migration history and topology reference:
 | `apply-podman-runtime-support.sh` | One-shot migration for older checkouts (usually not needed) |
 | `prepare-local-artifacts.sh` | Cached wrapper for Maven local installs |
 | `prepare-local-maven-artifacts.sh` | `census31-int-*` integration JARs |
-| `prepare-local-fwmt-libs.sh` | parent BOM + common, events, canonical, storage-utils -> `$HOME/.m2` |
+| `prepare-local-fwmt-libs.sh` | common parent + common library reactor -> `$HOME/.m2` |
 | `build-service.sh` / `build-services.sh` | Build service boot jars |
 | `start-services.sh` | Start tm-mock, job-service, outcome-service |
 | `stop-services.sh` / `restart-service.sh` | Stop or restart services |
@@ -240,5 +240,5 @@ You can use `-n` with this mode to stop the script from adding `caseId` and `add
 ```
 
 ### Other topics
-There is a `-T` flag to specify a different pubsub topic (rather than the default `RM.Field`) however this is untested.
+There is a `-T` flag to specify a different Pub/Sub topic. The default is `event_fieldwork_action-instruction`, and `event_fieldwork_action-instruction_internal` is the supported internal-topic override for FWMT-owned producer checks.
    

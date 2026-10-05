@@ -8,7 +8,7 @@ BUILD_DIR="$SCRIPT_DIR/.local-maven-artifacts"
 
 # Built from census31-int-common-backend (Java 25, ons.census.int.common) and installed
 # under legacy uk.gov.ons.ctp.integration.common coordinates for FWMT Maven builds.
-BACKEND_VERSION="${FWMT_INT_COMMON_BACKEND_VERSION:-1.0.0-SNAPSHOT}"
+BACKEND_VERSION="${FWMT_INT_COMMON_BACKEND_VERSION:-}"
 FRAMEWORK_FWMT_VERSION="${FWMT_CTP_FRAMEWORK_VERSION:-0.0.79}"
 TEST_FRAMEWORK_FWMT_VERSION="${FWMT_CTP_TEST_FRAMEWORK_VERSION:-0.0.20}"
 PRODUCT_REFERENCE_FWMT_VERSIONS=(${FWMT_PRODUCT_REFERENCE_FWMT_VERSIONS:-1.0.2 1.0.14})
@@ -134,6 +134,10 @@ run_maven -f "$CENSUS31_INT_COMMON_BACKEND/pom.xml" \
   -Dmaven.test.skip=true \
   -Dcheckstyle.skip=true \
   -Dfmt.skip=true
+
+if [[ -z "$BACKEND_VERSION" ]]; then
+  BACKEND_VERSION="$(run_maven -q -f "$CENSUS31_INT_COMMON_BACKEND/pom.xml" help:evaluate -Dexpression=project.version -DforceStdout)"
+fi
 
 FRAMEWORK_JAR="$CENSUS31_INT_COMMON_BACKEND/framework/target/framework-$BACKEND_VERSION.jar"
 TEST_FRAMEWORK_JAR="$CENSUS31_INT_COMMON_BACKEND/test-framework/target/test-framework-$BACKEND_VERSION.jar"

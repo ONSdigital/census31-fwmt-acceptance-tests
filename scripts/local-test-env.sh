@@ -232,6 +232,23 @@ latest_boot_jar() {
   printf '%s\n' "${jars[@]}" | sort | tail -n 1
 }
 
+boot_jar_is_usable() {
+  local jar_path="$1"
+  local mapper_entry="BOOT-INF/classes/uk/gov/ons/census/fwmt/outcomeservice/dto/OutcomeNestedDtoMapperImpl.class"
+
+  [[ -f "$jar_path" ]] || return 1
+
+  if strings "$jar_path" 2>/dev/null | grep -Fq 'Unresolved compilation problems'; then
+    return 1
+  fi
+
+  if unzip -p "$jar_path" "$mapper_entry" 2>/dev/null | strings | grep -Eq '\)L(CareCodeDto|FulfilmentRequestDto|CeDetailsDto);'; then
+    return 1
+  fi
+
+  return 0
+}
+
 # Bash 3.2 (macOS /bin/bash): readarray is unavailable; caller must declare env_args=().
 load_service_env_args() {
   local name="$1"

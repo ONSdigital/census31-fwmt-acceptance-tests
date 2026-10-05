@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CENSUS31_FWMT_ROOT="${CENSUS31_FWMT_ROOT:-/home/simon/dev/sourcecode/census31}"
 CENSUS31_INTEGRATION_COMMON_ROOT="${CENSUS31_INTEGRATION_COMMON_ROOT:-$CENSUS31_FWMT_ROOT}"
 CENSUS31_INT_COMMON_BACKEND="${CENSUS31_INT_COMMON_BACKEND:-$CENSUS31_FWMT_ROOT/census31-int-common-backend}"
+FWMT_COMMON_DIR="${FWMT_COMMON_DIR:-$CENSUS31_FWMT_ROOT/census31-fwmt-common}"
 STATE_DIR="$SCRIPT_DIR/.local-artifacts"
 FINGERPRINT_FILE="$STATE_DIR/prepare.fingerprint"
 FORCE=false
@@ -18,7 +19,7 @@ Skips when inputs are unchanged unless --force is supplied.
 
 Steps:
   1. prepare-local-maven-artifacts.sh — CTP integration libs (census31-int-* seeds)
-  2. prepare-local-fwmt-libs.sh — census31-fwmt-parent BOM + FWMT libraries
+  2. prepare-local-fwmt-libs.sh — census31-fwmt-common parent + library reactor
 EOF
 }
 
@@ -49,21 +50,6 @@ hash_file() {
   fi
 }
 
-fwmt_seed_fingerprint() {
-  local name="$1"
-  local d="$CENSUS31_FWMT_ROOT/$name"
-  if [[ ! -d "$d" ]]; then
-    echo "$name:missing"
-    return
-  fi
-  echo -n "$name:"
-  (
-    cd "$d"
-    if [[ -f version.txt ]]; then hash_file version.txt; else echo nov; fi
-    if [[ -f pom.xml ]]; then hash_file pom.xml; else echo nop; fi
-  ) | sha256sum 2>/dev/null | awk '{print $1}' || echo unknown
-}
-
 census31_int_common_backend_fingerprint() {
   local d="$CENSUS31_INT_COMMON_BACKEND"
   if [[ ! -f "$d/pom.xml" ]]; then
@@ -84,14 +70,9 @@ census31_int_common_backend_fingerprint() {
 compute_fingerprint() {
   hash_file "$SCRIPT_DIR/prepare-local-maven-artifacts.sh"
   hash_file "$SCRIPT_DIR/prepare-local-fwmt-libs.sh"
-  if [[ -f "$CENSUS31_FWMT_ROOT/census31-fwmt-parent/pom.xml" ]]; then
-    hash_file "$CENSUS31_FWMT_ROOT/census31-fwmt-parent/pom.xml"
-  fi
-
-  fwmt_seed_fingerprint "census31-fwmt-storage-utils"
-  fwmt_seed_fingerprint "census31-fwmt-common"
-  fwmt_seed_fingerprint "census31-fwmt-events"
-  fwmt_seed_fingerprint "census31-fwmt-canonical"
+  for file in "$FWMT_COMMON_DIR/pom.xml" "$FWMT_COMMON_DIR/census31-fwmt-common/pom.xml" "$FWMT_COMMON_DIR/.mvn/maven.config"; do
+    if [[ -f "$file" ]]; then hash_file "$file"; else echo "$file:missing"; fi
+  done
 
   census31_int_common_backend_fingerprint
 }
@@ -111,7 +92,7 @@ for script in prepare-local-maven-artifacts.sh prepare-local-fwmt-libs.sh; do
   fi
 done
 
-export CENSUS31_FWMT_ROOT CENSUS31_INTEGRATION_COMMON_ROOT CENSUS31_INT_COMMON_BACKEND
+export CENSUS31_FWMT_ROOT CENSUS31_INTEGRATION_COMMON_ROOT CENSUS31_INT_COMMON_BACKEND FWMT_COMMON_DIR
 
 "$SCRIPT_DIR/prepare-local-maven-artifacts.sh"
 "$SCRIPT_DIR/prepare-local-fwmt-libs.sh"

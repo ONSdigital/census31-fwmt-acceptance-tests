@@ -18,7 +18,7 @@ class PerformanceTimingRecorderTest {
     recorder.scenarioStarted("scenario-1", "Scenario name", "feature", 42);
     recorder.startRmMessageWait(
         "collectRmMessages",
-        "Field.other",
+        "event_address-not-valid",
         "QUESTIONNAIRE_LINKED",
         java.util.List.of("QUESTIONNAIRE_LINKED"),
         "transaction-123",

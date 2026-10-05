@@ -38,6 +38,12 @@ public class DelegatingMessagingTestClient implements MessagingTestClient {
   }
 
   @Override
+  public ObservedMessage getObservedMessage(String logicalQueue, int msTimeout, int msInterval)
+      throws InterruptedException {
+    return activeClient().getObservedMessage(logicalQueue, msTimeout, msInterval);
+  }
+
+  @Override
   public String getMessageWithEventType(
       String logicalQueue, String eventType, int msTimeout, int msInterval)
       throws InterruptedException {
@@ -45,8 +51,14 @@ public class DelegatingMessagingTestClient implements MessagingTestClient {
   }
 
   @Override
-  public void publishFieldWorkerInstruction(String messageJson, String instructionType) {
-    activeClient().publishFieldWorkerInstruction(messageJson, instructionType);
+  public void publishExternalActionInstruction(
+      String messageJson, ExternalActionInstructionMetadataOverride metadataOverride) {
+    activeClient().publishExternalActionInstruction(messageJson, metadataOverride);
+  }
+
+  @Override
+  public void publishToTopic(String topicId, String messageJson, java.util.Map<String, String> attributes) {
+    activeClient().publishToTopic(topicId, messageJson, attributes);
   }
 
   @Override

@@ -7,7 +7,7 @@
   <parent>
     <groupId>uk.gov.ons.census.fwmt</groupId>
     <artifactId>census31-fwmt-common-parent</artifactId>
-    <version>27.0.7</version>
+        <version>27.0.11</version>
     <relativePath/>
   </parent>
 
@@ -92,6 +92,10 @@
             <artifactId>httpclient</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
             <scope>test</scope>
@@ -99,11 +103,6 @@
         <dependency>
             <groupId>org.freemarker</groupId>
             <artifactId>freemarker</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

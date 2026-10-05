@@ -413,6 +413,50 @@ public final class TMMockUtils {
     }
   }
 
+  public void addHouseholdCaseToDatabase(String caseId) throws Exception {
+    Statement stmt = null;
+    try (Connection conn = DriverManager.getConnection(url, username, password)) {
+      if (conn != null) {
+        stmt = conn.createStatement();
+        String sql = "INSERT INTO fwmtg.gateway_case_record "
+            + "(case_id, is_delivered, exists_in_fwmt, type, last_action_instruction) "
+            + "VALUES ('" + caseId + "', false, true, 10, 'CREATE')";
+        stmt.executeUpdate(sql);
+      } else {
+        System.out.println("Failed to make connection!");
+      }
+    } finally {
+      try {
+        if (stmt != null) {
+          stmt.close();
+        }
+      } catch (SQLException ignored) {
+      }
+    }
+  }
+
+  public void updateGatewayCaseRecordLastActionInstruction(String caseId, String lastActionInstruction)
+      throws Exception {
+    Statement stmt = null;
+    try (Connection conn = DriverManager.getConnection(url, username, password)) {
+      if (conn != null) {
+        stmt = conn.createStatement();
+        String sql = "UPDATE fwmtg.gateway_case_record SET last_action_instruction = '"
+            + lastActionInstruction + "' WHERE case_id = '" + caseId + "'";
+        stmt.executeUpdate(sql);
+      } else {
+        System.out.println("Failed to make connection!");
+      }
+    } finally {
+      try {
+        if (stmt != null) {
+          stmt.close();
+        }
+      } catch (SQLException ignored) {
+      }
+    }
+  }
+
   public int checkCaseIdExists(String caseId) throws Exception {
     Statement stmt = null;
     ResultSet resultSet = null;
