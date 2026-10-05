@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Test;
 import uk.gov.ons.census.fwmt.tests.acceptance.utils.NodeCheck;
@@ -25,7 +26,7 @@ class DelegatingMessagingTestClientTest {
     when(emulatorClient.getMessageCount("event_fieldwork_action-instruction")).thenReturn(7L);
     when(emulatorClient.getMessage("event_fieldwork_action-instruction", 5000, 250)).thenReturn("message-body");
     when(emulatorClient.getObservedMessage("event_fieldwork_action-instruction_internal", 5000, 250))
-        .thenReturn(new MessagingTestClient.ObservedMessage("typed-body", java.util.Map.of("caseId", "123")));
+        .thenReturn(new MessagingTestClient.ObservedMessage("typed-body", Map.of("caseId", "123")));
     when(emulatorClient.getMessageWithEventType("event_address-not-valid", "ADDRESS_NOT_VALID", 4000, 200))
         .thenReturn("typed-message");
     when(emulatorClient.getMessageWithEventType(
@@ -80,7 +81,7 @@ class DelegatingMessagingTestClientTest {
     when(gcpClient.getMessageCount("event_fieldwork_action-instruction")).thenReturn(3L);
     when(gcpClient.getMessage("event_fieldwork_action-instruction", 2000, 100)).thenReturn("gcp-message");
     when(gcpClient.getObservedMessage("event_fieldwork_action-instruction_internal", 2000, 100))
-        .thenReturn(new MessagingTestClient.ObservedMessage("gcp-observed", java.util.Map.of("eventType", "FIELDWORK_ACTION_INSTRUCTION")));
+        .thenReturn(new MessagingTestClient.ObservedMessage("gcp-observed", Map.of("eventType", "FIELDWORK_ACTION_INSTRUCTION")));
     when(gcpClient.getMessageWithEventType("event_refusal-received", "REFUSAL_RECEIVED", 3000, 150))
         .thenReturn("refusal-message");
     when(gcpClient.doMessagingPreFlightCheck()).thenReturn(preFlight);

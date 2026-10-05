@@ -21,6 +21,7 @@ import org.springframework.stereotype.Component;
 import com.google.common.base.Strings;
 
 import lombok.extern.slf4j.Slf4j;
+import uk.gov.ons.census.fwmt.tests.acceptance.messaging.ExternalActionInstructionMetadataOverride;
 import uk.gov.ons.census.fwmt.tests.acceptance.messaging.MessagingTestClient;
 import uk.gov.ons.census.fwmt.tests.acceptance.timing.PerformanceTimingRecorder;
 
@@ -117,7 +118,7 @@ public final class QueueClient {
   }
 
   public void publishExternalActionInstruction(
-      String message, uk.gov.ons.census.fwmt.tests.acceptance.messaging.ExternalActionInstructionMetadataOverride metadataOverride) {
+      String message, ExternalActionInstructionMetadataOverride metadataOverride) {
     messagingTestClient.publishExternalActionInstruction(message, metadataOverride);
   }
 

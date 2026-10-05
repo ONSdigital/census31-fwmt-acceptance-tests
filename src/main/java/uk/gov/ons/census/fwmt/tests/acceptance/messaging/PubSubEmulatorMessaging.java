@@ -2,6 +2,7 @@ package uk.gov.ons.census.fwmt.tests.acceptance.messaging;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.EnumMap;
 import java.util.Iterator;
@@ -168,7 +169,7 @@ public class PubSubEmulatorMessaging implements MessagingTestClient {
       List<PubSubEmulatorHttp.ReceivedPubSubMessage> batch = http().pull(lane.testSubscription(), 10, true);
       if (!batch.isEmpty()) {
         ObservedMessage matchedMessage = null;
-        List<String> ackIds = new java.util.ArrayList<>();
+        List<String> ackIds = new ArrayList<>();
         for (PubSubEmulatorHttp.ReceivedPubSubMessage received : batch) {
           ackIds.add(received.ackId());
           String eventType = parseEventType(received.data());
@@ -233,7 +234,7 @@ public class PubSubEmulatorMessaging implements MessagingTestClient {
         return count;
       }
       count += batch.size();
-      List<String> ackIds = new java.util.ArrayList<>(batch.size());
+      List<String> ackIds = new ArrayList<>(batch.size());
       for (PubSubEmulatorHttp.ReceivedPubSubMessage receivedMessage : batch) {
         ackIds.add(receivedMessage.ackId());
       }
