@@ -7,23 +7,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/local-test-env.sh"
 
 CENSUS31_FWMT_ROOT="${CENSUS31_FWMT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
-FWMT_PARENT_DIR="${FWMT_PARENT_DIR:-$CENSUS31_FWMT_ROOT/census31-fwmt-parent}"
+FWMT_COMMON_DIR="${FWMT_COMMON_DIR:-$CENSUS31_FWMT_ROOT/census31-fwmt-common}"
 
-if [[ ! -f "$FWMT_PARENT_DIR/pom.xml" ]]; then
-  echo "Missing census31-fwmt-parent POM: $FWMT_PARENT_DIR/pom.xml" >&2
+if [[ ! -f "$FWMT_COMMON_DIR/pom.xml" || ! -f "$FWMT_COMMON_DIR/census31-fwmt-common/pom.xml" ]]; then
+  echo "Missing census31-fwmt-common reactor POMs under $FWMT_COMMON_DIR" >&2
   exit 1
 fi
 
-echo "Installing census31-fwmt-parent BOM to local Maven repository"
-run_maven_in_repo "$FWMT_PARENT_DIR" -q install -N
-
-for lib in \
-  census31-fwmt-canonical \
-  census31-fwmt-common \
-  census31-fwmt-events \
-  census31-fwmt-storage-utils; do
-  echo "Installing $lib from $CENSUS31_FWMT_ROOT/$lib"
-  run_maven_in_repo "$CENSUS31_FWMT_ROOT/$lib" -q install -Dmaven.test.skip=true
-done
+echo "Installing census31-fwmt-common parent and library from $FWMT_COMMON_DIR"
+run_maven_in_repo "$FWMT_COMMON_DIR" -B install -Dmaven.test.skip=true
 
 echo "FWMT library artifacts installed to local Maven repository."

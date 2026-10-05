@@ -122,7 +122,7 @@ Migration history and topology reference:
 | `apply-podman-runtime-support.sh` | One-shot migration for older checkouts (usually not needed) |
 | `prepare-local-artifacts.sh` | Cached wrapper for Maven local installs |
 | `prepare-local-maven-artifacts.sh` | `census31-int-*` integration JARs |
-| `prepare-local-fwmt-libs.sh` | parent BOM + common, events, canonical, storage-utils -> `$HOME/.m2` |
+| `prepare-local-fwmt-libs.sh` | common parent + common library reactor -> `$HOME/.m2` |
 | `build-service.sh` / `build-services.sh` | Build service boot jars |
 | `start-services.sh` | Start tm-mock, job-service, outcome-service |
 | `stop-services.sh` / `restart-service.sh` | Stop or restart services |
