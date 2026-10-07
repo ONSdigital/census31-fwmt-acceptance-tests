@@ -27,10 +27,10 @@ Feature: Create Tests
       | CE     | CE Est  | T        | 12345678 | F           | CE EST     | SECCE_12345678 |
       | CE     | CE Est  | F        | 12345678 | F           | CE ESTWU   | 12345678       |
       | CE     | CE Est  | T        | 12345678 | F           | CE ESTWU   | SECCE_12345678 |
-      # | CE     | CE Unit | F        | 12345678 | T           | CE Unit-D  | 12345678       |
-      # | CE     | CE Unit | T        | 12345678 | T           | CE Unit-D  | SECCU_12345678 |
-      # | CE     | CE Unit | F        | 12345678 | F           | CE Unit-F  | 12345678       |
-      # | CE     | CE Unit | T        | 12345678 | F           | CE Unit-F  | SECCU_12345678 |
+      | CE     | CE Unit | F        | 12345678 | T           | CE Unit-D  | 12345678       |
+      | CE     | CE Unit | T        | 12345678 | T           | CE Unit-D  | SECCU_12345678 |
+      | CE     | CE Unit | F        | 12345678 | F           | CE Unit-F  | 12345678       |
+      | CE     | CE Unit | T        | 12345678 | F           | CE Unit-F  | SECCU_12345678 |
 
     @HH @Census27Test
     Examples: HH
@@ -67,3 +67,14 @@ Feature: Create Tests
   #     | Survey | Type    | IsSecure | HandDeliver | CaseRef  | SurveyType |
   #     | CE     | CE Unit | F        | T           | 12345678 | CE Site    |
   #     | CE     | CE Unit | F        | F           | 12345678 | CE Site    |
+
+
+  @CE @Census27Test
+  Scenario: CE Unit create uses existing expected response fields
+    Given a TM doesnt have a job with case ID "ad84d89f-d706-43d3-a13b-8c549e081a76" in TM
+    And a CE Unit-level case has been created in RM
+    And the case contains multiple expected responses
+    When the gateway processes the case creation request
+    Then a job is created in TM
+    And the TM job includes the expected response rate for the CE Unit
+    And the Establishment case includes the expected response number

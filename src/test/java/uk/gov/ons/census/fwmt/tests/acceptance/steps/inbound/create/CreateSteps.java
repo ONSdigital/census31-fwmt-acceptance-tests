@@ -52,6 +52,8 @@ public class CreateSteps {
   public static final String COMET_CLOSE_ACK = "COMET_CLOSE_ACK";
 
   public static final String COMET_REOPEN_ACK = "COMET_REOPEN_ACK";
+  
+  private static final String CE_UNIT_MULTI_RESPONSE_CASE_ID = "ad84d89f-d706-43d3-a13b-8c549e081a76";
 
   private String ceSpgEstabCreateJson = null;
 
@@ -64,6 +66,8 @@ public class CreateSteps {
   private String hhCreateJson = null;
 
   private GatewayEventDTO event_COMET_CREATE_PRE_SENDING;
+
+  private Case createdTmCase;
 
   @Autowired
   private QueueClient queueClient;
@@ -295,6 +299,68 @@ public class CreateSteps {
   public void sendReopenToQueue(String surveyType, String caseId) {
     boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, COMET_REOPEN_ACK, CommonUtils.TIMEOUT);
     assertThat(hasBeenTriggered).isTrue();
+  }
+
+  @Given("a CE Unit-level case has been created in RM")
+  public void aCeUnitLevelCaseHasBeenCreatedInRm() {
+    testBucket.put("caseId", CE_UNIT_MULTI_RESPONSE_CASE_ID);
+    testBucket.put("survey", "CE");
+    testBucket.put("type", "CE Unit");
+    testBucket.put("caseRef", "12345678");
+  }
+
+  @And("the case contains multiple expected responses")
+  public void theCaseContainsMultipleExpectedResponses() {
+    // Existing CE Unit fields used as aggregate expected-response representation
+    testBucket.put("expectedResponseRate", "2");
+    testBucket.put("expectedResponseNumber", "3");
+  }
+
+  @When("the gateway processes the case creation request")
+  public void theGatewayProcessesTheCaseCreationRequest() throws Exception {
+    String caseId = testBucket.get("caseId");
+    JSONObject json = new JSONObject(getCreateRMJson());
+    commonRMMessageObjects(json, caseId, testBucket.get("caseRef"), "F", "F", true, null);
+
+    json.put("ceActualResponses", Integer.parseInt(testBucket.get("expectedResponseRate")));
+    json.put("ceExpectedCapacity", Integer.parseInt(testBucket.get("expectedResponseNumber")));
+
+    queueClient.publishExternalActionInstruction(json.toString(4));
+    boolean requestReceived = gatewayEventMonitor.hasEventTriggered(caseId, RM_CREATE_REQUEST_RECEIVED, CommonUtils.TIMEOUT);
+    assertThat(requestReceived).isTrue();
+
+    theGatewaySendsACreateJobMessageToTM();
+  }
+
+  @Then("a job is created in TM")
+  public void aJobIsCreatedInTm() {
+    String caseId = testBucket.get("caseId");
+    boolean hasBeenTriggered = gatewayEventMonitor.hasEventTriggered(caseId, COMET_CREATE_ACK, CommonUtils.TIMEOUT);
+    assertThat(hasBeenTriggered).isTrue();
+
+    createdTmCase = tmMockUtils.getCaseById(caseId);
+    assertThat(createdTmCase).isNotNull();
+    assertEquals(caseId, createdTmCase.getId().toString());
+  }
+
+  @And("the TM job includes the expected response rate for the CE Unit")
+  public void theTmJobIncludesTheExpectedResponseRateForTheCeUnit() {
+    assertThat(createdTmCase).isNotNull();
+    assertThat(createdTmCase.getCe()).isNotNull();
+
+    int expectedRate = Integer.parseInt(testBucket.get("expectedResponseRate"));
+    assertEquals(expectedRate, createdTmCase.getCe().getActualResponses(),
+        "Expected response rate should map to CE actualResponses in TM");
+  }
+
+  @And("the Establishment case includes the expected response number")
+  public void theEstablishmentCaseIncludesTheExpectedResponseNumber() {
+    assertThat(createdTmCase).isNotNull();
+    assertThat(createdTmCase.getCe()).isNotNull();
+
+    int expectedNumber = Integer.parseInt(testBucket.get("expectedResponseNumber"));
+    assertEquals(expectedNumber, createdTmCase.getCe().getExpectedResponses(),
+        "Expected response number should map to CE expectedResponses in TM");
   }
 
   private String getCreateRMJson() {
