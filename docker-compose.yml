@@ -93,15 +93,10 @@ services:
         put_topic 'adapter-outbound-exchange'
         put_topic 'Outcome.Preprocessing.Exchange'
 
-<<<<<<< HEAD
-        put_sub 'event_action-instruction_fwmtg' 'event_fieldwork_action-instruction'
-        put_sub 'event_action-instruction_fwmtg-internal' 'event_fieldwork_action-instruction_internal'
-=======
         put_sub 'acceptance-tests-questionnaire-linked' 'event_questionnaire-linked'
         put_sub 'acceptance-tests-address-not-valid' 'event_address-not-valid'
-        put_sub 'job-service-fieldwork-action-instruction' 'event_fieldwork_action-instruction'
-        put_sub 'job-service-fieldwork-action-instruction-internal' 'event_fieldwork_action-instruction_internal'
->>>>>>> main
+        put_sub 'event_action-instruction_fwmtg' 'event_fieldwork_action-instruction'
+        put_sub 'event_action-instruction_fwmtg-internal' 'event_fieldwork_action-instruction_internal'
         put_sub 'job-service-GW-Transient-ErrorQ' 'GW.Transient.ErrorQ'
         put_sub 'job-service-GW-Permanent-ErrorQ' 'GW.Permanent.ErrorQ'
         put_sub_dlq 'outcome-service-Outcome-Preprocessing' 'Outcome.Preprocessing' 'Outcome.PreprocessingDLQ' '5'
