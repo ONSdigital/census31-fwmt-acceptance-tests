@@ -129,13 +129,13 @@ done
 if [[ "$INCLUDE_SERVICE_SUBSCRIPTIONS" == "true" ]]; then
   echo "FWMT_PUBSUB_INCLUDE_SERVICE_SUBSCRIPTIONS=true, creating service subscriptions as well"
   SERVICE_SUBS=(
-    "job-service-fieldwork-action-instruction:event_fieldwork_action-instruction"
-    "job-service-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
+    "event_action-instruction_fwmtg:event_fieldwork_action-instruction"
+    "event_action-instruction_fwmtg-internal:event_fieldwork_action-instruction_internal"
     "job-service-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
     "job-service-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
     "outcome-service-Outcome-PreprocessingDLQ:Outcome.PreprocessingDLQ"
     "outcome-service-events:events"
-    "fulfilment-event-service-fulfilment-request:event_fulfilment-request"
+    "event_fulfilment-request_fwmtg:event_fulfilment-request"
   )
 
   for pair in "${SERVICE_SUBS[@]}"; do

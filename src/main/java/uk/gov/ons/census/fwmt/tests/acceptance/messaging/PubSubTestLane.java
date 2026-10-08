@@ -12,12 +12,12 @@ public enum PubSubTestLane {
       "event_fieldwork_action-instruction",
       "event_fieldwork_action-instruction",
       "acceptance-tests-fieldwork-action-instruction",
-      "job-service-fieldwork-action-instruction"),
+      "event_action-instruction_fwmtg"),
   FIELDWORK_ACTION_INSTRUCTION_INTERNAL(
       "event_fieldwork_action-instruction_internal",
       "event_fieldwork_action-instruction_internal",
       "acceptance-tests-fieldwork-action-instruction-internal",
-      "job-service-fieldwork-action-instruction-internal"),
+      "event_action-instruction_fwmtg-internal"),
   OUTCOME_PREPROCESSING(
       "Outcome.Preprocessing",
       "Outcome.Preprocessing",
@@ -42,7 +42,7 @@ public enum PubSubTestLane {
       "event_fulfilment-request",
       "event_fulfilment-request",
       "acceptance-tests-fulfilment-request",
-      "fulfilment-event-service-fulfilment-request"),
+      "event_fulfilment-request_fwmtg"),
   ADDRESS_NOT_VALID(
       "event_address-not-valid",
       "event_address-not-valid",

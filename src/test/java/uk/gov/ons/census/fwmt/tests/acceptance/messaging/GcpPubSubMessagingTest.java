@@ -57,7 +57,7 @@ class GcpPubSubMessagingTest {
     assertThat(operations.drainedSubscriptions)
         .containsExactly(
         "acceptance-tests-fieldwork-action-instruction",
-        "job-service-fieldwork-action-instruction",
+        "event_action-instruction_fwmtg",
             "acceptance-tests-Outcome-PreprocessingDLQ",
             "outcome-service-Outcome-PreprocessingDLQ");
   }
