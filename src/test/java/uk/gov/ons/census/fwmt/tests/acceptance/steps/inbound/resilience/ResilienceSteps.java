@@ -35,9 +35,6 @@ public class ResilienceSteps {
   @Autowired
   private PerformanceTimingRecorder performanceTimingRecorder;
 
-
-  ObjectMapper mapper = new ObjectMapper();
-
   private static final String RM_CREATE_REQUEST_RECEIVED = "RM_CREATE_REQUEST_RECEIVED";
   private static final String RM_UPDATE_REQUEST_RECEIVED = "RM_UPDATE_REQUEST_RECEIVED";
   private static final String RM_CANCEL_REQUEST_RECEIVED = "RM_CANCEL_REQUEST_RECEIVED";
