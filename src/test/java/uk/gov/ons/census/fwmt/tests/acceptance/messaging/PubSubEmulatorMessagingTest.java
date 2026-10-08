@@ -163,7 +163,7 @@ class PubSubEmulatorMessagingTest {
     assertThat(http.drainedSubscriptions)
         .containsExactly(
             "acceptance-tests-fieldwork-action-instruction",
-            "job-service-fieldwork-action-instruction");
+            "event_action-instruction_fwmtg");
   }
 
   private static final class RecordingPubSubEmulatorHttp extends PubSubEmulatorHttp {
