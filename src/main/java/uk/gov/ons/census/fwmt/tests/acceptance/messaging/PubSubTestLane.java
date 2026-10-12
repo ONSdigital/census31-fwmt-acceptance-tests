@@ -9,13 +9,13 @@ import java.util.Optional;
 public enum PubSubTestLane {
 
   FIELDWORK_ACTION_INSTRUCTION(
-      "event_fieldwork_action-instruction",
-      "event_fieldwork_action-instruction",
+      "event_action-instruction",
+      "event_action-instruction",
       "acceptance-tests-fieldwork-action-instruction",
       "event_action-instruction_fwmtg"),
   FIELDWORK_ACTION_INSTRUCTION_INTERNAL(
-      "event_fieldwork_action-instruction_internal",
-      "event_fieldwork_action-instruction_internal",
+      "event_action-instruction_internal",
+      "event_action-instruction_internal",
       "acceptance-tests-fieldwork-action-instruction-internal",
       "event_action-instruction_fwmtg-internal"),
   OUTCOME_PREPROCESSING(

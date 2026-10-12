@@ -240,5 +240,5 @@ You can use `-n` with this mode to stop the script from adding `caseId` and `add
 ```
 
 ### Other topics
-There is a `-T` flag to specify a different Pub/Sub topic. The default is `event_fieldwork_action-instruction`, and `event_fieldwork_action-instruction_internal` is the supported internal-topic override for FWMT-owned producer checks.
+There is a `-T` flag to specify a different Pub/Sub topic. The default is `event_action-instruction`, and `event_action-instruction_internal` is the supported internal-topic override for FWMT-owned producer checks.
    

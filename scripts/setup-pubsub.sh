@@ -130,8 +130,8 @@ TOPICS=(
   "event_fulfilment-request"
   "event_address-not-valid"
   "event_questionnaire-linked"
-  "event_fieldwork_action-instruction"
-  "event_fieldwork_action-instruction_internal"
+  "event_action-instruction"
+  "event_action-instruction_internal"
   "GW.Permanent.ErrorQ"
   "GW.Transient.ErrorQ"
   "GW.ErrorQ"
@@ -151,8 +151,8 @@ done
 
 # Publisher only (no subscription): Gateway.Events.Exchange (events lib)
 SUBS=(
-  "event_action-instruction_fwmtg:event_fieldwork_action-instruction"
-  "event_action-instruction_fwmtg-internal:event_fieldwork_action-instruction_internal"
+  "event_action-instruction_fwmtg:event_action-instruction"
+  "event_action-instruction_fwmtg-internal:event_action-instruction_internal"
   "job-service-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
   "job-service-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
   "outcome-service-Outcome-Preprocessing:Outcome.Preprocessing"
@@ -178,8 +178,8 @@ ACCEPTANCE_TEST_SUBS=(
   "acceptance-tests-fulfilment-request:event_fulfilment-request"
   "acceptance-tests-address-not-valid:event_address-not-valid"
   "acceptance-tests-questionnaire-linked:event_questionnaire-linked"
-  "acceptance-tests-fieldwork-action-instruction:event_fieldwork_action-instruction"
-  "acceptance-tests-fieldwork-action-instruction-internal:event_fieldwork_action-instruction_internal"
+  "acceptance-tests-fieldwork-action-instruction:event_action-instruction"
+  "acceptance-tests-fieldwork-action-instruction-internal:event_action-instruction_internal"
   "acceptance-tests-GW-Transient-ErrorQ:GW.Transient.ErrorQ"
   "acceptance-tests-GW-Permanent-ErrorQ:GW.Permanent.ErrorQ"
   "acceptance-tests-Outcome-Preprocessing:Outcome.Preprocessing"

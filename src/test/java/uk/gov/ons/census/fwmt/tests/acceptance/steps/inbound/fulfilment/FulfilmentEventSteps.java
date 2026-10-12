@@ -22,7 +22,7 @@ public class FulfilmentEventSteps {
 
   private static final String FULFILMENT_REQUEST_TOPIC = "event_fulfilment-request";
   private static final String INTERNAL_ACTION_INSTRUCTION_LANE =
-      "event_fieldwork_action-instruction_internal";
+      "event_action-instruction_internal";
   private static final String DEFAULT_CHANNEL = "CC";
 
   private static final String PAUSE_PROCESSED_AND_SENT = "PAUSE_PROCESSED_AND_SENT";
