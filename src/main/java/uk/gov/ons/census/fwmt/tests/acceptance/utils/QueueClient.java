@@ -50,10 +50,10 @@ public final class QueueClient {
   private String jobServicePassword;
 
     private static final String FIELDWORK_ACTION_INSTRUCTION =
-      "event_fieldwork_action-instruction";
+      "event_action-instruction";
 
   private static final String FIELDWORK_ACTION_INSTRUCTION_INTERNAL =
-      "event_fieldwork_action-instruction_internal";
+      "event_action-instruction_internal";
 
   private static final String OUTCOME_PRE_PROCESSING = "Outcome.Preprocessing";
 

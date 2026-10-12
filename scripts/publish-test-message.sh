@@ -8,7 +8,7 @@ CE_DIR="${INPUT_ROOT}/ce"
 # Local-only static settings
 EMULATOR="localhost:8085"
 PROJECT="fwmt-local"
-TOPIC="event_fieldwork_action-instruction"
+TOPIC="event_action-instruction"
 
 TYPE=""
 RAW_JSON=""
@@ -33,7 +33,7 @@ Options:
                 - Fixture: -t HH_CREATE -f hhCreate.json
                 - Custom path: -t HH_CREATE -f ./my-msg.json or -t HH_CREATE -f /path/to/file.json
   -m JSON       Custom raw JSON payload (string, standalone - no -t needed)
-  -T TOPIC      Topic name (default: event_fieldwork_action-instruction)
+  -T TOPIC      Topic name (default: event_action-instruction)
   -c            Clear database tables before publishing (message_cache, quarantined_message, gateway_case_record)
   -n            No transformations: publish exact JSON as-is (skip adding caseId, addressLevel, oa, etc.)
                 - Use with -m to wrap exact payload without modifications
@@ -43,7 +43,7 @@ Examples:
   $(basename "$0") -t HH_CREATE
   $(basename "$0") -t CE_CREATE -f ceEstabCreate.json
   $(basename "$0") -c -t HH_CREATE
-  $(basename "$0") -t HH_CREATE -f ./my-msg.json -T event_fieldwork_action-instruction_internal -c
+  $(basename "$0") -t HH_CREATE -f ./my-msg.json -T event_action-instruction_internal -c
   $(basename "$0") -m '{"actionInstruction":"CREATE","surveyName":"CENSUS"}'
   $(basename "$0") -c
 EOF

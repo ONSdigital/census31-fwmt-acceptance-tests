@@ -60,8 +60,8 @@ class QueueClientTest {
       .contains("\"operationName\":\"queue-reset-drain-event_fulfilment-request\"")
       .contains("\"operationName\":\"queue-reset-drain-event_address-not-valid\"")
       .contains("\"operationName\":\"queue-reset-drain-event_questionnaire-linked\"")
-        .contains("\"operationName\":\"queue-reset-drain-event_fieldwork_action-instruction\"")
-        .contains("\"operationName\":\"queue-reset-drain-event_fieldwork_action-instruction_internal\"")
+        .contains("\"operationName\":\"queue-reset-drain-event_action-instruction\"")
+        .contains("\"operationName\":\"queue-reset-drain-event_action-instruction_internal\"")
         .contains("\"operationName\":\"queue-reset-drain-Outcome.Preprocessing\"")
         .contains("\"operationName\":\"queue-reset-drain-Outcome.PreprocessingDLQ\"")
         .contains("\"operationName\":\"queue-reset-resume-inbound-adapters\"");

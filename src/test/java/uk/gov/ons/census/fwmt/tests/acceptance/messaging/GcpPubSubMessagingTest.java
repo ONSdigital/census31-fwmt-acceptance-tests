@@ -34,7 +34,7 @@ class GcpPubSubMessagingTest {
     GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
 
     client.purge(
-      "event_fieldwork_action-instruction",
+      "event_action-instruction",
       "Outcome.Preprocessing",
       "event_refusal-received",
       "event_address-not-valid");
@@ -52,7 +52,7 @@ class GcpPubSubMessagingTest {
     RecordingPubSubOperations operations = new RecordingPubSubOperations();
     GcpPubSubMessaging client = new GcpPubSubMessaging(operations, true);
 
-    client.purge("event_fieldwork_action-instruction", "Outcome.PreprocessingDLQ");
+    client.purge("event_action-instruction", "Outcome.PreprocessingDLQ");
 
     assertThat(operations.drainedSubscriptions)
         .containsExactly(
@@ -70,7 +70,7 @@ class GcpPubSubMessagingTest {
     client.publishExternalActionInstruction(
       "{\"caseId\":\"123\",\"surveyName\":\"CENSUS\",\"actionInstruction\":\"CANCEL\"}");
 
-    assertThat(operations.publishedTopic).isEqualTo("event_fieldwork_action-instruction");
+    assertThat(operations.publishedTopic).isEqualTo("event_action-instruction");
     assertThat(operations.publishedBody)
       .isEqualTo("{\"caseId\":\"123\",\"surveyName\":\"CENSUS\",\"actionInstruction\":\"CANCEL\"}");
     assertThat(operations.publishedAttributes)
@@ -133,7 +133,7 @@ class GcpPubSubMessagingTest {
     GcpPubSubMessaging client = new GcpPubSubMessaging(operations, false);
 
     MessagingTestClient.ObservedMessage message =
-        client.getObservedMessage("event_fieldwork_action-instruction_internal", 100, 10);
+        client.getObservedMessage("event_action-instruction_internal", 100, 10);
 
     assertThat(message.body()).contains("PAUSE");
     assertThat(message.attributes())

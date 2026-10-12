@@ -25,7 +25,7 @@ class PubSubEmulatorMessagingTest {
         new PubSubEmulatorMessaging(http, new PerformanceTimingRecorder());
 
     MessagingTestClient.ObservedMessage observedMessage =
-        client.getObservedMessage("event_fieldwork_action-instruction_internal", 100, 10);
+        client.getObservedMessage("event_action-instruction_internal", 100, 10);
 
     assertThat(observedMessage.body()).contains("PAUSE");
     assertThat(observedMessage.attributes())
@@ -104,7 +104,7 @@ class PubSubEmulatorMessagingTest {
     client.publishExternalActionInstruction(
       "{\"caseId\":\"123\",\"surveyName\":\"CENSUS\",\"actionInstruction\":\"PAUSE\"}");
 
-    assertThat(http.publishedTopic).isEqualTo("event_fieldwork_action-instruction");
+    assertThat(http.publishedTopic).isEqualTo("event_action-instruction");
     assertThat(http.publishedBody)
       .isEqualTo("{\"caseId\":\"123\",\"surveyName\":\"CENSUS\",\"actionInstruction\":\"PAUSE\"}");
     assertThat(http.publishedAttributes)
