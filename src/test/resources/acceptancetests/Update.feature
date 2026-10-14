@@ -1,13 +1,13 @@
-@Update @Regression
+ @Update @Regression
 Feature: Update Tests
 
-  # Scenario Outline: As Gateway I can receive an update to a job requests from RM for an existing job
-  #   Given a TM doesnt have a job with case ID "bd6345af-d706-43d3-a13b-8c549e081a76" in TM
-  #   And RM sends a create job request with "<CaseRef>" "<Survey>" "<Type>" "<IsSecure>" "<HandDeliver>"
-  #   And RM sends an update case request for the case
-  #   When Gateway receives an update message for the case
-  #   Then it will update the job in TM
-  #   And the updated job is acknowledged by TM
+   Scenario Outline: As Gateway I can receive an update to a job requests from RM for an existing job
+     Given a TM doesnt have a job with case ID "bd6345af-d706-43d3-a13b-8c549e081a76" in TM
+     And RM sends a create job request with "<CaseRef>" "<Survey>" "<Type>" "<IsSecure>" "<HandDeliver>"
+     And RM sends an update case request for the case
+     When Gateway receives an update message for the case
+     Then it will update the job in TM
+     And the updated job is acknowledged by TM
 
   #   @SPG
   #   Examples: SPG
@@ -15,14 +15,14 @@ Feature: Update Tests
   #     | SPG CE | Unit | F        | 12345678 | F           |
   #     | SPG CE | Unit | F        | 12345678 | T           |
 
-  #   @CE
-  #   Examples: CE
-  #     | Survey | Type    | IsSecure | CaseRef  | HandDeliver |
-  #     | CE     | CE Est  | F        | 12345678 | T           |
-  #     | CE     | CE Est  | F        | 12345678 | F           |
-  #     | CE     | CE Unit | F        | 12345678 | T           |
-  #     | CE     | CE Unit | F        | 12345678 | F           |
-  #     | CE     | CE Unit | F        | 12345678 | F           |
+     @CE
+     Examples: CE
+       | Survey | Type    | IsSecure | CaseRef  | HandDeliver |
+       | CE     | CE Est  | F        | 12345678 | T           |
+       | CE     | CE Est  | F        | 12345678 | F           |
+       | CE     | CE Unit | F        | 12345678 | T           |
+       | CE     | CE Unit | F        | 12345678 | F           |
+       | CE     | CE Unit | F        | 12345678 | F           |
 
 
   # Scenario Outline: As Gateway I can receive a create CE Site job request from RM after a CE Estab has been processed
